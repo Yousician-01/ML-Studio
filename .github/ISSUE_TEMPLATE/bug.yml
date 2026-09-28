@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a reproducible problem, including a documentation defect.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ML Studio currently contains documentation, not a runnable application.
+        Do not upload confidential datasets, credentials, API keys, personal information, or sensitive data.
+        Use synthetic examples and redact logs/screenshots. Do not report vulnerabilities publicly; follow SECURITY.md.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What problem did you encounter?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include the document path or a minimal synthetic example as appropriate.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ML Studio version or commit
+      description: No releases exist yet; provide the commit if known, or say unknown.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, browser, runtime, and installation method where relevant; use not applicable for documentation.
+  - type: textarea
+    id: dataset
+    attributes:
+      label: Dataset characteristics
+      description: If relevant, describe approximate shape, column types, missingness, task, and target balance. Do not attach private data or sensitive values.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove secrets, private paths, dataset contents, and sensitive prompts before pasting.
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or additional context
+      description: Optional. Review images for sensitive information before uploading.

@@ -1,0 +1,49 @@
+name: Feature proposal
+description: Explain a problem and desired outcome before suggesting implementation.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read docs/prototype.md and ROADMAP.md before proposing scope changes.
+        Do not include confidential datasets, credentials, API keys, personal information, or sensitive data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is difficult or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: users
+    attributes:
+      label: Who experiences this problem?
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: Why it matters
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Example workflow
+      description: Describe a concrete scenario using synthetic details.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired outcome; implementation ideas are optional.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Explain how this fits prototype scope, or why a later milestone is appropriate.

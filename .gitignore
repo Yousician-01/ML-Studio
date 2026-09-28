@@ -1,0 +1,21 @@
+# Local secrets; retain a future documented example with dummy values.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Private local data and generated artifacts; synthetic fixtures belong elsewhere.
+/data/
+/datasets/
+/artifacts/
+/logs/
+*.log
+
+# Local editor / OS state.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*~
