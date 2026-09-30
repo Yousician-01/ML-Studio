@@ -1,59 +1,145 @@
 # Development
 
-## Repository status
+## Phase 0 status
 
-The [Prototype v0.1 domain specifications](specifications/project-v0.1.md) are
-complete enough to begin implementation. There is no runnable application,
-application dependency manifest, test suite, or verified launch command yet.
-The first implementation target is a thin Project → CSV → target → preprocessing
-→ Logistic Regression → generated Python → execution → persisted Run → metrics
-and historical Code slice. See the [roadmap](../ROADMAP.md).
+The foundation runs a FastAPI API, a Next.js shell, SQLite connectivity, and
+Alembic migrations. No Project, Dataset, Pipeline, Run, ML, or AI behavior exists
+yet. The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
-## Working approach
+Keep changes scoped, use mature libraries, preserve exact generated-source
+execution and training-only preprocessing in later phases, and validate behavior
+with meaningful tests. Follow [Contributing](../CONTRIBUTING.md). Vision explains
+why; Roadmap stages work; Prototype summarizes scope; Architecture explains the
+system; specifications govern contracts; ADRs preserve decisions; Issues track
+work; PRs record review; CHANGELOG records user-visible changes; Git records edits.
 
-Use the smallest change that validates the scoped product need. Prefer mature
-ML libraries and explicit reproducible state. Follow the authoritative
-[v0.1 specifications](specifications/project-v0.1.md), the current
-[architecture](architecture.md), and [ADRs](decisions/README.md). Preserve the
-single generated-Python execution path, training-only preprocessing fit, and
-immutable historical Run evidence.
+## Verified local setup
 
-The normal path is **Issue → branch → implementation → tests → PR → merge**.
-For documentation-only changes, validation means relevant document/form checks.
-For application behavior, include meaningful tests once code exists. Follow the
-lightweight [contribution workflow and commit convention](../CONTRIBUTING.md).
+The backend targets Python 3.12+. These commands were verified on Windows
+PowerShell using Python 3.14.2 and Node 24.13.0. The frontend requires Node 22.13+
+and npm; Node 24 is recommended. Other platforms were not exercised in Phase 0.
+No Docker or separate database service is needed.
 
-Keep the README approachable, use the prototype document for scope, architecture
-for current system direction, ADRs for durable reasoning, Issues for work,
-PRs for review, CHANGELOG for user-visible changes, and Git for exact history.
-Update documents alongside changes; do not create daily development diaries.
+From the repository root:
 
-## Local development — to be established
+```powershell
+python -m venv backend/.venv
+cd backend
+.venv/Scripts/python.exe -m pip install -e ".[dev]"
+```
 
-As implementation progresses, this section will own verified prerequisites,
-installation, environment configuration, startup, test/lint commands, a small
-synthetic example, and troubleshooting. Do not copy aspirational launch commands
-into working setup instructions. Add `.env.example` only when real configuration
-exists, using dummy values and documenting every variable.
+Run backend commands from `backend/`. Defaults work without an environment file.
+The optional [backend example](../backend/.env.example) lists settings; a local
+`.env` in the command's current directory is loaded, and environment variables
+take precedence. Never commit a real environment file.
 
-The current `.gitignore` excludes environment secrets and local private data
-directories. Future runtime-specific ignores should accompany the chosen tools.
-Deliberately contributed synthetic fixtures should live outside those private
-directories and be reviewed for privacy and licensing.
+Initialize the database, then start the backend:
 
-## Checks and CI plan
+```powershell
+.venv/Scripts/python.exe -m alembic upgrade head
+.venv/Scripts/python.exe -m alembic current
+.venv/Scripts/python.exe -m uvicorn mlstudio.main:create_app --factory --host 127.0.0.1 --port 8000
+```
 
-Currently review Markdown rendering and relative links, parse Issue Form YAML,
-and check consistency of feature status across the core docs. `git diff --check`
-can detect whitespace errors. No automated CI is configured yet, and no
-application tests are claimed to pass.
+The base migration reaches `0001_foundation (head)` and creates only Alembic's
+version table. There are no domain tables. Startup does not run migrations or
+call `metadata.create_all()`; Alembic owns schema evolution.
 
-When tooling is selected, add meaningful CI for formatting, linting, type checks,
-and tests. ML checks should cover split/preprocessing leakage, invalid Pipeline
-handling, seeded repeatability, tracking completeness, and proof that the exact
-persisted generated Python is the executed workload. Add dependency update
-configuration when manifests or workflows exist. Do not introduce speculative
-dependencies just to populate CI.
+In another terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
+```
+
+Expected response:
+`{"status":"ok","service":"ml-studio-api","database":"ready"}`.
+The endpoint checks SQLite with a trivial query. A query failure returns a
+sanitized HTTP 503, not internal paths or stack traces. Health proves database
+connectivity, not migration currency; use Alembic's current command for that.
+OpenAPI uses the package's `0.0.0` development metadata, not a published release.
+
+From `frontend/`:
+
+```powershell
+npm.cmd ci
+npm.cmd run dev
+```
+
+Open `http://127.0.0.1:3000`. Checking changes to Connected only after a valid
+live API/database response. Network failure, invalid responses, or a five-second
+timeout show Unavailable. Check again retries. The page remains usable with the
+backend stopped. `npm.cmd` avoids PowerShell systems that block `npm.ps1`; no
+execution-policy change is needed.
+
+The [frontend example](../frontend/.env.example) documents public
+`NEXT_PUBLIC_API_BASE_URL`, defaulting to `http://127.0.0.1:8000/api/v1`.
+It includes the API prefix and is embedded at build time. Restart development or
+rebuild production after changes. The browser calls FastAPI directly; CORS must
+allow the frontend origin.
+
+## Central configuration and runtime workspace
+
+| Setting | Default / behavior |
+| --- | --- |
+| `MLSTUDIO_APP_NAME` | `ML Studio` |
+| `MLSTUDIO_ENVIRONMENT` | `development`; also accepts `production` and `test` |
+| `MLSTUDIO_API_PREFIX` | `/api/v1`; update the frontend URL if changed |
+| `MLSTUDIO_HOME` | ML Studio's platform user-data directory, via platformdirs |
+| `MLSTUDIO_DATABASE_URL` | Optional absolute SQLite file URL; otherwise `mlstudio.db` under the workspace |
+| `MLSTUDIO_CORS_ORIGINS` | JSON array of `http://localhost:3000` and `http://127.0.0.1:3000`; no credentials or wildcard defaults |
+
+The default runtime workspace is outside the repository. Windows normally uses
+local application data; other systems follow platformdirs conventions. Resolving
+settings or importing the application creates no files. Lifespan or Alembic
+initialization creates required directories. For disposable validation, this
+override was verified before running migrations and starting the backend:
+
+```powershell
+$env:MLSTUDIO_HOME = Join-Path ([System.IO.Path]::GetTempPath()) ('mlstudio-phase0-' + [guid]::NewGuid().ToString())
+```
+
+Keep custom workspaces outside the repository. An explicit database URL takes
+precedence over the default database and must name an absolute synchronous SQLite
+file. Tests clear ambient ML Studio settings and use temporary directories rather
+than the developer's real workspace or local `.env`.
+
+Ignore rules protect environments, Python caches, Node modules, Next output,
+SQLite files, logs, and local artifacts. Example environments and synthetic CSV
+fixtures remain eligible for version control.
+
+## Verified checks
+
+From `backend/`:
+
+```powershell
+.venv/Scripts/python.exe -m ruff check .
+.venv/Scripts/python.exe -m ruff format --check .
+.venv/Scripts/python.exe -m pytest
+```
+
+Tests cover health, actual SQLite queries, workspace isolation, migrations,
+explicit CORS, invalid configuration, and sanitized database failures. The tested
+Starlette release emits an upstream deprecation warning for its supported httpx
+TestClient adapter; tests pass.
+
+From `frontend/`:
+
+```powershell
+npm.cmd run typecheck
+npm.cmd run lint
+npm.cmd run build
+```
+
+Next.js 16.3.8 and React 19.3.0 were resolved from npm's stable releases.
+TypeScript 6.0.3 is pinned because Next's typescript-eslint parser rejects 7.0.
+ESLint 9.39.5 is pinned because Next's React lint plugin fails with ESLint 10.11.0.
+npm labels ESLint 9 deprecated; revisit these tooling pins when upstream support
+lands. No lint rules are disabled to hide these failures. Next build does not
+run lint, so all three commands are required.
+
+Run `git diff --check` and inspect `git status` before committing. Phase 0 adds
+no CI, ML dependencies, or ML tests. Setup commands must stay backed by actual
+verification; do not document aspirational commands as working instructions.
 
 ## Manual GitHub setup
 
@@ -78,5 +164,5 @@ Before inviting public reports and contributions, maintainers should:
   for milestones; neither is necessary to contribute.
 
 No CODEOWNERS is supplied because ownership is not established. No Dependabot
-configuration is supplied because there are no dependency manifests or Actions.
+configuration is supplied in Phase 0.
 These settings are not activated by documentation and remain manual work.

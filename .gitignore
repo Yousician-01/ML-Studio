@@ -19,3 +19,24 @@
 Thumbs.db
 Desktop.ini
 *~
+
+# Phase 0 Python, Node, and local runtime state.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+/workspace/
+/.mlstudio/
+/backend/dist/

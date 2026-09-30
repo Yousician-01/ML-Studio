@@ -45,8 +45,8 @@ These illustrate future changes; they do not imply code exists today.
 ## Validation and documentation
 
 For documentation changes, check relative links, consistency of scope, Markdown
-rendering, and Issue Form YAML. Report checks actually performed; there is no
-application test command yet. Once code exists, include tests appropriate to
+rendering, and Issue Form YAML. Report checks actually performed using the
+[verified development commands](docs/development.md). Include tests appropriate to
 behavior changes, especially leakage prevention, validation, reproducibility,
 and proof that the exact persisted generated Python is executed. Preserve the
 complete fitted pipeline and immutable historical Run contracts. Explain
@@ -57,6 +57,6 @@ Update the authoritative document rather than duplicating its contents. Add an
 Use the [changelog](CHANGELOG.md) for user-visible changes, PRs for implementation
 discussion, and Git history for exact edits. Do not maintain daily diaries.
 
-The [development guide](docs/development.md) owns setup instructions and future
+The [development guide](docs/development.md) owns setup instructions and
 test commands. Contributions to project material are under the
 [Apache License 2.0](LICENSE); preserve third-party notices and attribution.

@@ -12,10 +12,11 @@ easier to understand, prepare, train on, and evaluate without hiding what ran.
 
 ## Status
 
-The Prototype v0.1 domain specifications are complete, and implementation is
-beginning. **There is no runnable application or release yet.** Setup instructions
-will be published only after they have been verified against an implemented
-workflow.
+The Prototype v0.1 domain specifications are complete. **Phase 0 is runnable:**
+a minimal Next.js shell calls the FastAPI health endpoint, which checks local
+SQLite access. Alembic initializes the database migration chain. There is no ML
+workflow or published release yet. Follow the verified
+[development setup](docs/development.md) to run the two local processes.
 
 ## Prototype v0.1
 
