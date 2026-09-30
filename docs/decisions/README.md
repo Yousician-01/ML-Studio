@@ -16,4 +16,4 @@ clarifications may be edited with normal Git history.
 
 | ADR | Status | Boundary |
 | --- | --- | --- |
-| [0001 — Use Pipeline IR](0001-use-pipeline-ir.md) | Accepted | Shared representation; schema not finalized |
+| [0001 — Use Pipeline IR](0001-use-pipeline-ir.md) | Accepted | Shared representation; concrete v0.1 schema later defined in the [Pipeline IR specification](../specifications/pipeline-ir-v0.1.md) |

@@ -2,22 +2,26 @@
 
 ## Repository status
 
-This is a documentation-only foundation. There are no application dependencies,
-runtime, test suite, environment variables, or local launch commands. The next
-work is Prototype Specification v0.1 and Pipeline IR v0.1 design, before
-implementation. See the [roadmap](../ROADMAP.md).
+The [Prototype v0.1 domain specifications](specifications/project-v0.1.md) are
+complete enough to begin implementation. There is no runnable application,
+application dependency manifest, test suite, or verified launch command yet.
+The first implementation target is a thin Project → CSV → target → preprocessing
+→ Logistic Regression → generated Python → execution → persisted Run → metrics
+and historical Code slice. See the [roadmap](../ROADMAP.md).
 
 ## Working approach
 
 Use the smallest change that validates the scoped product need. Prefer mature
-ML libraries and explicit reproducible state. Keep proposed technology distinct
-from accepted decisions; consult [architecture](architecture.md) and
-[ADRs](decisions/README.md).
+ML libraries and explicit reproducible state. Follow the authoritative
+[v0.1 specifications](specifications/project-v0.1.md), the current
+[architecture](architecture.md), and [ADRs](decisions/README.md). Preserve the
+single generated-Python execution path, training-only preprocessing fit, and
+immutable historical Run evidence.
 
 The normal path is **Issue → branch → implementation → tests → PR → merge**.
-For the current foundation, implementation means the documentation/configuration
-change and tests mean relevant document/form validation. Follow the lightweight
-[contribution workflow and commit convention](../CONTRIBUTING.md).
+For documentation-only changes, validation means relevant document/form checks.
+For application behavior, include meaningful tests once code exists. Follow the
+lightweight [contribution workflow and commit convention](../CONTRIBUTING.md).
 
 Keep the README approachable, use the prototype document for scope, architecture
 for current system direction, ADRs for durable reasoning, Issues for work,
@@ -26,7 +30,7 @@ Update documents alongside changes; do not create daily development diaries.
 
 ## Local development — to be established
 
-Once implementation begins, this section will own verified prerequisites,
+As implementation progresses, this section will own verified prerequisites,
 installation, environment configuration, startup, test/lint commands, a small
 synthetic example, and troubleshooting. Do not copy aspirational launch commands
 into working setup instructions. Add `.env.example` only when real configuration
@@ -41,19 +45,20 @@ directories and be reviewed for privacy and licensing.
 
 Currently review Markdown rendering and relative links, parse Issue Form YAML,
 and check consistency of feature status across the core docs. `git diff --check`
-can detect whitespace errors once changes are tracked by Git. No automated CI
-is configured in this bootstrap, and no application tests are claimed to pass.
+can detect whitespace errors. No automated CI is configured yet, and no
+application tests are claimed to pass.
 
 When tooling is selected, add meaningful CI for formatting, linting, type checks,
 and tests. ML checks should cover split/preprocessing leakage, invalid Pipeline
-handling, seeded repeatability, tracking completeness, and execution/generated
-Python parity. Add dependency update configuration when manifests or workflows
-exist. Do not introduce speculative dependencies just to populate CI.
+handling, seeded repeatability, tracking completeness, and proof that the exact
+persisted generated Python is the executed workload. Add dependency update
+configuration when manifests or workflows exist. Do not introduce speculative
+dependencies just to populate CI.
 
 ## Manual GitHub setup
 
-The workspace started without Git metadata or a remote. Publish it to the chosen
-owner/repository through the maintainer's normal process; no remote is assumed.
+The workspace began without a remote. Publish it to the chosen owner/repository
+through the maintainer's normal process; no remote is assumed by this guide.
 
 Before inviting public reports and contributions, maintainers should:
 

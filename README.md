@@ -2,67 +2,74 @@
 
 **Visual ML. Real code. Reproducible experiments.**
 
-ML Studio is an early-stage, open-source project for a local-first visual workspace
-for building, understanding, and experimenting with machine-learning systems while
-keeping access to the underlying Python.
+ML Studio is an open-source, local-first machine-learning workspace where visual
+operations, executable Python, experiments, and AI reasoning operate over the
+same reproducible ML pipeline. It aims to make an unfamiliar tabular Dataset
+easier to understand, prepare, train on, and evaluate without hiding what ran.
 
-Building a baseline in a notebook often means assembling data inspection,
-preprocessing, evaluation, and tracking yourself. ML Studio aims to make that
-workflow easier to understand and reproduce. It is not intended to become another
-opaque AutoML button.
+> Start visually. Understand everything. Drop into code whenever you need.
+> Never lose reproducibility.
 
 ## Status
 
-**Available now:** product scope, proposed architecture, an initial architectural
-decision, and contribution guidelines. There is no runnable application yet.
+The Prototype v0.1 domain specifications are complete, and implementation is
+beginning. **There is no runnable application or release yet.** Setup instructions
+will be published only after they have been verified against an implemented
+workflow.
 
-**Planned:** a CSV-to-baseline workflow for tabular classification and regression,
-with visual configuration, MLflow tracking, basic Run comparison, and readable
-generated Python. See the authoritative [prototype scope](docs/prototype.md).
+## Prototype v0.1
 
-The next step is **Prototype Specification v0.1 and Pipeline IR v0.1 design**,
-before application implementation. No releases or delivery dates are announced.
+The planned local workflow creates a Project, uploads one active CSV Dataset,
+explores the source, configures a Working Pipeline, trains a binary classifier,
+and inspects or compares historical Runs. The workspace areas are **Data,
+Explore, Prepare, Train, and Evaluate**, with **Runs** and **Code** as supporting
+views. The Working Pipeline can be incomplete while the user edits it; only a
+validated configuration can execute.
 
-## What we are validating
+The supported classifiers are Logistic Regression, Decision Tree Classifier,
+and Random Forest Classifier. Preparation includes compatible imputation,
+scaling, one-hot encoding, and explicit feature inclusion. Evaluation uses one
+train/test split and reports Accuracy, Precision, Recall, F1, a Confusion Matrix,
+and ROC-AUC when valid and available. Preprocessing learns only from training
+data.
 
-Can an unfamiliar tabular dataset become a correct, reproducible baseline ML
-Experiment more easily and understandably than with a manually assembled notebook?
+**Visual → Inspect → Extend** is the broader direction: configure visually,
+inspect the Python and experiment evidence, and eventually use explicit code
+extension points. In v0.1, generated Python is read-only and is the **actual ML
+workload executed** for a Run, not decorative export code. Current Working
+Pipeline Code is a preview; each historical Run keeps the exact generated source
+attempted for that Run. Runs preserve Dataset identity, configuration, results,
+and the complete fitted preprocessing-plus-classifier pipeline.
 
-The planned workflow moves through specialized **Benches**:
+ML Studio's local persistence design uses SQLite through SQLAlchemy, Alembic
+migrations, managed filesystem artifacts, joblib model serialization, and local
+MLflow tracking. ML Studio owns Project and Run truth; MLflow supports tracking.
+Stable IDs identify domain entities; storage paths do not.
 
-```text
-Create Project → Data → Explore → Feature Engineering → Train → Evaluate → Compare Experiments
-```
+Prototype v0.1 does not include regression, multiclass classification, XGBoost,
+arbitrary Python editing, AutoML, cross-validation, cloud execution, production
+serving, or multi-user collaboration. The planned AI Advisor follows the
+deterministic workflow; it is not part of the first implementation slice.
 
-Users would describe the problem, upload a CSV, inspect its schema, choose a target,
-configure preprocessing and a model, train, evaluate, compare Runs, and inspect
-generated Python.
+> An AI that understands your experiment—not merely your prompt.
 
-## Principles
+## Project documents
 
-- Visual-first, never visual-only: progress from **Visual → Inspect → Extend**.
-- Reproducibility: transformations belong to explicit Pipeline state.
-- ML correctness: prevent or explain leakage and other common mistakes.
-- AI advises; deterministic systems execute. Recommendations require user action.
-- Local-first: keep datasets on infrastructure you control.
-- Integrate mature OSS rather than rebuild ML infrastructure.
-
-Python extension points are a later consideration. Arbitrary visual ↔ Python
-synchronization is outside prototype scope.
-
-## Learn more and contribute
-
-- [Vision](VISION.md) — why this project exists
-- [Roadmap](ROADMAP.md) — milestones and open work
-- [Prototype](docs/prototype.md) — intended scope and success criteria
-- [Architecture](docs/architecture.md) and [decisions](docs/decisions/README.md)
-- [Development](docs/development.md) and [contributing](CONTRIBUTING.md)
-- [Code of Conduct](CODE_OF_CONDUCT.md), [security](SECURITY.md), and [changelog](CHANGELOG.md)
-
-Screenshots and a demo will be added when a working workflow exists.
-Installation instructions will live in the development guide once validated.
-
-## License
+- [Vision](VISION.md) explains the long-term product direction.
+- [Roadmap](ROADMAP.md) records staged work; [Prototype](docs/prototype.md)
+  summarizes the v0.1 scope; [Architecture](docs/architecture.md) explains the
+  frozen execution and persistence boundaries.
+- The authoritative v0.1 contracts cover [Project](docs/specifications/project-v0.1.md),
+  [Dataset](docs/specifications/dataset-v0.1.md),
+  [User Journey](docs/specifications/user-journey-v0.1.md),
+  [Pipeline IR](docs/specifications/pipeline-ir-v0.1.md),
+  [Run](docs/specifications/run-v0.1.md),
+  [Execution](docs/specifications/execution-v0.1.md),
+  [Code Generation](docs/specifications/code-generation-v0.1.md), and
+  [Persistence](docs/specifications/persistence-v0.1.md).
+- [ADRs](docs/decisions/README.md) preserve architectural decisions;
+  [Development](docs/development.md) and [Contributing](CONTRIBUTING.md) explain
+  the repository workflow. See [Security](SECURITY.md), the
+  [Code of Conduct](CODE_OF_CONDUCT.md), and the [Changelog](CHANGELOG.md).
 
 ML Studio is licensed under the [Apache License 2.0](LICENSE).
-The Code of Conduct includes its own standard attribution.

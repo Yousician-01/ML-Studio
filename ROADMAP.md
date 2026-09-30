@@ -2,24 +2,28 @@
 
 This is intended sequencing, not a delivery commitment. There are no release
 dates. Checked items exist; unchecked items are planned. The
-[prototype specification](docs/prototype.md) is authoritative for scope.
+[Prototype](docs/prototype.md) summarizes scope; the
+[v0.1 specifications](docs/specifications/project-v0.1.md) are authoritative.
 
-## v0.1 — Prototype Foundation
+## v0.1 — Local binary-classification prototype
 
-- [x] Repository documentation, contribution templates, and initial Pipeline IR ADR
-- [ ] Prototype Specification v0.1 and Pipeline IR v0.1 design — next work
-- [ ] Execution engine foundation driven by validated Pipeline IR
-- [ ] Project creation, CSV ingestion, schema inspection, and target selection
-- [ ] Dataset profiling and basic EDA
-- [ ] Basic preprocessing and reproducible splitting with essential leakage checks
-- [ ] Baseline classification/regression training and evaluation
-- [ ] MLflow integration and basic Run comparison
-- [ ] Readable generated Python with execution parity checks
-- [ ] AI Advisor prototype grounded in structured facts, with explicit user control
-- [ ] Verified local setup, example workflow, and prototype acceptance checks
+- [x] Repository foundation, contribution templates, and Pipeline IR ADR
+- [x] Prototype v0.1 domain specifications: Project, Dataset, User Journey,
+  Pipeline IR, Run, Execution, Code Generation, and Persistence
+- [ ] First end-to-end implementation slice: Create Project → Upload CSV → Select
+  target → Configure preprocessing → Select Logistic Regression → Generate Python
+  → Execute that exact Python → Persist Run and fitted model → Show metrics → Show
+  exact executed code
+- [ ] Expand the slice to the full frozen v0.1 scope: source exploration and
+  profiling, Decision Tree and Random Forest classifiers, supported preparation,
+  single-split evaluation, immutable Run history, two-Run comparison, current
+  Code preview, local MLflow tracking, and essential leakage/readiness checks
+- [ ] Verify local setup, synthetic example workflow, and prototype acceptance
+  checks against the implemented application
 
-Application work starts only after the specification and IR design are reviewed.
-The AI Advisor follows the deterministic workflow; no AI is implemented now.
+Implementation is the next milestone. Generated Python is the workload, with no
+separate hidden sklearn training path. The AI Advisor is broader product
+direction and is not required before the deterministic workflow works.
 
 ## v0.2 — Experimentation
 
@@ -29,12 +33,12 @@ The AI Advisor follows the deterministic workflow; no AI is implemented now.
 - [ ] Hyperparameter optimization, considering Optuna
 - [ ] Evaluate explicit Python extension points
 
-## Future / Exploration
+## Future / exploration
 
-MLOps (including possible Evidently integration), NLP, deep learning, and LLM
-experimentation are exploratory directions. They require separate scope decisions.
+Broader task types and model families, AI assistance, MLOps (including possible
+Evidently integration), NLP, deep learning, and LLM experimentation require
+separate scope decisions. They do not expand Prototype v0.1.
 
-Track actionable problems in GitHub Issues and implementation discussion in Pull
-Requests. Link significant decisions through [ADRs](docs/decisions/README.md),
-and record user-visible changes in the [changelog](CHANGELOG.md). Do not maintain
-a parallel daily development diary.
+Track actionable work in GitHub Issues and implementation discussion in Pull
+Requests. Record significant decisions through [ADRs](docs/decisions/README.md),
+user-visible changes in the [changelog](CHANGELOG.md), and exact history in Git.

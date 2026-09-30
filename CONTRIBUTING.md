@@ -1,9 +1,10 @@
 # Contributing to ML Studio
 
-ML Studio currently contains repository documentation and design direction, not
-an application. Useful contributions now include scope clarification, acceptance
-examples, and review of the upcoming Prototype Specification v0.1 and Pipeline
-IR v0.1. Read the [prototype](docs/prototype.md) before proposing implementation.
+ML Studio's Prototype v0.1 specifications are complete and implementation is
+beginning. Read the [prototype](docs/prototype.md), current
+[architecture](docs/architecture.md), and authoritative
+[v0.1 specifications](docs/specifications/project-v0.1.md) before proposing
+behavior changes. Keep work focused on the frozen binary-classification scope.
 
 ## Discuss a problem first
 
@@ -43,11 +44,13 @@ These illustrate future changes; they do not imply code exists today.
 
 ## Validation and documentation
 
-For current documentation changes, check relative links, consistency of scope,
-Markdown rendering, and Issue Form YAML. Report checks actually performed;
-there is no application test command yet. Once implementation exists, include
-tests appropriate to behavior changes, especially leakage prevention, validation,
-reproducibility, and generated-code parity. Explain untested cases honestly.
+For documentation changes, check relative links, consistency of scope, Markdown
+rendering, and Issue Form YAML. Report checks actually performed; there is no
+application test command yet. Once code exists, include tests appropriate to
+behavior changes, especially leakage prevention, validation, reproducibility,
+and proof that the exact persisted generated Python is executed. Preserve the
+complete fitted pipeline and immutable historical Run contracts. Explain
+untested cases honestly.
 
 Update the authoritative document rather than duplicating its contents. Add an
 [ADR](docs/decisions/README.md) for significant architectural/product decisions.

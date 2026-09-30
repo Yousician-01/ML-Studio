@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        ML Studio currently contains documentation, not a runnable application.
+        ML Studio is under active early development. Identify the release or commit where the behavior occurred, if known.
         Do not upload confidential datasets, credentials, API keys, personal information, or sensitive data.
         Use synthetic examples and redact logs/screenshots. Do not report vulnerabilities publicly; follow SECURITY.md.
   - type: textarea
@@ -38,7 +38,7 @@ body:
     id: version
     attributes:
       label: ML Studio version or commit
-      description: No releases exist yet; provide the commit if known, or say unknown.
+      description: Provide the release or commit if known, or say unknown.
     validations:
       required: true
   - type: textarea

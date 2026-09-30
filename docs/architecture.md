@@ -1,127 +1,104 @@
-# Proposed architecture
+# Architecture — Prototype v0.1
 
-**Status:** design direction only. No components are implemented. The decision to
-use a Pipeline IR is [accepted](decisions/0001-use-pipeline-ir.md); its exact schema
-and the rest of the technology choices remain open.
+**Status:** frozen design direction for implementation; no application
+components are implemented yet. [ADR 0001](decisions/0001-use-pipeline-ir.md)
+establishes Pipeline IR, and the [v0.1 specifications](specifications/project-v0.1.md)
+define the current contracts. Prefer the smallest local application that
+validates the [prototype](prototype.md), without speculative services.
 
-```mermaid
-flowchart TD
-    UI[Frontend / Benches] --> API[API]
-    API --> P[Project / Pipeline layer]
-    P --> IR[Pipeline IR]
-    IR --> V[Deterministic validation / Pipeline Critic]
-    V --> E[Execution engine]
-    E --> ML[ML libraries]
-    IR --> G[Generated Python]
-    IR --> T[MLflow tracking]
-    E --> T
-    T --> C[Run comparison]
-    IR --> A[AI Advisor context]
-    T --> A
-    A --> R[Recommendations for user review]
-    R --> UI
-```
-
-This diagram describes responsibilities, not separate deployed services. Prefer
-the simplest local application that validates the product. No Redis, Celery,
-Kafka, Kubernetes, or microservice architecture is currently justified.
-
-## Shared representation and execution
-
-Benches should produce explicit Pipeline operations rather than independently
-mutating datasets. The Project/Pipeline layer should own validated state and
-coordinate execution. Dataset identity, ordered transformations, split semantics,
-column roles, seeds, and versioning need deliberate IR design. No JSON example
-is a finalized contract.
-
-The execution engine should map supported operations to mature ML libraries.
-Fit preprocessing only on training data, then apply the fitted transformations
-to held-out data. Validation should cover the correctness risks in the
-[prototype](prototype.md). Execution and generated Python must derive from the
-same Pipeline semantics and be checked for parity.
-
-One-way generation of managed Python is the early transparency model. Readable,
-independently runnable code is the objective; arbitrary Python parsing and
-visual round trips are out of scope. Explicit extension points may come later.
-
-## Technology direction
-
-| Responsibility | Proposed direction | Decision state |
-| --- | --- | --- |
-| Frontend | React/Next.js, TypeScript | Framework and packaging unselected |
-| API and validation | Python, FastAPI, Pydantic | Proposed; no dependencies installed |
-| Dataframes and ML | pandas or equivalent, scikit-learn, XGBoost | Intended ecosystem; versions unselected |
-| Experiment tracking | MLflow | Intended prototype integration; storage/topology open |
-| Optimization | Optuna | Later, outside initial baseline work |
-
-Project persistence, file layout, background execution lifecycle, cancellation,
-dataset versioning, resource limits, local packaging, and container strategy
-remain open. An eventual `docker compose up` experience is a goal, not a working
-command. Choose infrastructure only after identifying a concrete requirement.
-
-## Experiment tracking versus application logging
-
-Application logs answer **“Why did this operation fail?”** MLflow answers
-**“What happened during this ML Experiment?”** Neither replaces the other.
-
-MLflow should record Run ID, dataset identity/version, Pipeline configuration,
-model, hyperparameters, random seed, metrics, artifacts, relevant plots, and
-environment/version information. Comparison should use this recorded state.
-Do not build a custom tracker unless a future ADR changes this direction.
-Artifact content, access, retention, and dataset availability need explicit design.
-
-Application logging should eventually be structured, using events such as:
+## Domain and execution flow
 
 ```text
-project_created          dataset_uploaded        dataset_profiled
-pipeline_updated         pipeline_validation_failed
-training_started         training_completed      training_failed
-experiment_logged        ai_request_started      ai_request_completed
-ai_request_failed
+Project
+├── active Dataset (zero or one)
+├── mutable Working Pipeline IR
+└── historical Runs
+
+Dataset + Working Pipeline IR
+        ↓
+Validator
+        ↓
+Effective Execution Plan
+        ↓
+Code Generator
+        ↓
+Exact Generated Python Artifact
+        ↓
+Local Subprocess Executor
+        ↓
+Structured Results + Fitted Model + Logs
+        ↓
+Run Finalization
+        ↓
+ML Studio Persistence + separate MLflow Tracking
 ```
 
-Use correlation identifiers to connect operations and Runs. Logs must not
-casually include raw dataset rows, credentials, API keys, authorization headers,
-connection strings, uploaded file contents, sensitive feature values, or complete
-AI prompts containing sensitive data. Error payloads and artifacts need the same
-care as normal messages.
+The Working Pipeline IR is canonical editable experiment intent. It may be
+incomplete, invalid, or stale after Dataset changes. Validation resolves
+execution readiness against the immutable Dataset and semantic context; it does
+not silently rewrite intent. The effective plan contains resolved operations,
+classes, split settings, and model parameters for the workload. The generator
+renders that plan as human-readable Python using mature public ML libraries.
 
-AI telemetry should prefer provider, model, latency, token usage, request ID,
-and success/failure metadata. These are design requirements, not implemented
-redaction guarantees.
+**Generated Python is the actual data-science workload.** The executor launches
+the exact source frozen for the Run; it does not independently rebuild and fit a
+second sklearn pipeline. Generated code loads the Dataset, excludes only missing
+target rows, splits before fitting preprocessing, constructs the complete
+preprocessing-plus-classifier pipeline, fits on training data, evaluates held-out
+data, and emits a structured result and fitted model. No learned transform uses
+held-out data to fit. Current Working Pipeline Code is a preview; historical Code
+reads the persisted source attempted for that Run, never a new rendering.
 
-## AI boundaries
+The ML Studio orchestrator owns process launch, Run lifecycle, stdout/stderr
+capture, result validation, artifact finalization, persistence coordination,
+and MLflow synchronization. Validation/generation failure before the frozen
+package exists creates no Run. Once a Run is created, launch or workload failure
+is recorded as FAILED. A successful Run requires valid local results and
+artifacts; MLflow failure alone does not make it fail.
 
-The AI Advisor's structured context may include problem statement, task, target,
-dataset schema, semantic feature types, profiling results, current Pipeline,
-preprocessing, model, hyperparameters, previous Runs, evaluation results, and
-deterministic warnings. Raw rows are not needed by default.
+## Local persistence and tracking
 
-The intended roles are Advisor, Critic, and Teacher. Recommendations should
-include reason, evidence, confidence, and alternatives. An AI critique is
-advisory; the deterministic Pipeline Critic remains authoritative for execution
-validation. No AI output may silently change state or bypass validation.
+```text
+Domain metadata and current state  → SQLite through SQLAlchemy
+Schema evolution                   → Alembic
+Source Datasets and Run artifacts  → managed local filesystem
+Complete fitted model             → joblib
+Experiment tracking               → local MLflow
+```
 
-Provider choice, context filtering, explicit consent for remote data sharing,
-and unavailable-provider behavior remain undecided. Core execution should remain
-usable without AI. An Experimenter capability is future exploration only.
+A configurable ML Studio workspace root groups the SQLite database, Project
+artifacts, and local MLflow storage outside the source repository by default.
+Stable Project, Dataset, and Run IDs establish identity; paths locate bytes. A
+Project has at most one active Dataset, while retained Runs keep references to
+their original immutable sources. A Run freezes configured IR, effective plan,
+semantic context, exact generated source, and relevant provenance before its
+workload begins. The generated source artifact is the file the executor attempts
+to run. Model and result artifacts are validated and finalized before SUCCEEDED.
 
-## Local execution boundary
+ML Studio's database is authoritative for Projects, Runs, lifecycle, and artifact
+references. MLflow tracks parameters, metrics, provenance, and artifacts as a
+separate integration; Projects and Runs are not reconstructed by crawling it.
+Tracking state can be repaired without rewriting historical experiment facts.
+SQLAlchemy and normal transaction discipline avoid needless SQLite coupling so
+PostgreSQL remains a future hosted/multi-user migration path, not a v0.1
+dependency. No remote MLflow, cloud storage, Docker, Redis, or distributed queue
+is required by this architecture.
 
-Workloads inherit the permissions of their local runtime/container. No sandbox
-is implemented or promised, and this is not a secure multi-tenant execution
-platform. Keep development instances off untrusted networks. See
-[security assumptions and reporting](../SECURITY.md).
+## Product boundaries and later AI
 
-## Vocabulary
+The v0.1 task is binary classification on CSV with a single train/test split,
+three curated classifiers, and a narrow preprocessing vocabulary. Data, Explore,
+Prepare, Train, and Evaluate form the user workspace; Runs and Code support
+inspection. Arbitrary user Python, reverse parsing, regression, multiclass,
+XGBoost, HPO, deployment, and multi-user execution are outside v0.1.
 
-| Term | Meaning in these documents |
-| --- | --- |
-| Project | Problem statement, task, target/objective, and related work |
-| Bench | Specialized workspace for a stage of the workflow |
-| Pipeline | Explicit, reproducible sequence/configuration of ML operations |
-| Pipeline IR | Structured representation shared across Pipeline consumers |
-| Run | One execution of a configured Pipeline |
-| Experiment | Related Runs used to investigate a Project question; exact grouping remains open |
-| AI Advisor | Advisory explanations grounded in structured Project facts |
-| Pipeline Critic | Planned deterministic correctness checks and warnings |
+The broader AI Advisor may later consume structured Project, Dataset, Pipeline,
+validation, and Run facts to explain suggestions. It is not in the first
+deterministic implementation slice and cannot silently edit state or override
+validation. Core execution works without AI. Source rows and secrets are not
+ordinary logging or AI-context material.
+
+Local workloads inherit their runtime permissions; no sandbox or secure
+multi-tenant isolation is promised. See [Security](../SECURITY.md). Concrete
+framework selection, setup commands, and test tooling belong to implementation,
+not to this architecture summary.
