@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
     home: Path = Field(default_factory=lambda: user_data_path("ML Studio", appauthor=False))
     database_url: str | None = None
+    max_csv_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     @field_validator("home")

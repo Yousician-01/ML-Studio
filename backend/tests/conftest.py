@@ -1,8 +1,10 @@
 from pathlib import Path
 
 import pytest
+from alembic.config import Config
 from fastapi.testclient import TestClient
 
+from alembic import command
 from mlstudio.core.config import Settings
 from mlstudio.main import create_app
 
@@ -25,5 +27,8 @@ def settings() -> Settings:
 
 @pytest.fixture
 def client(settings: Settings):
+    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    config.attributes["settings"] = settings
+    command.upgrade(config, "head")
     with TestClient(create_app(settings)) as client:
         yield client

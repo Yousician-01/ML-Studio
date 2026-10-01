@@ -80,7 +80,11 @@ def test_migrations_on_fresh_database(settings: Settings):
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
             assert revision == ScriptDirectory.from_config(config).get_current_head()
-            assert inspect(connection).get_table_names() == ["alembic_version"]
+            assert inspect(connection).get_table_names() == [
+                "alembic_version",
+                "datasets",
+                "projects",
+            ]
         command.upgrade(config, "head")  # Re-running is safe.
         command.downgrade(config, "base")
         command.upgrade(config, "head")

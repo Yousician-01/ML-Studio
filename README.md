@@ -12,10 +12,11 @@ easier to understand, prepare, train on, and evaluate without hiding what ran.
 
 ## Status
 
-The Prototype v0.1 domain specifications are complete. **Phase 0 is runnable:**
-a minimal Next.js shell calls the FastAPI health endpoint, which checks local
-SQLite access. Alembic initializes the database migration chain. There is no ML
-workflow or published release yet. Follow the verified
+The Prototype v0.1 domain specifications are complete. **Phase 1 implements
+Projects and CSV Dataset ingestion:** create a local Project, inspect source
+columns and preview rows, override semantic types, and select a binary target.
+SQLite preserves configuration, and managed source artifacts survive replacement.
+Exploration and ML execution are not implemented yet. Follow the verified
 [development setup](docs/development.md) to run the two local processes.
 
 ## Prototype v0.1

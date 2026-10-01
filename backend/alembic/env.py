@@ -1,4 +1,5 @@
 from alembic import context
+from mlstudio import models  # noqa: F401 -- register domain metadata for migration comparison
 from mlstudio.core.config import Settings
 from mlstudio.db.base import Base
 from mlstudio.db.session import create_database_engine

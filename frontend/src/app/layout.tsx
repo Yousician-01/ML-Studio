@@ -6,6 +6,27 @@ export const metadata: Metadata = {
   description: "Visual ML. Real code. Reproducible experiments.",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en">
+      <body>
+        <div className="shell">
+          <header>
+            <span className="mark" aria-hidden="true">
+              M
+            </span>
+            <span>ML Studio</span>
+            <span className="local">Local workspace</span>
+          </header>
+          {children}
+          <footer>
+            ML Studio{" "}
+            <span>Visual ML. Real code. Reproducible experiments.</span>
+          </footer>
+        </div>
+      </body>
+    </html>
+  );
 }
