@@ -1,3 +1,5 @@
+import type { Profile } from "./profiles";
+
 export const semanticTypes = [
   "continuous",
   "categorical",
@@ -66,6 +68,15 @@ const baseUrl = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"
 ).replace(/\/$/, "");
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   const timeout = AbortSignal.timeout(options.method ? 120000 : 30000);
@@ -82,19 +93,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       throw new Error(
         "The request timed out. Reload the workspace before retrying; a save may have completed.",
       );
-    throw new Error(
+    throw new ApiError(
       "The API could not be reached. Check that the local backend is running, then retry.",
+      0,
     );
   }
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(
+    throw new ApiError(
       typeof body?.detail === "string"
         ? body.detail
         : `Request failed (${response.status}). Check your input and retry.`,
+      response.status,
     );
   }
-  return response.json() as Promise<T>;
+  return response.status === 204
+    ? (undefined as T)
+    : (response.json() as Promise<T>);
 }
 const json = (method: string, body: unknown): RequestInit => ({
   method,
@@ -104,6 +119,21 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
+  deleteProject: (id: string, revision: number) =>
+    request<void>(projectPath(id) + `?revision=${revision}`, {
+      method: "DELETE",
+    }),
+  profile: (
+    id: string,
+    dataset: Pick<Dataset, "id" | "revision">,
+    offset: number,
+    signal?: AbortSignal,
+  ) =>
+    request<Profile>(
+      projectPath(id) +
+        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}`,
+      { signal },
+    ),
   projects: (signal?: AbortSignal) =>
     request<Project[]>("/projects", { signal }),
   project: (id: string, signal?: AbortSignal) =>

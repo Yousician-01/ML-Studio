@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { ProjectInput } from "@/lib/api/projects";
+import { Alert, Button } from "./ui";
 
 export function ProjectForm({
   initial,
@@ -83,14 +84,10 @@ export function ProjectForm({
         <p>
           ML objective <strong className="badge">Binary Classification</strong>
         </p>
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
-        )}
-        <button className="primary" type="submit">
+        {error && <Alert>{error}</Alert>}
+        <Button variant="primary" type="submit">
           {busy ? "Saving…" : submitLabel}
-        </button>
+        </Button>
       </fieldset>
     </form>
   );

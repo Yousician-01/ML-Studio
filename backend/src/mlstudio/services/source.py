@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 import pandas as pd
-from pandas.api.types import is_bool_dtype, is_integer_dtype, is_numeric_dtype
+from pandas.api.types import is_bool_dtype, is_float_dtype, is_integer_dtype, is_numeric_dtype
 
 PREVIEW_LIMIT = 20
 
@@ -45,6 +45,33 @@ def parse_source(path: Path) -> pd.DataFrame:
         frame = pd.read_csv(path, encoding="utf-8-sig", low_memory=False)
         if len(frame) != count or list(frame.columns) != header:
             raise DomainError("CSV parsing did not preserve the complete header and row structure.")
+        # Default pandas inference promotes nullable integers to float64, which
+        # can merge large target classes before JSON serialization sees them.
+        # Re-read only precision-risk columns as tokens; actual floating-point
+        # columns keep their usual interpretation.
+        risky = [
+            name
+            for name in frame
+            if (is_float_dtype(frame[name].dtype) and frame[name].abs().gt(2**53 - 1).any())
+            or (
+                not is_numeric_dtype(frame[name].dtype)
+                and frame[name].astype("string").str.fullmatch(r"[+-]?\d{16,}").any()
+            )
+        ]
+        if risky:
+            tokens = pd.read_csv(path, encoding="utf-8-sig", usecols=risky, dtype="string")
+            for name in risky:
+                observed = tokens[name].dropna()
+                if not observed.empty and observed.str.fullmatch(r"[+-]?\d+").all():
+                    values = [None if pd.isna(value) else int(value) for value in tokens[name]]
+                    integers = [value for value in values if value is not None]
+                    if min(integers) >= -(2**63) and max(integers) < 2**63:
+                        frame[name] = pd.array(values, dtype="Int64")
+                    elif min(integers) >= 0 and max(integers) < 2**64:
+                        frame[name] = pd.array(values, dtype="UInt64")
+                    else:
+                        # Python integers remain lossless even beyond NumPy's range.
+                        frame[name] = pd.Series(values, dtype=object)
         return frame
     except (UnicodeError, csv.Error, pd.errors.ParserError, pd.errors.EmptyDataError, ValueError):
         raise DomainError(

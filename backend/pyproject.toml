@@ -16,6 +16,7 @@ dependencies = [
   "alembic>=1.14,<2",
   "platformdirs>=4.3,<5",
   "pandas>=2.2,<4",
+  "numpy>=2,<3",
   "python-multipart>=0.0.20,<1",
 ]
 

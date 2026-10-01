@@ -1,12 +1,14 @@
 # Development
 
-## Phase 1 status
+## Implemented workflow
 
 The application supports Project creation and metadata editing, managed CSV
 ingestion/replacement, source summaries and previews, semantic overrides, and
 binary target selection. SQLite stores domain metadata; immutable source files
-live in the managed workspace. Explore, Pipeline IR, preprocessing, training,
-Runs, generated code, MLflow, and AI are not implemented.
+live in the managed workspace. Phase 1.5 adds a shared visual foundation,
+contextual validation, and permanent Project deletion. Phase 2 implements
+deterministic source exploration. Pipeline IR, preprocessing, training, Runs,
+generated code, MLflow, and AI are not implemented.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
@@ -130,6 +132,12 @@ and its default missing tokens (including empty fields, `NA`, `N/A`, `NULL`, and
 boolean parsing follows pandas; dates stay source strings. The parsing convention
 `csv-utf8-v1` and installed pandas version are recorded with each Dataset.
 Physical dtypes describe this parsed representation, not declarations in CSV.
+Precision-risk integer columns are re-read as tokens and stored in pandas nullable
+Int64/UInt64 arrays so missing cells cannot force rounding through float64.
+Integers beyond NumPy's range use exact Python integers in an object column.
+If a Dataset was ingested before this precision fix with large integer labels and
+missing cells, re-upload its unchanged source to refresh cached schema/profile
+metadata. The fix does not rewrite previously persisted observations or source bytes.
 
 The source limit defaults to 50 MiB; the request stream is also capped at that
 limit plus 1 MiB of multipart overhead before unbounded temporary spooling can
@@ -189,7 +197,7 @@ carry those exclusions forward. Phase 1 provides no feature inclusion editor.
 Dataset replacement resets target/transition context and starts with fresh
 schema inference and no overrides; it retains old metadata and artifacts.
 
-## Phase 1 API and metadata
+## API and metadata
 
 All routes below are under `/api/v1`; `/docs` exposes typed OpenAPI contracts.
 
@@ -199,9 +207,11 @@ All routes below are under `/api/v1`; `/docs` exposes typed OpenAPI contracts.
 | `GET /projects` | List Projects by latest update |
 | `GET /projects/{id}` | Retrieve Project; unknown IDs return 404 |
 | `PATCH /projects/{id}` | Update name, description, problem statement, success context |
+| `DELETE /projects/{id}?revision=N` | Permanently delete the Project and its managed sources; HTTP 204; stale revision returns 409 |
 | `POST /projects/{id}/dataset` | Multipart `file`; replacement requires `expected_dataset_id` matching the active Dataset; HTTP 201 |
 | `GET /projects/{id}/dataset` | Summary, column interpretation, target classes, limited source preview |
 | `PATCH /projects/{id}/dataset` | Supply current `dataset_id` and Project `revision`; set `semantic_overrides` by column name and/or `target_column` |
+| `GET /projects/{id}/dataset/profile?dataset_id=UUID&revision=N&offset=0` | Bounded source profile for the current Dataset/configuration; stale requests return 409 |
 
 Omit `target_column` to leave it unchanged; send null to clear it. An override
 value of null restores inference. Stale configuration or unconfirmed replacement
@@ -214,6 +224,63 @@ one table per column. Project's composite active-Dataset foreign key enforces
 same-Project ownership, and Dataset's owner foreign key requires a real Project.
 SQLite foreign keys are enabled on every connection. No raw rows, Pipeline IR,
 or Run records are added by this phase.
+
+## Source exploration and deletion
+
+Explore reads the fingerprint-verified immutable source using the ingestion parser.
+Profiles are computed on demand over the full source, not the 20-row preview.
+Explore requests its structured profile directly from the Project snapshot; it
+does not fetch Data's unused raw preview on navigation or refresh.
+No profile cache or raw values are persisted in SQLite. Responses identify the
+Dataset, fingerprint, Project revision, and `source-profile-v1` calculation version.
+The server checks identity/revision before and after computation. The UI aborts
+obsolete requests, remounts on a new snapshot, and refreshes on navigation,
+explicit Refresh, or return from another browser tab. It does not poll for edits
+made by another client while the page remains active.
+Automatic focus refresh applies only to Explore, preserving Data's file selection
+when the native file picker closes.
+
+Profile limits and conventions:
+
+- 20 columns per page; 10 categorical values by descending frequency, with ties
+  in first-source-occurrence order. Remaining observations are counted as Other.
+  Categorical labels beyond 120 characters are visibly shortened; target labels
+  are never shortened or numerically coerced. Missing values are separate.
+- Continuous/unknown columns with numeric physical dtype receive summaries.
+  Quartiles use linear interpolation; standard deviation is the sample statistic.
+  Boxplot whiskers are observed values within 1.5 IQR, with an outlier count;
+  an interpolated quartile is the endpoint when no in-fence observation extends
+  beyond that side of the box (small/skewed samples).
+  Histograms use up to 10 equal-width bins over observed min/max; repeated edges
+  collapse at floating-point precision and constant data uses one bin.
+- Unsafe integers retain exact tagged extrema; float summaries/charts are
+  explicitly unavailable rather than rounded. Overflowing summaries are also
+  unavailable. All-missing, constant, and insufficient observations are explicit.
+- Pearson correlation uses the first 12 continuous numeric feature candidates
+  in source order, pairwise complete observations, and a displayed pair count.
+  Targets, excluded columns, and categorical/identifier columns are omitted.
+  Constant, insufficient, or unsafe-integer pairs return null rather than zero.
+- High cardinality means at least 20 distinct values and at least 50% uniqueness
+  among non-missing observations for discrete, text, or identifier columns.
+  Duplicate counts exclude the first identical row. Class proportions and
+  identifier flags are observations, not preprocessing recommendations.
+
+NumPy is now a direct backend dependency for numeric summaries and correlation;
+pandas remains responsible for parsing and source observations. Charts use native
+HTML/SVG with readable tables and labels, without a chart framework.
+
+Project deletion requires explicit UI confirmation and the current revision.
+The service validates generated UUID paths and rejects linked/redirected trees.
+A revision-guarded database write lock precedes staging recovery so overlapping
+requests cannot mistake another live deletion for a crashed operation.
+Within a database transaction it clears the active reference and removes owned
+metadata, then renames the Project directory to `MLSTUDIO_HOME/.deleting/<id>`
+before committing. Handled pre-commit failures roll back and restore the directory.
+After commit, it removes the staged files. Cleanup failure returns a sanitized
+503 and the same DELETE request can retry; a staged pre-commit crash is likewise
+recoverable by retry. This is not a SQLite/filesystem atomic transaction or a trash
+feature. There is no automatic recovery worker. Replaced sources are deleted only
+with their owning Project; other Projects and external originals remain untouched.
 
 ## Verified checks
 
@@ -264,6 +331,16 @@ binary target, reload and recover configuration, reject malformed replacement,
 then explicitly replace and verify the former artifact remains. This check used
 the production server (`npm.cmd run start`) and the development server. No
 browser automation dependency was added to the application.
+
+Phase 1.5/2 verification includes bounded profile
+calculations, typed target distributions, numerical precision edges, stale profile
+requests, and deletion isolation/rollback/retry. Ruff, `pip check`, fresh Alembic
+upgrade/schema check, frontend typecheck/lint, and production build also pass.
+Headless Chrome verified contextual upload/target errors, semantic overrides,
+Explore charts and missingness, reload, external replacement refresh, exact large
+integer labels, dialog Escape/focus restoration, responsive layout, and permanent
+Project deletion while preserving another Project. Synthetic files and screenshots
+were kept outside the repository.
 
 ## Manual GitHub setup
 

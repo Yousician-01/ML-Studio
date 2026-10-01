@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from mlstudio.db.session import get_session
 from mlstudio.models import Project, utc_now
+from mlstudio.profile_schemas import ProfileResponse
 from mlstudio.schemas import (
     DatasetPatch,
     DatasetResponse,
@@ -14,6 +15,8 @@ from mlstudio.schemas import (
     ProjectResponse,
 )
 from mlstudio.services import datasets
+from mlstudio.services.profiles import read_profile
+from mlstudio.services.project_deletion import delete_project
 from mlstudio.services.source import DomainError
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -46,6 +49,28 @@ def list_projects(session: Database):
 @router.get("/{project_id}", response_model=ProjectResponse)
 def retrieve_project(project: CurrentProject):
     return project
+
+
+@router.delete("/{project_id}", status_code=204)
+def remove_project(
+    project_id: str, revision: Annotated[int, Query(ge=1)], session: Database, request: Request
+):
+    delete_project(session, project_id, revision, request.app.state.settings)
+    return Response(status_code=204)
+
+
+@router.get("/{project_id}/dataset/profile", response_model=ProfileResponse)
+def profile(
+    project: CurrentProject,
+    session: Database,
+    request: Request,
+    dataset_id: str,
+    revision: Annotated[int, Query(ge=1)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    return read_profile(
+        session, project.id, dataset_id, revision, offset, request.app.state.settings
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

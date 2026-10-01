@@ -4,18 +4,24 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type Project } from "@/lib/api/projects";
-import { ProjectForm } from "@/components/project-form";
+import { ProjectForm } from "./project-form";
+import { DeleteProject } from "./delete-project";
+import { Alert, Button, Dialog, EmptyState, Loading } from "./ui";
 
 export function Projects() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<Project | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     api
       .projects(controller.signal)
-      .then(setProjects)
+      .then((value) => {
+        if (!controller.signal.aborted) setProjects(value);
+      })
       .catch((error) => {
         if (!controller.signal.aborted) setError(error.message);
       });
@@ -23,51 +29,98 @@ export function Projects() {
   }, [attempt]);
   return (
     <main>
-      <p className="eyebrow">Your local workspace</p>
-      <h1>Projects</h1>
-      <p className="intro">
-        Start with a prediction problem. Bring your CSV, inspect the source, and
-        choose a target.
-      </p>
-      <div className="project-grid">
-        <section className="panel" aria-labelledby="projects-title">
-          <h2 id="projects-title">Your Projects</h2>
-          {error ? (
-            <div role="alert">
-              <p className="error">{error}</p>
-              <button
-                onClick={() => {
-                  setError("");
-                  setAttempt((v) => v + 1);
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          ) : projects === null ? (
-            <p role="status">Loading Projects…</p>
-          ) : projects.length === 0 ? (
-            <p className="muted">
-              No Projects yet. Create your first Project to begin.
-            </p>
-          ) : (
-            <ul className="project-list">
-              {projects.map((project) => (
-                <li key={project.id}>
-                  <Link href={`/projects/${project.id}`}>
-                    <strong>{project.name}</strong>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Workspace</p>
+          <h1>Projects</h1>
+          <p className="muted">
+            Your prediction problems, source data, and working context.
+          </p>
+        </div>
+        <Button variant="primary" onClick={() => setCreating(true)}>
+          New Project
+        </Button>
+      </div>
+      {error && (
+        <Alert>
+          {error}
+          <Button
+            onClick={() => {
+              setError("");
+              setAttempt((v) => v + 1);
+            }}
+          >
+            Retry
+          </Button>
+        </Alert>
+      )}
+      {projects === null ? (
+        !error && <Loading>Loading Projects…</Loading>
+      ) : projects.length === 0 ? (
+        <section className="panel">
+          <EmptyState title="Start with a prediction problem">
+            <p>Create a Project, bring a CSV, and explore the source.</p>
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              Create your first Project
+            </Button>
+          </EmptyState>
+        </section>
+      ) : (
+        <section className="panel project-surface" aria-label="Projects">
+          <div className="list-heading">
+            <span>Project / prediction problem</span>
+            <span>Last updated</span>
+          </div>
+          <ul className="project-list">
+            {projects.map((project) => (
+              <li key={project.id}>
+                <div className="project-context">
+                  <Link
+                    className="project-name"
+                    href={`/projects/${project.id}`}
+                  >
+                    {project.name}
                   </Link>
                   <p>{project.problem_statement}</p>
-                  <small className="muted">
-                    Updated {new Date(project.updated_at).toLocaleDateString()}
-                  </small>
-                </li>
-              ))}
-            </ul>
-          )}
+                  {project.description && (
+                    <small className="muted">{project.description}</small>
+                  )}
+                  <div>
+                    <span className="badge">Binary classification</span>
+                    <span className="badge subtle">
+                      {project.active_dataset_id
+                        ? "Dataset attached"
+                        : "No Dataset"}
+                    </span>
+                  </div>
+                </div>
+                <div className="project-actions">
+                  <time dateTime={project.updated_at}>
+                    {new Date(project.updated_at).toLocaleDateString()}
+                  </time>
+                  <div className="actions">
+                    <Link
+                      className="button button-secondary"
+                      href={`/projects/${project.id}`}
+                    >
+                      Open
+                    </Link>
+                    <Button
+                      variant="danger"
+                      aria-label={`Delete ${project.name}`}
+                      onClick={() => setDeleting(project)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
-        <section className="panel" aria-labelledby="create-title">
-          <h2 id="create-title">Create a Project</h2>
+      )}
+      {creating && (
+        <Dialog title="Create Project" onClose={() => setCreating(false)}>
           <ProjectForm
             submitLabel="Create Project"
             onSave={async (input) => {
@@ -75,8 +128,21 @@ export function Projects() {
               router.push(`/projects/${project.id}`);
             }}
           />
-        </section>
-      </div>
+        </Dialog>
+      )}
+      {deleting && (
+        <DeleteProject
+          project={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setProjects(
+              (items) =>
+                items?.filter((item) => item.id !== deleting.id) ?? null,
+            );
+            setDeleting(null);
+          }}
+        />
+      )}
     </main>
   );
 }
