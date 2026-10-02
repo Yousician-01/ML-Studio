@@ -188,14 +188,13 @@ These are heuristics, not feature recommendations. Every column initially has
 the `feature` role. Overrides retain the inferred type and can be reset.
 Selecting a target requires exactly two distinct non-missing values across the
 full source. Neither overrides nor previews bypass this check. Positive-class
-selection belongs to later Pipeline configuration and is not silently chosen.
+selection belongs to Working Pipeline configuration in Prepare and is not silently chosen.
 
 Project owns the target. Roles are derived rather than independently persisted
-in Dataset columns. Until Pipeline IR exists, Project target-transition context
-records former targets so they remain excluded; later IR initialization must
-carry those exclusions forward. Phase 1 provides no feature inclusion editor.
-Dataset replacement resets target/transition context and starts with fresh
-schema inference and no overrides; it retains old metadata and artifacts.
+in Dataset columns. Working Pipeline IR owns feature inclusion; former targets
+remain excluded until explicitly re-enabled in Prepare. Dataset replacement
+resets the current target and starts with fresh schema inference and no overrides;
+it retains old metadata/artifacts and leaves the old Pipeline binding stale.
 
 ## API and metadata
 
@@ -341,6 +340,46 @@ Explore charts and missingness, reload, external replacement refresh, exact larg
 integer labels, dialog Escape/focus restoration, responsive layout, and permanent
 Project deletion while preserving another Project. Synthetic files and screenshots
 were kept outside the repository.
+
+## Working Pipeline and Prepare
+
+Run `alembic upgrade head` before starting an updated backend. Migration
+`0003_working_pipeline` adds Project-owned JSON intent and migrates existing
+former-target exclusions into its feature map, then removes the temporary
+`former_targets` field. Source artifacts and Project revisions are preserved.
+
+`GET /api/v1/projects/{id}/pipeline` returns canonical IR `0.1`, the current
+revision, source column context, typed target classes, and contextual validation.
+`PATCH` on that resource takes `{revision, ir}`. Incomplete or semantically
+invalid intent can be saved; unsupported structural vocabulary returns 422.
+`POST /api/v1/projects/{id}/pipeline/reset` takes `{revision, dataset_id}` for an
+explicit reset. Stale writes return 409. GET never changes Project state.
+
+Initial feature candidates retain the existing included default, with no
+operations. Unsupported semantic types are visible blocking issues until
+excluded or their interpretation is corrected in Data. Numerical preparation
+requires continuous semantics and numeric physical values; categorical/binary
+preparation supports most-frequent imputation and one-hot encoding. Operation
+order and duplicate families are validated without silently repairing intent.
+Incompatible excluded-feature operations remain dormant non-blocking issues.
+Prepare validity concerns preparation intent; classifier, raw passthrough,
+missing-feature support, split feasibility, and execution readiness still need
+the later Train/execution implementation. Model and split remain null.
+
+Positive class uses `{value_type, value}` for string, integer, float, or boolean.
+Unsafe integers use canonical decimal strings within the integer wrapper, so
+browser JSON cannot round them. The float tag retains float meaning even when
+JavaScript serializes an integral float without a decimal point. Class labels
+are the only source values intentionally persisted as experiment intent; no
+preview rows or observed-class lists are stored in SQLite.
+
+Data target changes reconcile a matching working recipe: remove the new target
+from features, restore the former target excluded, preserve unrelated feature
+choices, and clear positive class. Replacement retains the old recipe's binding
+and marks it stale. Prepare offers an explicit confirmed reset for the current
+source; it does not infer schema compatibility or delete the previous artifact.
+Data/Explore role views derive participation from the matching IR. A stale old
+recipe never assigns roles to the replacement Dataset.
 
 ## Manual GitHub setup
 

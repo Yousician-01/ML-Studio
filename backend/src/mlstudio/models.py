@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from mlstudio.db.base import Base
+from mlstudio.services.pipeline_state import empty_pipeline
 
 
 def new_id() -> str:
@@ -50,9 +51,7 @@ class Project(Base):
     updated_at: Mapped[str] = mapped_column(String(32), default=utc_now)
     active_dataset_id: Mapped[str | None] = mapped_column(String(36))
     target_column: Mapped[str | None]
-    # Target transition context only; not a feature editor or a second Pipeline IR.
-    # Later IR initialization must keep these former targets excluded.
-    former_targets: Mapped[list[str]] = mapped_column(JSON, default=list)
+    working_pipeline: Mapped[dict] = mapped_column(JSON, default=empty_pipeline)
     revision: Mapped[int] = mapped_column(default=1)
     __mapper_args__ = {"version_id_col": revision}
 

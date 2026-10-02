@@ -20,6 +20,7 @@ from mlstudio.profile_schemas import (
     TargetProfile,
 )
 from mlstudio.services.artifacts import verified_source
+from mlstudio.services.pipeline_state import column_role
 from mlstudio.services.source import DomainError, json_scalar, parse_source
 
 COLUMN_LIMIT = 20
@@ -145,7 +146,7 @@ def correlations(frame: pd.DataFrame, dataset: Dataset, project: Project) -> Cor
         c["name"]
         for c in dataset.columns
         if c["name"] != project.target_column
-        and c["name"] not in project.former_targets
+        and column_role(project, dataset, c["name"]) == "feature"
         and effective(c) == "continuous"
         and numeric_applicable(frame[c["name"]], effective(c))
     ]
@@ -220,11 +221,7 @@ def build_profile(
                 name=name,
                 physical_dtype=column["physical_dtype"],
                 semantic_type=semantic,
-                role="target"
-                if name == project.target_column
-                else "excluded"
-                if name in project.former_targets
-                else "feature",
+                role=column_role(project, dataset, name),
                 non_missing_count=count,
                 missing_count=missing,
                 missing_percentage=percentage(missing, rows),
@@ -263,7 +260,8 @@ def build_profile(
         row_count=rows,
         column_count=len(frame.columns),
         feature_count=sum(
-            c["name"] != project.target_column and c["name"] not in project.former_targets
+            c["name"] != project.target_column
+            and column_role(project, dataset, c["name"]) == "feature"
             for c in dataset.columns
         ),
         missing_cells=dataset.missing_cells,

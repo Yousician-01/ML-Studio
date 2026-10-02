@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from mlstudio.db.session import get_session
 from mlstudio.models import Project, utc_now
+from mlstudio.pipeline_schemas import PipelineReset, PipelineResponse, PipelineUpdate
 from mlstudio.profile_schemas import ProfileResponse
 from mlstudio.schemas import (
     DatasetPatch,
@@ -14,7 +15,7 @@ from mlstudio.schemas import (
     ProjectPatch,
     ProjectResponse,
 )
-from mlstudio.services import datasets
+from mlstudio.services import datasets, pipelines
 from mlstudio.services.profiles import read_profile
 from mlstudio.services.project_deletion import delete_project
 from mlstudio.services.source import DomainError
@@ -31,6 +32,25 @@ def get_project(project_id: str, session: Database) -> Project:
 
 
 CurrentProject = Annotated[Project, Depends(get_project)]
+
+
+@router.get("/{project_id}/pipeline", response_model=PipelineResponse)
+def retrieve_pipeline(project: CurrentProject, session: Database, request: Request):
+    return pipelines.read(session, project, request.app.state.settings)
+
+
+@router.patch("/{project_id}/pipeline", response_model=PipelineResponse)
+def update_pipeline(
+    body: PipelineUpdate, project: CurrentProject, session: Database, request: Request
+):
+    return pipelines.save(session, project, body, request.app.state.settings)
+
+
+@router.post("/{project_id}/pipeline/reset", response_model=PipelineResponse)
+def reset_pipeline(
+    body: PipelineReset, project: CurrentProject, session: Database, request: Request
+):
+    return pipelines.save(session, project, body, request.app.state.settings, reset=True)
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)

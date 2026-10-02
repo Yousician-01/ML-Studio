@@ -220,7 +220,7 @@ def test_correlations_bound_and_null_pairs():
             for name in frame.columns
         ]
     )
-    project = Project(target_column=None, former_targets=[])
+    project = Project(target_column=None, working_pipeline=None)
     data = correlations(frame, dataset, project)
     assert len(data.columns) == 12 and data.eligible_count == 15
     assert data.values[0][1] is None and data.values[0][2] is None

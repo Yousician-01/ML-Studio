@@ -1,4 +1,5 @@
 import type { Profile } from "./profiles";
+import type { PipelineIR, WorkingPipeline } from "./pipelines";
 
 export const semanticTypes = [
   "continuous",
@@ -119,6 +120,12 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
+  pipeline: (id: string, signal?: AbortSignal) =>
+    request<WorkingPipeline>(projectPath(id) + "/pipeline", { signal }),
+  savePipeline: (id: string, revision: number, ir: PipelineIR) =>
+    request<WorkingPipeline>(projectPath(id) + "/pipeline", json("PATCH", { revision, ir })),
+  resetPipeline: (id: string, revision: number, dataset_id: string) =>
+    request<WorkingPipeline>(projectPath(id) + "/pipeline/reset", json("POST", { revision, dataset_id })),
   deleteProject: (id: string, revision: number) =>
     request<void>(projectPath(id) + `?revision=${revision}`, {
       method: "DELETE",

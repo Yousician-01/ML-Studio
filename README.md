@@ -13,11 +13,13 @@ easier to understand, prepare, train on, and evaluate without hiding what ran.
 ## Status
 
 The Prototype v0.1 domain specifications are complete. **Projects, CSV ingestion,
-and source exploration are implemented:** create a local Project, inspect source
+source exploration, and Prepare are implemented:** create a local Project, inspect source
 columns and preview rows, override semantic types, and select a binary target.
 SQLite preserves configuration, and managed source artifacts survive replacement.
 Explore shows bounded distributions, missingness, numeric summaries, and feature
 correlations. Projects can be permanently deleted with explicit confirmation.
+Prepare persists versioned Pipeline IR with explicit positive class, feature
+participation, and ordered preprocessing intent. No transformations execute yet.
 ML execution is not implemented yet. Follow the verified
 [development setup](docs/development.md) to run the two local processes.
 

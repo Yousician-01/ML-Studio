@@ -828,3 +828,12 @@ footer { border-top: 0; padding-block: 28px; }
   .benches { margin-right: 0; }
   dialog { padding: 20px; }
 }
+
+.prepare-table { min-width: 900px; }
+.prepare-table th:first-child { min-width: 180px; max-width: 260px; overflow-wrap: anywhere; }
+.prepare-table td:last-child { min-width: 220px; max-width: 360px; }
+.prepare-table small { display: block; font-weight: normal; }
+.prepare-table select { min-width: 130px; }
+
+.prepare-error { color: var(--danger); font-size: 13px; }
+.prepare-view pre { overflow: auto; max-height: 400px; font-family: var(--mono); }

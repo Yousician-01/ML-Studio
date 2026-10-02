@@ -254,14 +254,13 @@ export function DataView({
                   </div>
                 )}
                 <p className="muted">
-                  Positive class is configured later. Missing target rows are
+                  Choose the positive class in Prepare. Missing target rows are
                   eligible for exclusion during execution.
                 </p>
               </div>
             </div>
             <p className="muted">
-              Former targets remain excluded until explicitly enabled in future
-              feature configuration.
+              Former targets remain excluded until explicitly enabled in Prepare.
             </p>
           </Panel>
           <Panel

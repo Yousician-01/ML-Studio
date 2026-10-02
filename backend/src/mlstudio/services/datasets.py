@@ -11,6 +11,7 @@ from mlstudio.core.config import Settings
 from mlstudio.models import Dataset, Project, new_id, utc_now
 from mlstudio.schemas import DatasetPatch, DatasetResponse
 from mlstudio.services.artifacts import fingerprint, source_path, verified_source
+from mlstudio.services.pipeline_state import column_role, initialize, reconcile_target
 from mlstudio.services.source import (
     PREVIEW_LIMIT,
     DomainError,
@@ -32,11 +33,7 @@ def dataset_response(dataset: Dataset, project: Project, frame: pd.DataFrame) ->
     columns = []
     for column in dataset.columns:
         name = column["name"]
-        role = (
-            "target"
-            if name == project.target_column
-            else ("excluded" if name in project.former_targets else "feature")
-        )
+        role = column_role(project, dataset, name)
         columns.append(
             {
                 **column,
@@ -150,7 +147,8 @@ def ingest(
         session.flush()  # Source and metadata exist before switching the active reference.
         project.active_dataset_id = dataset.id
         project.target_column = None
-        project.former_targets = []
+        if project.working_pipeline["dataset"] is None:
+            project.working_pipeline = initialize(dataset, None)
         project.updated_at = utc_now()
         session.flush()  # Resolve the revision represented by the returned snapshot.
         result = dataset_response(dataset, project, frame)
@@ -183,9 +181,9 @@ def configure(
         if change.target_column is not None:
             target_classes(frame, change.target_column)
         old_target = project.target_column
-        if old_target and old_target != change.target_column:
-            project.former_targets = sorted(set([*project.former_targets, old_target]))
         project.target_column = change.target_column
+        if old_target != change.target_column:
+            reconcile_target(project, dataset, old_target)
     dataset.columns = [
         {
             **column,
