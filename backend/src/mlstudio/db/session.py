@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import ConnectionPoolEntry
 
 from mlstudio.core.config import Settings
+from mlstudio.db.revision import migration_message
+from mlstudio.services.source import DomainError
 
 
 def create_database_engine(settings: Settings) -> Engine:
@@ -27,4 +29,10 @@ def create_database_engine(settings: Settings) -> Engine:
 
 def get_session(request: Request) -> Iterator[Session]:
     with request.app.state.session_factory() as session:
+        # Check once per application lifetime; a behind database is rechecked on retry.
+        if not getattr(request.app.state, "schema_checked", False):
+            message = migration_message(session.connection())
+            if message:
+                raise DomainError(message, 503)
+            request.app.state.schema_checked = True
         yield session

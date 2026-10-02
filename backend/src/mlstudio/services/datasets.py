@@ -16,6 +16,7 @@ from mlstudio.services.source import (
     PREVIEW_LIMIT,
     DomainError,
     describe_columns,
+    infer_semantic,
     json_scalar,
     parse_source,
     target_classes,
@@ -187,6 +188,14 @@ def configure(
     dataset.columns = [
         {
             **column,
+            **(
+                {
+                    "inferred_semantic_type": infer_semantic(frame[column["name"]]),
+                    "inference_version": "semantic-v2",
+                }
+                if change.refresh_inference
+                else {}
+            ),
             "semantic_override": change.semantic_overrides.get(
                 column["name"], column["semantic_override"]
             ),

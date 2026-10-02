@@ -1,4 +1,4 @@
-"""Bounded deterministic source EDA. No fitted state, recommendations, or IR."""
+"""Bounded, read-only source EDA. No fitted state or recommendations."""
 
 import math
 from collections import Counter
@@ -20,7 +20,8 @@ from mlstudio.profile_schemas import (
     TargetProfile,
 )
 from mlstudio.services.artifacts import verified_source
-from mlstudio.services.pipeline_state import column_role
+from mlstudio.services.pipeline_state import bound_to, column_role
+from mlstudio.services.pipelines import typed_scalar
 from mlstudio.services.source import DomainError, json_scalar, parse_source
 
 COLUMN_LIMIT = 20
@@ -67,7 +68,7 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
         maximum=None,
         lower_whisker=None,
         upper_whisker=None,
-        outlier_count=0,
+        outlier_count=None,
         histogram=[],
     )
     if observed.empty:
@@ -110,6 +111,7 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
                 dict(lower=float(edges[i]), upper=float(edges[i + 1]), count=int(count))
                 for i, count in enumerate(counts)
             ]
+    skew, skew_reason = adjusted_skewness(values)
     return NumericProfile(
         **{
             **base,
@@ -123,8 +125,49 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
             "lower_whisker": float(min(q1, inside.min())),
             "upper_whisker": float(max(q3, inside.max())),
             "outlier_count": len(values) - len(inside),
+            "lower_fence": float(lower),
+            "upper_fence": float(upper),
+            "outlier_percentage": percentage(len(values) - len(inside), len(values)),
+            "skewness": skew,
+            "skewness_unavailable_reason": skew_reason,
             "histogram": histogram,
         }
+    )
+
+
+def adjusted_skewness(values):
+    """Adjusted Fisher-Pearson G1; scale first to avoid overflow in moments."""
+    n = len(values)
+    if n < 3:
+        return None, "Skewness requires at least three non-missing observations."
+    if values.min() == values.max():
+        return None, "Skewness is undefined for constant values."
+    # Shift before normalizing to retain small differences around a large offset.
+    with np.errstate(over="ignore", invalid="ignore"):
+        centered = values - values[0]
+    if not np.isfinite(centered).all():
+        centered = values / np.max(np.abs(values))
+    centered = centered / np.max(np.abs(centered))
+    centered = centered - centered.mean()
+    m2 = np.mean(centered**2)
+    if m2 == 0:
+        return None, "Variation is below floating-point precision."
+    value = float(np.sqrt(n * (n - 1)) / (n - 2) * np.mean(centered**3) / m2**1.5)
+    return (value, None) if math.isfinite(value) else (None, "Skewness exceeds finite precision.")
+
+
+def column_quality(series, semantic):
+    counts = series.value_counts(dropna=True)
+    observed, unique = int(series.count()), len(counts)
+    dominant = int(counts.max()) if unique else 0
+    return dict(
+        constant=unique == 1,
+        near_constant=unique > 1 and dominant * 100 >= observed * 95,
+        dominant_count=dominant,
+        dominant_percentage=percentage(dominant, observed),
+        high_cardinality=semantic in {"categorical", "binary", "text", "identifier"}
+        and unique >= 20
+        and unique / max(observed, 1) >= 0.5,
     )
 
 
@@ -190,11 +233,40 @@ def correlations(frame: pd.DataFrame, dataset: Dataset, project: Project) -> Cor
 
 
 def build_profile(
-    frame: pd.DataFrame, dataset: Dataset, project: Project, offset: int
+    frame: pd.DataFrame,
+    dataset: Dataset,
+    project: Project,
+    offset: int,
+    query: str = "",
+    kind: str = "all",
+    observation: str = "all",
 ) -> ProfileResponse:
     rows = len(frame)
+    quality = {c["name"]: column_quality(frame[c["name"]], effective(c)) for c in dataset.columns}
+
+    def matches(c):
+        semantic, name = effective(c), c["name"]
+        kinds = {
+            "all": True,
+            "numerical": numeric_applicable(frame[name], semantic),
+            "categorical": semantic in {"categorical", "binary"},
+        }
+        observations = {
+            **quality[name],
+            "all": True,
+            "missing": c["missing_count"] > 0,
+            "all_missing": c["missing_count"] == rows,
+            "identifier": semantic == "identifier",
+        }
+        return (
+            query.casefold() in name.casefold()
+            and kinds.get(kind, semantic == kind)
+            and observations.get(observation, False)
+        )
+
+    matching = [c for c in dataset.columns if matches(c)]
     columns = []
-    for column in dataset.columns[offset : offset + COLUMN_LIMIT]:
+    for column in matching[offset : offset + COLUMN_LIMIT]:
         name, semantic = column["name"], effective(column)
         series = frame[name]
         count, unique, missing = (
@@ -221,15 +293,15 @@ def build_profile(
                 name=name,
                 physical_dtype=column["physical_dtype"],
                 semantic_type=semantic,
+                inferred_semantic_type=column["inferred_semantic_type"],
+                semantic_override=column["semantic_override"],
                 role=column_role(project, dataset, name),
                 non_missing_count=count,
                 missing_count=missing,
                 missing_percentage=percentage(missing, rows),
                 distinct_count=unique,
                 uniqueness_percentage=percentage(unique, count),
-                high_cardinality=semantic in {"categorical", "binary", "text", "identifier"}
-                and unique >= 20
-                and unique / max(count, 1) >= 0.5,
+                **quality[name],
                 identifier=semantic == "identifier",
                 numeric=numeric,
                 frequencies=freq,
@@ -245,12 +317,23 @@ def build_profile(
             raise DomainError(
                 "The current target no longer has exactly two classes. Reload Data.", 409
             )
+        positive = None
+        intent = project.working_pipeline.get("target") if project.working_pipeline else None
+        if (
+            bound_to(project.working_pipeline, dataset)
+            and intent
+            and intent["column"] == project.target_column
+        ):
+            candidate = intent["positive_class"]
+            if candidate in [typed_scalar(v).model_dump() for v in series.dropna().unique()]:
+                positive = candidate
         target = TargetProfile(
             column=project.target_column,
             missing_count=int(series.isna().sum()),
             non_missing_count=int(series.count()),
             classes=classes,
             majority_percentage=max(item.percentage for item in classes),
+            positive_class=positive,
         )
     return ProfileResponse(
         dataset_id=dataset.id,
@@ -269,6 +352,24 @@ def build_profile(
         duplicate_rows=dataset.duplicate_rows,
         duplicate_percentage=percentage(dataset.duplicate_rows, rows),
         semantic_counts=dict(Counter(effective(c) for c in dataset.columns)),
+        quality=dict(
+            constant_count=sum(q["constant"] for q in quality.values()),
+            near_constant_count=sum(q["near_constant"] for q in quality.values()),
+            all_missing_count=sum(c["missing_count"] == rows for c in dataset.columns),
+            identifier_count=sum(effective(c) == "identifier" for c in dataset.columns),
+            high_cardinality_count=sum(q["high_cardinality"] for q in quality.values()),
+            missing_column_count=sum(c["missing_count"] > 0 for c in dataset.columns),
+            missing_columns=[
+                dict(
+                    name=c["name"],
+                    count=c["missing_count"],
+                    percentage=percentage(c["missing_count"], rows),
+                )
+                for c in sorted(dataset.columns, key=lambda c: -c["missing_count"])[:20]
+                if c["missing_count"] > 0
+            ],
+        ),
+        filtered_column_count=len(matching),
         target=target,
         columns=columns,
         column_offset=offset,
@@ -286,6 +387,9 @@ def read_profile(
     revision: int,
     offset: int,
     settings: Settings,
+    query: str = "",
+    kind: str = "all",
+    observation: str = "all",
 ) -> ProfileResponse:
     snapshot = session.execute(
         select(Project, Dataset)
@@ -302,7 +406,7 @@ def read_profile(
             409,
         )
     frame = parse_source(verified_source(settings.home, dataset))
-    result = build_profile(frame, dataset, project, offset)
+    result = build_profile(frame, dataset, project, offset, query, kind, observation)
     # A concurrent replacement during computation cannot be presented as current.
     latest = session.execute(
         select(Project.active_dataset_id, Project.revision).where(Project.id == project_id)

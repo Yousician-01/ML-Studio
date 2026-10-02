@@ -38,6 +38,7 @@ export type Column = {
   semantic_override: SemanticType | null;
   effective_semantic_type: SemanticType;
   role: "feature" | "target" | "excluded";
+  inference_version: string;
 };
 export type Dataset = {
   id: string;
@@ -63,6 +64,7 @@ export type DatasetChange = {
   revision: number;
   semantic_overrides?: Record<string, SemanticType | null>;
   target_column?: string | null;
+  refresh_inference?: boolean;
 };
 
 const baseUrl = (
@@ -135,10 +137,11 @@ export const api = {
     dataset: Pick<Dataset, "id" | "revision">,
     offset: number,
     signal?: AbortSignal,
+    filters: { query: string; kind: string; observation: string } = { query: "", kind: "all", observation: "all" },
   ) =>
     request<Profile>(
       projectPath(id) +
-        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}`,
+        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}&${new URLSearchParams(filters)}`,
       { signal },
     ),
   projects: (signal?: AbortSignal) =>

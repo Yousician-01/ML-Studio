@@ -7,8 +7,10 @@ ingestion/replacement, source summaries and previews, semantic overrides, and
 binary target selection. SQLite stores domain metadata; immutable source files
 live in the managed workspace. Phase 1.5 adds a shared visual foundation,
 contextual validation, and permanent Project deletion. Phase 2 implements
-deterministic source exploration. Pipeline IR, preprocessing, training, Runs,
-generated code, MLflow, and AI are not implemented.
+deterministic source exploration. Phase 3 adds persisted Pipeline IR and Prepare
+configuration; Phase 3.5 adds visual exploration and improved semantic detection.
+Preprocessing execution, training, Runs, generated code, MLflow, and AI are not
+implemented.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
@@ -61,7 +63,15 @@ Expected response:
 `{"status":"ok","service":"ml-studio-api","database":"ready"}`.
 The endpoint checks SQLite with a trivial query. A query failure returns a
 sanitized HTTP 503, not internal paths or stack traces. Health proves database
-connectivity, not migration currency; use Alembic's current command for that.
+connectivity, not migration currency. Domain requests check the database revision
+against Alembic's installed script heads before opening a session. A missing or
+stale revision returns a sanitized 503 with current/required revisions and the
+explicit `python -m alembic upgrade head` command (from an activated backend
+environment). No automatic migration runs. Failed checks retry on the next
+request; a successful check is remembered for the app lifetime. Restart the
+backend after deploying code or replacing a running database. Multiple current
+and required heads are compared as sets. The message also cautions that databases
+from a newer app version need that version; it never suggests a downgrade.
 OpenAPI uses the package's `0.0.0` development metadata, not a published release.
 
 From `frontend/`:
@@ -172,9 +182,13 @@ Inference rules run in this order:
 
 1. No non-missing values: `unknown`.
 2. Exactly two distinct non-missing values: `binary`.
-3. Names equal to `id`, starting `id_`, or ending `_id`, with at least three
-   distinct values and at least 95% uniqueness: `identifier` only for integer
-   physical types or strings. Floating measurements do not qualify.
+3. With at least three distinct values and at least 95% uniqueness among
+   non-missing observations: UUID-shaped strings are identifiers; otherwise an
+   `id`, `uuid`, `guid`, `identifier`, or `key` name token is required, together
+   with integer-like numbers or opaque alphanumeric/underscore/hyphen strings.
+   Names split on boundaries and CamelCase, so `paid`, `width`, and `middle`
+   are not ID hints. Integral floats can represent IDs with missing cells;
+   fractional measurements, ordinary dates, and uniqueness alone do not qualify.
 4. Other numeric columns: `continuous` with variation, otherwise `unknown`.
 5. String values all matching an ISO date/datetime shape and successfully parsing
    as ISO dates: `datetime`. Numeric timestamps are not inferred as datetime.
@@ -183,6 +197,13 @@ Inference rules run in this order:
 7. Other strings: `categorical` at up to 20 distinct values or a uniqueness ratio
    of at most 20%; otherwise `text`.
 8. Remaining types: `unknown`.
+
+New ingestion records `semantic-v2` per column. Older stored inferences are not
+silently recomputed: Data offers **Refresh detected types** to update inference
+explicitly while preserving overrides, source bytes, physical observations, and
+preparation intent. Semantic edits increment the Project revision and invalidate
+older profile requests. Data shows manual override state and an explicit reset
+to detected type; Prepare revalidates retained operations using effective types.
 
 These are heuristics, not feature recommendations. Every column initially has
 the `feature` role. Overrides retain the inferred type and can be reset.
@@ -209,7 +230,7 @@ All routes below are under `/api/v1`; `/docs` exposes typed OpenAPI contracts.
 | `DELETE /projects/{id}?revision=N` | Permanently delete the Project and its managed sources; HTTP 204; stale revision returns 409 |
 | `POST /projects/{id}/dataset` | Multipart `file`; replacement requires `expected_dataset_id` matching the active Dataset; HTTP 201 |
 | `GET /projects/{id}/dataset` | Summary, column interpretation, target classes, limited source preview |
-| `PATCH /projects/{id}/dataset` | Supply current `dataset_id` and Project `revision`; set `semantic_overrides` by column name and/or `target_column` |
+| `PATCH /projects/{id}/dataset` | Supply current `dataset_id` and Project `revision`; set `semantic_overrides` by column name, `target_column`, and/or `refresh_inference: true` |
 | `GET /projects/{id}/dataset/profile?dataset_id=UUID&revision=N&offset=0` | Bounded source profile for the current Dataset/configuration; stale requests return 409 |
 
 Omit `target_column` to leave it unchanged; send null to clear it. An override
@@ -221,8 +242,8 @@ The two domain tables use ordinary SQLAlchemy types. Dataset's ordered JSON
 column metadata keeps schema observations and overrides together without adding
 one table per column. Project's composite active-Dataset foreign key enforces
 same-Project ownership, and Dataset's owner foreign key requires a real Project.
-SQLite foreign keys are enabled on every connection. No raw rows, Pipeline IR,
-or Run records are added by this phase.
+SQLite foreign keys are enabled on every connection. No raw rows or profile caches are stored in these tables. Project also owns
+Working Pipeline JSON intent; Run records are not implemented.
 
 ## Source exploration and deletion
 
@@ -231,7 +252,7 @@ Profiles are computed on demand over the full source, not the 20-row preview.
 Explore requests its structured profile directly from the Project snapshot; it
 does not fetch Data's unused raw preview on navigation or refresh.
 No profile cache or raw values are persisted in SQLite. Responses identify the
-Dataset, fingerprint, Project revision, and `source-profile-v1` calculation version.
+Dataset, fingerprint, Project revision, and `source-profile-v2` calculation version.
 The server checks identity/revision before and after computation. The UI aborts
 obsolete requests, remounts on a new snapshot, and refreshes on navigation,
 explicit Refresh, or return from another browser tab. It does not poll for edits
@@ -241,12 +262,29 @@ when the native file picker closes.
 
 Profile limits and conventions:
 
+- Column search is case-insensitive and limited to 200 characters. Semantic and
+  observation filters use validated vocabularies and apply before pagination;
+  Dataset-wide overview, target, quality, and correlations remain unfiltered.
+  Missingness lists the 20 most-missing columns, descending count with source
+  order ties; the column browser can filter all missing columns page by page.
+- Constant means exactly one distinct non-missing value; all-missing is separate.
+  Near constant means more than one distinct value and a dominant value occurring
+  in at least 95% of non-missing observations. Missing values are not a category
+  in that denominator. Counts are observations, never automatic exclusions.
+- Skewness is adjusted Fisher-Pearson: `sqrt(n*(n-1))/(n-2) * m3/m2**1.5`,
+  where `mk = mean((x-mean(x))**k)` over non-missing numeric observations.
+  Shift/scale normalization avoids unnecessary overflow. Fewer than three,
+  constant, or precision-limited observations return an explicit unavailable
+  result. No qualitative skewness bands or recommendations are assigned.
+
 - 20 columns per page; 10 categorical values by descending frequency, with ties
   in first-source-occurrence order. Remaining observations are counted as Other.
   Categorical labels beyond 120 characters are visibly shortened; target labels
   are never shortened or numerically coerced. Missing values are separate.
 - Continuous/unknown columns with numeric physical dtype receive summaries.
   Quartiles use linear interpolation; standard deviation is the sample statistic.
+  Fences are `Q1 - 1.5*(Q3-Q1)` and `Q3 + 1.5*(Q3-Q1)`; outliers are
+  strictly outside them, with percentage over non-missing observations.
   Boxplot whiskers are observed values within 1.5 IQR, with an outlier count;
   an interpolated quartile is the endpoint when no in-fence observation extends
   beyond that side of the box (small/skewed samples).
@@ -266,7 +304,16 @@ Profile limits and conventions:
 
 NumPy is now a direct backend dependency for numeric summaries and correlation;
 pandas remains responsible for parsing and source observations. Charts use native
-HTML/SVG with readable tables and labels, without a chart framework.
+HTML/SVG with readable tables and labels, without a chart framework. Explore
+provides interactive histograms, boxplots, frequency/missingness bars, and a
+Pearson heatmap with exact hover/focus values and accessible tables. Charts use
+bounded backend aggregates, not source rows. Positive class is displayed only
+when explicitly configured in a matching Working Pipeline.
+
+The [Data Inspector reference](https://github.com/Yousician-01/Data-Inspector)
+was reviewed for deterministic EDA coverage. ML Studio keeps its own contracts
+and definitions (95% non-missing dominance and adjusted skewness); no health
+score, hard-coded preparation recommendations, or Isolation Forest is run.
 
 Project deletion requires explicit UI confirmation and the current revision.
 The service validates generated UUID paths and rejects linked/redirected trees.
@@ -380,6 +427,25 @@ and marks it stale. Prepare offers an explicit confirmed reset for the current
 source; it does not infer schema compatibility or delete the previous artifact.
 Data/Explore role views derive participation from the matching IR. A stale old
 recipe never assigns roles to the replacement Dataset.
+
+## Phase 3.5 verification
+
+The recovered slice passes 177 backend tests, Ruff check/format check, `pip check`,
+frontend typecheck/lint/production build, and `git diff --check`. Fresh and
+existing-schema disposable workspaces pass Alembic upgrade and schema checks.
+No new database migration or dependency is needed for this slice.
+
+Chrome exercised both development and production with a synthetic 101-row,
+13-column source containing IDs, UUIDs, missing values, duplicates, constants,
+near constants, skew/outliers, correlated values, categories, and long names.
+Verified flows include override/reset, binary target rejection/acceptance,
+reload persistence, visual profiles/search/filters, effective semantics in
+Prepare, retained incompatible operations, and configured positive-class display.
+Chart focus exposes exact values; coefficient tables, reduced motion, and
+390px/900px layouts were checked. Explore does not request the Data preview.
+An intentionally stale disposable database produced the migration instruction
+in the real UI; explicit upgrade followed by Retry recovered without an app
+restart. Browser fixtures, profiles, screenshots, and databases stayed in TEMP.
 
 ## Manual GitHub setup
 

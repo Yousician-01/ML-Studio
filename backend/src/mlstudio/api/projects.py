@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFile
 from sqlalchemy import select
@@ -87,9 +87,38 @@ def profile(
     dataset_id: str,
     revision: Annotated[int, Query(ge=1)],
     offset: Annotated[int, Query(ge=0)] = 0,
+    query: Annotated[str, Query(max_length=200)] = "",
+    kind: Literal[
+        "all",
+        "numerical",
+        "categorical",
+        "continuous",
+        "binary",
+        "datetime",
+        "identifier",
+        "text",
+        "unknown",
+    ] = "all",
+    observation: Literal[
+        "all",
+        "missing",
+        "constant",
+        "near_constant",
+        "all_missing",
+        "identifier",
+        "high_cardinality",
+    ] = "all",
 ):
     return read_profile(
-        session, project.id, dataset_id, revision, offset, request.app.state.settings
+        session,
+        project.id,
+        dataset_id,
+        revision,
+        offset,
+        request.app.state.settings,
+        query,
+        kind,
+        observation,
     )
 
 

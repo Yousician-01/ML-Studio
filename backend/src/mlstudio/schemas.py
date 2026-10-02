@@ -63,6 +63,7 @@ class ColumnResponse(BaseModel):
     semantic_override: SemanticType | None
     effective_semantic_type: SemanticType
     role: Literal["feature", "target", "excluded"]
+    inference_version: str = "semantic-v1"
 
 
 class DatasetResponse(BaseModel):
@@ -90,3 +91,4 @@ class DatasetPatch(InputModel):
     revision: int
     semantic_overrides: dict[str, SemanticType | None] = Field(default_factory=dict)
     target_column: str | None = None
+    refresh_inference: bool = False

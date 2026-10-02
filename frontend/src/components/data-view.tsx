@@ -267,6 +267,14 @@ export function DataView({
             title="Columns"
             description="Physical dtype describes parsing. Effective semantic type reflects your override, if present."
           >
+            <p className="muted">Semantic edits preserve source values and target classes. Existing preparation choices stay saved and are revalidated in Prepare.</p>
+            {dataset.columns.some(column => column.inference_version !== "semantic-v2") && (
+              <Alert tone="info">
+                This Dataset uses earlier detection rules. Refresh detected types to apply improved identifier recognition. Manual overrides and preparation choices remain saved; compatibility may change.
+                <Button disabled={busy} onClick={() => void save({ refresh_inference: true }, "inference")}>Refresh detected types</Button>
+                {errorAt("inference")}
+              </Alert>
+            )}
             {busy && <Loading>Saving…</Loading>}
             <div className="table-scroll">
               <table>
@@ -293,7 +301,7 @@ export function DataView({
                     <tr key={column.name}>
                       <th scope="row">{column.name}</th>
                       <td className="mono">{column.physical_dtype}</td>
-                      <td>{column.missing_count}</td>
+                      <td>{column.missing_count.toLocaleString()}<small className="semantic-note">{(100 * column.missing_count / dataset.row_count).toFixed(1)}%</small></td>
                       <td>{column.unique_count}</td>
                       <td>{column.inferred_semantic_type}</td>
                       <td>
@@ -316,13 +324,19 @@ export function DataView({
                             )
                           }
                         >
-                          <option value="">Use inferred</option>
+                          <option value="">Use detected ({column.inferred_semantic_type})</option>
                           {semanticTypes.map((type) => (
                             <option key={type} value={type}>
                               {type}
                             </option>
                           ))}
                         </select>
+                        {column.semantic_override !== null ? (
+                          <div className="semantic-override">
+                            <span className="badge accent">Manual override</span>
+                            <Button disabled={busy} aria-label={`Reset ${column.name} to detected type`} onClick={() => void save({ semantic_overrides: { [column.name]: null } }, `column-${column.source_order}`)}>Reset to detected type</Button>
+                          </div>
+                        ) : <small className="semantic-note">Using detected type</small>}
                         {errorAt(`column-${column.source_order}`)}
                       </td>
                       <td>{column.effective_semantic_type}</td>

@@ -102,12 +102,28 @@ def infer_semantic(series: pd.Series) -> str:
         return "unknown"
     if unique == 2:
         return "binary"
-    name = str(series.name).lower()
-    id_hint = name == "id" or name.endswith("_id") or name.startswith("id_")
-    integer_like = is_integer_dtype(series.dtype)
+    # Split CamelCase and punctuation; never match the substring in paid/width/middle.
+    name = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", str(series.name)).lower()
+    tokens = re.findall(r"[a-z0-9]+", name)
+    id_hint = bool(set(tokens) & {"id", "uuid", "guid", "identifier", "key"})
+    integer_like = is_integer_dtype(series.dtype) or (
+        is_numeric_dtype(series.dtype)
+        and not is_bool_dtype(series.dtype)
+        and observed.map(lambda v: math.isfinite(v) and v == int(v)).all()
+    )
     strings = not is_numeric_dtype(series.dtype) and not is_bool_dtype(series.dtype)
-    if id_hint and unique >= 3 and unique / len(observed) >= 0.95 and (integer_like or strings):
-        return "identifier"
+    if unique >= 3 and unique / len(observed) >= 0.95:
+        values = observed.astype(str) if strings else None
+        uuid_like = (
+            values is not None
+            and values.str.fullmatch(
+                r"(\{)?[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}(?(1)\})"
+            ).all()
+        )
+        opaque = values is not None and values.str.fullmatch(r"[A-Za-z0-9_-]+").all()
+        date_like = values is not None and values.str.match(r"\d{4}-\d{2}-\d{2}").all()
+        if uuid_like or (id_hint and (integer_like or (opaque and not date_like))):
+            return "identifier"
     if is_numeric_dtype(series.dtype) and not is_bool_dtype(series.dtype):
         return "continuous" if unique > 1 else "unknown"
     if strings:
@@ -143,6 +159,7 @@ def describe_columns(frame: pd.DataFrame) -> list[dict]:
                 "unique_count": int(series.nunique()),
                 "inferred_semantic_type": infer_semantic(series),
                 "semantic_override": None,
+                "inference_version": "semantic-v2",
             }
         )
     return columns
