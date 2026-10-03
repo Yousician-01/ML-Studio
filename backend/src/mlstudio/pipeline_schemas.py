@@ -69,13 +69,59 @@ class FeatureIntent(InputModel):
     operations: list[Operation]
 
 
+# Defaults are ML Studio choices, explicitly materialized on model selection.
+# Ranges are contextual issues so intermediate numeric intent remains saveable.
+Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
+Integer = Annotated[int, Field(strict=True)]
+
+
+class LogisticParameters(InputModel):
+    C: Number | None = 1.0
+    penalty: Literal["l1", "l2"] | None = "l2"
+    max_iter: Integer | None = 1000
+
+
+class TreeParameters(InputModel):
+    max_depth: Integer | None = None
+    min_samples_split: Integer | None = 2
+    min_samples_leaf: Integer | None = 1
+
+
+class ForestParameters(TreeParameters):
+    n_estimators: Integer | None = 100
+
+
+class LogisticModel(InputModel):
+    type: Literal["logistic_regression"]
+    parameters: LogisticParameters = Field(default_factory=LogisticParameters)
+
+
+class TreeModel(InputModel):
+    type: Literal["decision_tree"]
+    parameters: TreeParameters = Field(default_factory=TreeParameters)
+
+
+class ForestModel(InputModel):
+    type: Literal["random_forest"]
+    parameters: ForestParameters = Field(default_factory=ForestParameters)
+
+
+ModelIntent = Annotated[LogisticModel | TreeModel | ForestModel, Field(discriminator="type")]
+
+
+class SplitIntent(InputModel):
+    test_size: Number | None = 0.2
+    random_seed: Integer | None = 42
+    stratify: Annotated[bool, Field(strict=True)] | None = True
+
+
 class PipelineIR(InputModel):
     ir_version: Literal["0.1"] = "0.1"
     dataset: DatasetBinding | None = None
     target: TargetIntent | None = None
     features: dict[str, FeatureIntent] = Field(default_factory=dict)
-    model: None = None
-    split: None = None
+    model: ModelIntent | None = None
+    split: SplitIntent | None = None
 
 
 class PipelineIssue(InputModel):
@@ -84,6 +130,7 @@ class PipelineIssue(InputModel):
     code: str
     message: str
     column: str | None = None
+    field: str | None = None
 
 
 class PipelineResponse(InputModel):
@@ -94,6 +141,13 @@ class PipelineResponse(InputModel):
     target_missing_count: int
     issues: list[PipelineIssue]
     prepare_valid: bool
+    code_generation_ready: bool
+    original_filename: str | None
+    eligible_rows: int
+    train_rows: int | None
+    test_rows: int | None
+    model_defaults: list[ModelIntent]
+    split_defaults: SplitIntent = Field(default_factory=SplitIntent)
     executable: Literal[False] = False
     stale: bool
 

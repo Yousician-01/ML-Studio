@@ -8,13 +8,14 @@ import { ProjectForm } from "./project-form";
 import { DataView } from "./data-view";
 import { Explore } from "./explore";
 import { Prepare } from "./prepare";
+import { Train } from "./train";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
 
 export function Workspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const search = useSearchParams();
-  const view = search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
+  const view = search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
   const [project, setProject] = useState<Project | null>(null);
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +107,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         )}
       </div>
       <nav className="benches" aria-label="Project workspace">
-        {["data", "explore", "prepare"].map((name) => (
+        {["data", "explore", "prepare", "train"].map((name) => (
           <Link
             key={name}
             href={`/projects/${projectId}?view=${name}`}
@@ -115,10 +116,10 @@ export function Workspace({ projectId }: { projectId: string }) {
               if (view !== name) setLoading(true);
             }}
           >
-            {name === "data" ? "Data" : name === "explore" ? "Explore" : "Prepare"}
+            {name === "data" ? "Data" : name === "explore" ? "Explore" : name === "prepare" ? "Prepare" : "Train"}
           </Link>
         ))}
-        {["Train", "Evaluate", "Runs", "Code"].map((name) => (
+        {["Evaluate", "Runs", "Code"].map((name) => (
           <button key={name} disabled>
             {name}
             <span>Upcoming</span>
@@ -143,6 +144,8 @@ export function Workspace({ projectId }: { projectId: string }) {
             onSaved={saved}
             onReload={reload}
           />
+        ) : view === "train" ? (
+          <Train key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : view === "prepare" ? (
           <Prepare key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : (

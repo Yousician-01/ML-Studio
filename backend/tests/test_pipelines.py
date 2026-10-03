@@ -239,7 +239,8 @@ def test_invalid_states_persist(client, mutation, code):
 
 
 @pytest.mark.parametrize(
-    "field,value", [("ir_version", "9"), ("model", {"type": "logistic_regression"}), ("split", {})]
+    "field,value",
+    [("ir_version", "9"), ("model", {"type": "unsupported"}), ("split", {"stratify": "yes"})],
 )
 def test_structural_boundary(client, field, value):
     _, _, path, state = setup(client)

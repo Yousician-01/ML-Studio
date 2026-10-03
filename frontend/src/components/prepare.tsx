@@ -69,12 +69,12 @@ export function Prepare({ projectId, datasetId, onReload }: {
   return <div className="prepare-view">
     <Panel title="Prepare" description="Define feature participation and ordered preprocessing. Source data stays unchanged. Each change saves immediately.">
       <p role="status"><strong>{state.stale ? "Stale configuration" : state.prepare_valid ? "Prepare configuration valid" : hasInvalidIntent ? "Prepare has blocking issues" : "Prepare configuration incomplete"}</strong>{busy ? " · Saving…" : saved ? " · Saved" : ""}</p>
-      <p className="muted">Model and split remain unconfigured. This pipeline is not ready to train.</p>
+      <p className="muted">Complete model and split configuration in Train. No training executes yet.</p>
       <Issues issues={state.issues.filter(i => i.scope === "pipeline")} />
       {localError("pipeline")}
       {conflict && <Alert>Newer Project state exists. Reload Prepare to review it before making further edits. <Button onClick={onReload}>Reload Prepare</Button></Alert>}
       <details><summary>Reset preparation</summary>
-        <p>Replace this working recipe with the current Dataset and target. All feature candidates start included, with no operations. Previous preparation choices and positive class will be cleared.</p>
+        <p>Replace this working recipe with the current Dataset and target. All feature candidates start included, with no operations. Previous preparation choices, positive class, model, and split will be cleared.</p>
         <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy || conflict} onChange={e => setConfirmed(e.target.checked)} /> I understand that this replaces the working preparation.</label>
         <Button disabled={!confirmed || busy || conflict} onClick={() => void reset()}>Reset for current Dataset</Button>
       </details>

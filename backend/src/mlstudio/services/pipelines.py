@@ -5,10 +5,19 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from sqlalchemy import select
 
 from mlstudio.models import Dataset, Project, utc_now
-from mlstudio.pipeline_schemas import PipelineIR, PipelineIssue, PipelineResponse, TypedScalar
+from mlstudio.pipeline_schemas import (
+    ForestModel,
+    LogisticModel,
+    PipelineIR,
+    PipelineIssue,
+    PipelineResponse,
+    TreeModel,
+    TypedScalar,
+)
 from mlstudio.services.artifacts import verified_source
 from mlstudio.services.pipeline_state import column_role, initialize
 from mlstudio.services.source import DomainError, json_scalar, parse_source
+from mlstudio.services.train_validation import partition_sizes, train_issues
 
 
 def typed_scalar(value) -> TypedScalar:
@@ -33,8 +42,12 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
             )
         )
 
-    issue("model_missing", "Model configuration belongs to the upcoming Train bench.", "train")
-    issue("split_missing", "Split configuration belongs to the upcoming Train bench.", "train")
+    target_series = (
+        frame[ir.target.column]
+        if dataset is not None and ir.target and ir.target.column in frame
+        else None
+    )
+    issues.extend(train_issues(ir, target_series))
     if dataset is None:
         issue("dataset_missing", "Upload a Dataset in Data.")
         return issues, [], 0, False
@@ -140,6 +153,33 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
             feature_issue(
                 "operation_combination", "Scaling and encoding cannot share one feature sequence."
             )
+        # Model input compatibility is separate from semantic operation grammar.
+        # Inspect eligible source facts only; never fit or split feature matrices.
+        if feature.included and ir.model is not None and target_series is not None:
+            observed = frame.loc[target_series.notna(), name]
+            if not observed.empty and observed.count() == 0:
+                issue(
+                    "feature_all_missing",
+                    "No observed feature values remain after target "
+                    "exclusion. Exclude this feature or review its source.",
+                    "train",
+                    name,
+                )
+            elif observed.isna().any() and "impute" not in families:
+                issue(
+                    "feature_missing_values",
+                    "Configure imputation in Prepare. This v0.1 "
+                    "configuration requires complete classifier inputs.",
+                    "train",
+                    name,
+                )
+            if not (numeric or is_bool_dtype(frame[name].dtype)) and "encode" not in families:
+                issue(
+                    "feature_encoding",
+                    "Non-numeric classifier input requires one-hot encoding in Prepare.",
+                    "train",
+                    name,
+                )
         for op in feature.operations:
             compatible = (
                 (
@@ -187,6 +227,10 @@ def response(project, dataset, settings):
         if dataset
         else []
     )
+    eligible = (
+        int(frame[ir.target.column].count()) if ir.target and ir.target.column in frame else 0
+    )
+    train_rows, test_rows = partition_sizes(eligible, ir.split)
     return PipelineResponse(
         revision=project.revision,
         ir=ir,
@@ -194,6 +238,16 @@ def response(project, dataset, settings):
         target_classes=classes,
         target_missing_count=missing,
         issues=issues,
+        code_generation_ready=not any(i.severity == "blocking" for i in issues),
+        original_filename=dataset.original_filename if dataset else None,
+        eligible_rows=eligible,
+        train_rows=train_rows,
+        test_rows=test_rows,
+        model_defaults=[
+            LogisticModel(type="logistic_regression"),
+            TreeModel(type="decision_tree"),
+            ForestModel(type="random_forest"),
+        ],
         prepare_valid=not any(i.severity == "blocking" and i.scope != "train" for i in issues),
         stale=stale,
     )
@@ -207,7 +261,7 @@ def read(session, project, settings):
 def save(session, project, body, settings, reset=False):
     project, dataset = snapshot(session, project.id)
     if body.revision != project.revision:
-        raise DomainError("Project changed. Reload Prepare before saving again.", 409)
+        raise DomainError("Project changed. Reload the workspace before saving again.", 409)
     if reset:
         if dataset is None or body.dataset_id != dataset.id:
             raise DomainError("Dataset changed. Reload before resetting preparation.", 409)

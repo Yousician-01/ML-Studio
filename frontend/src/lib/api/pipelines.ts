@@ -10,13 +10,18 @@ export type Operation =
   | { type: "scale"; method: "standard" | "min_max" | "robust" }
   | { type: "encode"; method: "one_hot" };
 export type FeatureIntent = { included: boolean; operations: Operation[] };
+export type ModelIntent =
+  | { type: "logistic_regression"; parameters: { C: number | null; penalty: "l1" | "l2" | null; max_iter: number | null } }
+  | { type: "decision_tree"; parameters: { max_depth: number | null; min_samples_split: number | null; min_samples_leaf: number | null } }
+  | { type: "random_forest"; parameters: { n_estimators: number | null; max_depth: number | null; min_samples_split: number | null; min_samples_leaf: number | null } };
+export type SplitIntent = { test_size: number | null; random_seed: number | null; stratify: boolean | null };
 export type PipelineIR = {
   ir_version: "0.1";
   dataset: { dataset_id: string; fingerprint: string } | null;
   target: { column: string; positive_class: TypedScalar | null; missing_value_policy: "exclude_rows" } | null;
   features: Record<string, FeatureIntent>;
-  model: null;
-  split: null;
+  model: ModelIntent | null;
+  split: SplitIntent | null;
 };
 export type PipelineIssue = {
   severity: "blocking" | "non_blocking";
@@ -24,6 +29,7 @@ export type PipelineIssue = {
   code: string;
   message: string;
   column: string | null;
+  field: string | null;
 };
 export type WorkingPipeline = {
   revision: number;
@@ -33,6 +39,13 @@ export type WorkingPipeline = {
   target_missing_count: number;
   issues: PipelineIssue[];
   prepare_valid: boolean;
+  code_generation_ready: boolean;
+  original_filename: string | null;
+  eligible_rows: number;
+  train_rows: number | null;
+  test_rows: number | null;
+  model_defaults: ModelIntent[];
+  split_defaults: SplitIntent;
   executable: false;
   stale: boolean;
 };

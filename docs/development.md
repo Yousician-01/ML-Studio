@@ -9,6 +9,7 @@ live in the managed workspace. Phase 1.5 adds a shared visual foundation,
 contextual validation, and permanent Project deletion. Phase 2 implements
 deterministic source exploration. Phase 3 adds persisted Pipeline IR and Prepare
 configuration; Phase 3.5 adds visual exploration and improved semantic detection.
+Phase 4 completes Train configuration and code-generation readiness.
 Preprocessing execution, training, Runs, generated code, MLflow, and AI are not
 implemented.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
@@ -411,7 +412,8 @@ order and duplicate families are validated without silently repairing intent.
 Incompatible excluded-feature operations remain dormant non-blocking issues.
 Prepare validity concerns preparation intent; classifier, raw passthrough,
 missing-feature support, split feasibility, and execution readiness still need
-the later Train/execution implementation. Model and split remain null.
+the model-aware validation described below. Execution still belongs to a later
+phase; unconfigured model and split remain null until explicitly selected.
 
 Positive class uses `{value_type, value}` for string, integer, float, or boolean.
 Unsafe integers use canonical decimal strings within the integer wrapper, so
@@ -446,6 +448,88 @@ Chart focus exposes exact values; coefficient tables, reduced motion, and
 An intentionally stale disposable database produced the migration instruction
 in the real UI; explicit upgrade followed by Retry recovered without an app
 restart. Browser fixtures, profiles, screenshots, and databases stayed in TEMP.
+
+## Train configuration (Phase 4)
+
+Train uses the same Project-owned Working Pipeline JSON and existing Pipeline
+GET/PATCH endpoints as Prepare. There is no new table, migration, estimator,
+training dependency, or separate training-settings representation. GET is
+read-only; opening Train does not select a model or split. The response includes
+an explicit default catalog, Dataset filename, eligible/train/test row counts,
+contextual issues (including parameter field paths), and `code_generation_ready`.
+`executable` remains false because execution is not implemented.
+
+The frozen specifications define the parameter surface, penalty values, and
+minimum model constraints. They explicitly leave numeric defaults to
+implementation. ML Studio materializes these defaults when a model is selected:
+
+| Model | Explicit defaults | Contextual validity |
+| --- | --- | --- |
+| `logistic_regression` | `C=1.0`, `penalty="l2"`, `max_iter=1000` | Finite C > 0; penalty l1/l2; integer max_iter >= 1 |
+| `decision_tree` | `max_depth=null`, `min_samples_split=2`, `min_samples_leaf=1` | Depth null or integer >= 1; split integer >= 2; leaf integer >= 1 |
+| `random_forest` | Tree defaults plus `n_estimators=100` | Tree constraints; integer estimators >= 1 |
+
+There are no additional model parameter caps imported from the superseded Phase 4
+prompt. Unknown parameters (including class_weight, criterion, solver, and
+max_features), booleans as numbers, numeric strings, non-finite numbers, and
+fractional integer parameters are rejected at the typed API boundary. Null can
+represent unresolved draft values; null max_depth specifically means unlimited.
+Out-of-range numeric intent is persisted with blocking issues rather than clamped.
+Omitted supported fields materialize the explicit defaults; supplying null retains
+unresolved intent. Switching models uses the new model's defaults, including when
+switching back; no hidden per-model history is kept.
+
+The split defaults to `test_size=0.2`, `random_seed=42`, `stratify=true` when the
+user explicitly configures it. The UI shows percentages; JSON stores the fraction.
+The Phase 4 supported range is 0.05?0.50 and the seed is an integer 0?2147483647.
+These implementation limits/defaults are not additional frozen specification text.
+There is one experiment seed. Future code generation retains frozen mappings:
+l1 -> liblinear, l2 -> lbfgs, with no solver control; tree/forest random state uses
+the split seed. Logistic Regression random state is not required by that contract.
+
+Split feasibility uses only non-missing target counts. Test row count is
+`ceil(eligible_rows * test_size)`; training gets the remainder. Stratification
+requires at least two observations per class and two rows per partition. Binary
+largest-remainder allocation is checked in sorted class order, with NumPy's
+legacy RandomState seeded tie breaking matching the intended sklearn allocation.
+No row indices are generated and no source rows are sampled or split. A requested
+stratified allocation that would omit a class is blocking, even if minimum
+partition sizes pass. Non-stratified configuration makes no class-representation
+guarantee. See the reviewed [sklearn splitter source](https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/model_selection/_split.py)
+and [allocation source](https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/utils/extmath.py).
+Phase 5 must verify this against its chosen supported sklearn version.
+
+Readiness extends the existing validator: source binding, target and typed
+positive class, feature-map completeness, effective semantics, operation grammar,
+model parameters, and split feasibility must have no blocking issues. Dormant
+excluded-operation incompatibilities remain non-blocking. For this initial
+configuration surface, missing included feature values require explicit
+imputation; all-missing eligible features are blocking even with imputation.
+Non-numeric raw values require encoding. This avoids claiming unverified native
+missing-value support from an unselected future library version. No operation is
+automatically inserted and no feature is silently dropped.
+
+Train parameter and split forms save explicitly; model selection saves defaults
+immediately. Pending editor strings are visibly unsaved UI state and suppress the
+ready message until saved. Editing one form temporarily disables the other so a
+save cannot discard its unsaved input. Navigation discards only unsaved input;
+saved intent survives navigation, reload, and app restart. Revision conflicts
+return 409, preserve the current editor, and require reload before further edits.
+Target changes retain model/split, reset positive class, reconcile participation,
+and revalidate stratification. Replacement retains a stale old binding; explicit
+reset in Prepare clears the whole working recipe, including model and split.
+
+Browser acceptance used disposable synthetic data outside the repository. Chrome
+verified all model controls/defaults, l1 selection, model switching, parameter and
+split edits, invalid drafts, reload/navigation, 409 recovery, impossible singleton
+stratification, explicit non-stratified recovery, loading/error/retry states,
+long names, 900px layout, keyboard focus, and reduced motion. The ready state says
+**Ready for code generation**; there is no execution button. The same acceptance
+flow passed on development and production servers; restarting the backend
+restored saved model/split intent and readiness. Final validation passed 275
+backend tests, Ruff check/format check, pip check, frontend typecheck/lint/build,
+and disposable fresh/existing-schema Alembic upgrade/check. No dependency changes
+were required.
 
 ## Manual GitHub setup
 
