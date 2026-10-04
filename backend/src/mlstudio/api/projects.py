@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Form, Query, Request, Response, UploadFi
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from mlstudio.codegen.schemas import CodePreview
 from mlstudio.db.session import get_session
 from mlstudio.models import Project, utc_now
 from mlstudio.pipeline_schemas import PipelineReset, PipelineResponse, PipelineUpdate
@@ -16,6 +17,7 @@ from mlstudio.schemas import (
     ProjectResponse,
 )
 from mlstudio.services import datasets, pipelines
+from mlstudio.services.code_preview import preview
 from mlstudio.services.profiles import read_profile
 from mlstudio.services.project_deletion import delete_project
 from mlstudio.services.source import DomainError
@@ -32,6 +34,11 @@ def get_project(project_id: str, session: Database) -> Project:
 
 
 CurrentProject = Annotated[Project, Depends(get_project)]
+
+
+@router.get("/{project_id}/code", response_model=CodePreview)
+def current_code(project: CurrentProject, session: Database, request: Request):
+    return preview(session, project, request.app.state.settings)
 
 
 @router.get("/{project_id}/pipeline", response_model=PipelineResponse)

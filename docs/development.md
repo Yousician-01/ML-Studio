@@ -10,8 +10,8 @@ contextual validation, and permanent Project deletion. Phase 2 implements
 deterministic source exploration. Phase 3 adds persisted Pipeline IR and Prepare
 configuration; Phase 3.5 adds visual exploration and improved semantic detection.
 Phase 4 completes Train configuration and code-generation readiness.
-Preprocessing execution, training, Runs, generated code, MLflow, and AI are not
-implemented.
+Phase 5 adds deterministic complete Python source and a read-only Code preview.
+Production preprocessing/training execution, Runs, MLflow, and AI are not implemented.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
@@ -556,3 +556,133 @@ Before inviting public reports and contributions, maintainers should:
 No CODEOWNERS is supplied because ownership is not established. No Dependabot
 configuration is supplied in Phase 0.
 These settings are not activated by documentation and remain manual work.
+
+
+## Deterministic Code preview (Phase 5)
+
+`GET /api/v1/projects/{project_id}/code` reads a consistent persisted context,
+verifies the managed source, validates intent, resolves a typed
+`EffectiveExecutionPlan`, and renders Python. It returns `ready`, structured
+`issues`, current `project_id`/`dataset_id`/`revision`, `source` (null when blocked),
+`source_sha256`, `plan_sha256`, `generator`, `filename`, and library versions.
+No preview cache, table, migration, Run directory, or historical artifact is created.
+The UI aborts superseded requests, checks the returned revision against current
+Project state, refreshes on focus/navigation, and hides old source while refreshing.
+
+### Versions and resolved implementation choices
+
+The generator identity is `mlstudio-python-v1`; the plan schema is `0.1` and the
+implementation contract is `sklearn-local-v1`. Bump generator identity whenever
+rendered source or embedded helper behavior changes after release. Working previews
+may change; Phase 6 must preserve exact historical source instead of regenerating it.
+
+Python remains >=3.12, pandas >=2.2,<4, and NumPy >=2,<3. The tested local environment
+is Python 3.14.2, pandas 3.0.6, NumPy 2.5.3, scipy 1.18.1, scikit-learn 1.9.1,
+and joblib 1.5.3. Scikit-learn is pinned to 1.9.1; joblib is explicit
+`>=1.5.3,<1.6`. The sklearn pin intentionally precedes removal of the frozen
+`penalty` API. Its upstream deprecation warning is expected; L1/liblinear and
+L2/lbfgs are verified with real library fixtures. Other declared pandas/NumPy/Python
+versions are not claimed tested by this acceptance run.
+
+A plan records the exact installed relevant versions and Python version. The future
+script refuses an environment that differs. Dataset parser/pandas provenance must
+match the current interpretation; restore a compatible environment or explicitly
+replace/review the Dataset when it does not. This is compatibility protection, not
+full environment recreation. No environment/requirements artifact is generated.
+
+Features use separate branches in source-column order, including features that
+share operations. Empty operation lists become explicit passthrough; excluded
+features never enter the plan. Parameter keys/imports have stable order; branch
+names use controlled ordinals. Output is UTF-8 without BOM, LF, four-space indentation,
+one trailing newline, and escaped builtin Python literals. Dataset names/labels
+never become Python identifiers or source fragments.
+
+Resolved options include OneHotEncoder `handle_unknown="ignore"`, sparse float64
+output, no category dropping/frequency grouping; ColumnTransformer `remainder="drop"`,
+`sparse_threshold=1.0`, one job; training-only SimpleImputer statistics without
+indicators or empty-column fallback; conventional centering/scaling, MinMax range
+0..1 without clipping, and Robust interquartile scaling. All included training
+columns must have observed values: otherwise the workload fails before fitting.
+The complete preprocessing+classifier pipeline is the eventual inference artifact.
+
+Model defaults and curated controls remain unchanged. Internal choices explicitly
+resolve estimator defaults, tree/forest seeds and single-job forest execution.
+Logistic Regression emits its frozen penalty/solver pair plus matching internal
+`l1_ratio` for sklearn 1.9.1 compatibility; its random state also receives the
+experiment seed. None of these internal choices adds a visual/IR parameter.
+
+Readiness rejects sklearn-incompatible target representations without changing
+labels: non-integral floats and unsupported oversized object integers are examples.
+Strings, booleans, supported integers (including lossless large int64 labels), and
+integral floats are tested. Nullable large integer targets and categorical features
+are refused because sklearn converts their pandas extension dtype to float64 and
+can merge distinct values. Non-nullable large int64 target labels remain supported.
+No label encoding is introduced.
+
+### Faithful standalone loading
+
+The shared `codegen/csv_runtime.py` parser is used by ingestion and embedded as
+ordinary Python in the generated script. The renderer bundles fixed package helper
+source; generated code imports no ML Studio modules. UTF-8/BOM, strict headers and
+row widths, pandas NA conventions, and precision-sensitive integer rereads remain
+identical. Preview and generated loading hash the same bounded byte buffer that is
+parsed. This prevents a later path replacement from changing the already-verified
+buffer; it is not a filesystem sandbox or an atomic-read guarantee against all
+local concurrent writers. Digest mismatch refuses loading.
+
+### Future workload interface: cli-v1
+
+The source accepts three required absolute paths, supplied by Phase 6:
+
+```text
+python generated_run.py --dataset <source.csv> --result <result.json> --model <model.joblib>
+```
+
+This documents the generated interface; Phase 5 does not invoke this command.
+Outputs must be distinct new files in existing executor-prepared directories.
+The source verifies versions, size, SHA-256, physical interpretation and typed
+classes; excludes only missing-target rows; splits; constructs preprocessing and
+classifier; fits training data; predicts/evaluates held-out rows; and writes the
+complete fitted pipeline with joblib plus a structured JSON result. No database,
+workspace discovery, Run ID, Project display name, MLflow, or lifecycle logic is in
+that script. Runtime paths never enter generated experiment identity.
+
+`mlstudio-result-v1` success fields are:
+
+- `schema_version`, `status="success"`, `dataset` ID/fingerprint, `generator`;
+- `metrics`: accuracy, precision, recall, f1, roc_auc (number or null);
+- `roc_auc_unavailable_reason` (string or null);
+- `confusion_matrix`: typed `labels` in negative/positive order and 2x2 `values`;
+- `population`: source, eligible, training, test row counts;
+- `artifacts.model`: complete_pipeline kind and supplied output filename;
+- `versions`: exact Python and relevant library versions.
+
+Precision/recall/F1 explicitly use the chosen positive class and zero_division=0.
+ROC-AUC uses its matched probability column or correctly oriented decision scores,
+never hard predictions. One-class held-out truth produces null plus a reason.
+JSON uses sorted keys and allow_nan=False. Typed unsafe integer labels use decimal
+strings; the script's Python label constants remain exact integers.
+
+On failure, the script attempts a result with schema_version, status="failed",
+stage, and a sanitized message, then exits nonzero. Fixed training-partition
+validation messages explain missing classes or entirely missing training features;
+other exceptions receive a generic stage message. No raw exception text/rows are
+printed. Output writes use temporary files and replacement; Phase 6 still owns
+validation, immutable finalization, checksums/references, and deciding Run success.
+A partial model alongside a failure result is not a successful artifact. Per-row
+prediction persistence is not included.
+
+### Phase boundary and verification
+
+The split guarantee now explicitly requires equivalent source interpretation,
+eligible target rows and relevant execution/library version in addition to source
+identity, target and split configuration. Model/preprocessing changes alone do not
+change split inputs. Only this approved wording was corrected in User Journey.
+
+Tests combine full-source byte goldens, AST/compile checks, import-only standalone
+parser parity, literal/adversarial checks, preview side-effect guards, and isolated
+sklearn/joblib compatibility fixtures. Library test fixtures may fit tiny models
+and serialize to pytest temporary directories; application preview never does.
+No generated workload main function or production subprocess executor is run in
+Phase 5. Full generated-program execution, Runs, history, Evaluate, output
+finalization, and MLflow remain Phase 6 work.

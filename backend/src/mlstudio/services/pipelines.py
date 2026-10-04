@@ -4,6 +4,7 @@ import pandas as pd
 from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from sqlalchemy import select
 
+from mlstudio.codegen.compatibility import compatibility_issues
 from mlstudio.models import Dataset, Project, utc_now
 from mlstudio.pipeline_schemas import (
     ForestModel,
@@ -199,6 +200,7 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                     "operation_incompatible",
                     f"{op.type.capitalize()} is incompatible with this semantic/physical type.",
                 )
+    issues.extend(compatibility_issues(ir, dataset, frame))
     return issues, classes, missing, stale
 
 

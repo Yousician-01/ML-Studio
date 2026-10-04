@@ -20,8 +20,10 @@ Explore provides interactive histograms, boxplots, frequency/missingness bars,
 a correlation heatmap, and searchable column observations. Projects can be permanently deleted with explicit confirmation.
 Prepare persists versioned Pipeline IR with explicit positive class, feature
 participation, and ordered preprocessing intent. Train completes explicit model
-and split configuration with contextual code-generation readiness. No
-transformations or training execute yet.
+and split configuration with contextual code-generation readiness. Code provides
+a deterministic, read-only Python preview of the complete configured workload,
+including source integrity checks and training-only preprocessing. Previewing
+does not execute transformations, train, or create Run artifacts.
 ML execution is not implemented yet. Follow the verified
 [development setup](docs/development.md) to run the two local processes.
 

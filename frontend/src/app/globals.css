@@ -29,6 +29,16 @@
   --mono: Consolas, "Courier New", monospace;
   --shadow-dialog: 0 12px 48px #38271624;
 }
+.code-view { min-width: 0; }
+.code-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; }
+.code-assumptions { margin: 16px 0; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-small); background: var(--surface-subtle); }
+.code-assumptions summary { cursor: pointer; font-weight: 600; }
+.code-source { max-height: 70vh; overflow: auto; padding: 20px 0; border: 1px solid var(--border); border-radius: var(--radius-small); background: var(--surface); color: var(--text); font: 13px/1.8 var(--mono); tab-size: 4; }
+.code-line { padding-right: 24px; }
+.code-line-number { display: inline-block; width: 5em; padding-right: 1.5em; text-align: right; color: var(--muted); user-select: none; }
+.code-comment { color: var(--muted); }
+.code-issues { padding-left: 24px; }
+.code-issues li { margin: 12px 0; overflow-wrap: anywhere; }
 * {
   box-sizing: border-box;
 }

@@ -212,11 +212,12 @@ silent fallback. Numeric defaults and exact execution semantics remain deferred.
 Preprocessing must be described as fitted on training data and applied to held-out
 data, consistent with the existing correctness boundary.
 
-Each Run freezes its exact split configuration. Two Runs using the same Dataset
-identity, target, and split configuration must have equivalent deterministic
-splits, so model/preprocessing changes do not accidentally change the evaluation
-population. The later execution specification must establish the precise
-splitting semantics that fulfill this requirement. v0.1 does not add
+Each Run freezes its exact split configuration. Two Runs with equivalent exact
+Dataset/source identity, resolved source interpretation, eligible target rows,
+target, split configuration, and relevant execution/library implementation version
+must have equivalent deterministic splits. Model/preprocessing changes alone must
+not change the evaluation population. This does not promise identical splits across
+parser/library changes that alter eligibility or splitting behavior. v0.1 does not add
 cross-validation, nested cross-validation, separate validation datasets, repeated
 holdout, or hyperparameter optimization.
 
@@ -392,8 +393,9 @@ selection. These comparison exclusions do not remove the basic Explore charts.
 9. Explicit visible configuration takes precedence over hidden ML behavior.
 10. Users are not forced through a rigid wizard.
 11. Comparison shows exactly two Runs and never labels either universally better.
-12. Each Run freezes its split configuration; identical Dataset identity, target,
-    and split configuration produce equivalent deterministic splits.
+12. Each Run freezes its split configuration; equivalent exact Dataset/source identity,
+    resolved source interpretation, eligible target rows, target, split configuration,
+    and relevant execution/library version produce equivalent deterministic splits.
 13. Source-row preview remains available in Data; v0.1 has no transformed-row previews.
 
 ## Non-normative walkthrough

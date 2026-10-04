@@ -9,13 +9,14 @@ import { DataView } from "./data-view";
 import { Explore } from "./explore";
 import { Prepare } from "./prepare";
 import { Train } from "./train";
+import { CodeView } from "./code-view";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
 
 export function Workspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const search = useSearchParams();
-  const view = search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
+  const view = search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
   const [project, setProject] = useState<Project | null>(null);
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,12 +120,14 @@ export function Workspace({ projectId }: { projectId: string }) {
             {name === "data" ? "Data" : name === "explore" ? "Explore" : name === "prepare" ? "Prepare" : "Train"}
           </Link>
         ))}
-        {["Evaluate", "Runs", "Code"].map((name) => (
+        {["Evaluate", "Runs"].map((name) => (
           <button key={name} disabled>
             {name}
             <span>Upcoming</span>
           </button>
         ))}
+        <Link href={`/projects/${projectId}?view=code`} aria-current={view === "code" ? "page" : undefined}
+          onNavigate={() => { if (view !== "code") setLoading(true); }}>Code</Link>
       </nav>
       {error ? (
         <Alert>
@@ -144,6 +147,8 @@ export function Workspace({ projectId }: { projectId: string }) {
             onSaved={saved}
             onReload={reload}
           />
+        ) : view === "code" ? (
+          <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />
         ) : view === "train" ? (
           <Train key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : view === "prepare" ? (
