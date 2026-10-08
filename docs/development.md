@@ -13,11 +13,12 @@ Phase 4 completes Train configuration and code-generation readiness.
 Phase 5 adds deterministic complete Python source and a read-only Code preview.
 Phase 6A adds backend Run persistence, exact-source subprocess execution, output
 validation/finalization, and conservative recovery. Phase 6B adds Train execution,
-Runs/history inspection, and local MLflow tracking. Evaluate and AI remain deferred.
+Runs/history inspection, and local MLflow tracking. Phase 7 adds frozen Run
+evaluation and exactly-two Run comparison. AI remains deferred.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
-execution and training-only preprocessing in later phases, and validate behavior
+execution and training-only preprocessing, and validate behavior
 with meaningful tests. Follow [Contributing](../CONTRIBUTING.md). Vision explains
 why; Roadmap stages work; Prototype summarizes scope; Architecture explains the
 system; specifications govern contracts; ADRs preserve decisions; Issues track
@@ -351,6 +352,7 @@ TestClient adapter; tests pass.
 From `frontend/`:
 
 ```powershell
+npm.cmd run test
 npm.cmd run typecheck
 npm.cmd run lint
 npm.cmd run build
@@ -361,11 +363,11 @@ TypeScript 6.0.3 is pinned because Next's typescript-eslint parser rejects 7.0.
 ESLint 9.39.5 is pinned because Next's React lint plugin fails with ESLint 10.11.0.
 npm labels ESLint 9 deprecated; revisit these tooling pins when upstream support
 lands. No lint rules are disabled to hide these failures. Next build does not
-run lint, so all three commands are required.
+run lint or tests, so all four commands are required.
 
-Run `git diff --check` and inspect `git status` before committing. Phase 1 adds
-pandas and python-multipart as direct backend dependencies; no training library
-is installed. Setup commands must stay backed by actual
+Run `git diff --check` and inspect `git status` before committing. Backend dependencies are declared in
+`backend/pyproject.toml`; frontend dependencies and scripts are declared in
+`frontend/package.json`. Setup commands must stay backed by actual
 verification; do not document aspirational commands as working instructions.
 
 Phase 1 verification passed 69 backend tests, Ruff checks, `pip check`, fresh
@@ -536,10 +538,37 @@ backend tests, Ruff check/format check, pip check, frontend typecheck/lint/build
 and disposable fresh/existing-schema Alembic upgrade/check. No dependency changes
 were required.
 
+## Contributor CI
+
+[Contributor CI](../.github/workflows/ci.yml) runs on every `pull_request` targeting
+`main`, including documentation-only PRs. There are no path filters or matrix jobs.
+The stable status-check names are **Frontend checks** and **Backend checks**.
+
+Both jobs use GitHub-hosted Windows runners, matching the documented local platform.
+The frontend uses Node 24.13.0 and runs `npm ci`, `npm run test`,
+`npm run typecheck`, `npm run lint`, and `npm run build` from `frontend/`.
+It also runs `git diff --check HEAD^ HEAD` at the repository root after fetching
+the PR merge commit and its base parent; this checks committed PR changes rather
+than only a clean checkout.
+
+The backend uses Python 3.14.2 and runs `python -m pip install -e ".[dev]"`,
+`python -m pytest`, `python -m ruff check .`, `python -m ruff format --check .`,
+`python -m pip check`, and `python -m pip wheel --no-deps --wheel-dir dist .`
+from `backend/`. The wheel command uses the existing Hatchling build backend
+declared in `pyproject.toml`; no separate build CLI dependency is needed.
+CI sets `MLSTUDIO_HOME` under the runner temporary directory; tests also isolate
+their workspaces. Wheels are validation output only and are not published.
+
+Actions are pinned to full commit SHAs. Permissions are limited to `contents: read`,
+checkout does not persist credentials, and no repository secrets, privileged PR
+trigger, deployment environment, or shared dependency cache is used. Superseded
+runs for the same PR are cancelled, and jobs have bounded timeouts. Local hooks
+remain optional and are not installed by CI.
+
 ## Manual GitHub setup
 
-The workspace began without a remote. Publish it to the chosen owner/repository
-through the maintainer's normal process; no remote is assumed by this guide.
+Repository settings must be configured by maintainers on GitHub; files alone
+do not activate or verify branch protection or rulesets.
 
 Before inviting public reports and contributions, maintainers should:
 
@@ -547,8 +576,17 @@ Before inviting public reports and contributions, maintainers should:
   update [SECURITY.md](../SECURITY.md) if a verified private contact is added.
 - Establish a private conduct-reporting channel and replace the explicit pending
   channel notice in [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md).
-- Configure default-branch protection or a ruleset appropriate to the team;
-  require review where feasible and require checks only when real checks exist.
+- Enable Actions and allow the SHA-pinned official `actions/checkout`,
+  `actions/setup-node`, and `actions/setup-python` actions. Keep default workflow
+  permissions read-only and do not enable write tokens or secrets for fork PRs.
+- Open a PR targeting `main` and let **Frontend checks** and **Backend checks**
+  appear. Configure a branch-protection rule or ruleset for `main` requiring PRs,
+  at least one approving review, and both exact status-check names above (source:
+  GitHub Actions). Require the branch to be up to date before merging so checks
+  cover the current merge result. Restrict bypasses to explicitly authorized
+  maintainers and prevent force pushes/deletion of `main`.
+- Keep fork-workflow approval requirements enabled and review workflow changes
+  before approving execution. The files do not configure these GitHub settings.
 - Review repository security settings, including available secret scanning and
   push protection. Enable dependency alerts when a dependency graph exists.
 - Set a repository description, for example “Visual ML. Real code. Reproducible
@@ -559,7 +597,7 @@ Before inviting public reports and contributions, maintainers should:
   for milestones; neither is necessary to contribute.
 
 No CODEOWNERS is supplied because ownership is not established. No Dependabot
-configuration is supplied in Phase 0.
+configuration is supplied.
 These settings are not activated by documentation and remain manual work.
 
 

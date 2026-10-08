@@ -1,7 +1,7 @@
 # Contributing to ML Studio
 
 ML Studio's Prototype v0.1 specifications are complete and implementation is
-beginning. Read the [prototype](docs/prototype.md), current
+under active development. Read the [prototype](docs/prototype.md), current
 [architecture](docs/architecture.md), and authoritative
 [v0.1 specifications](docs/specifications/project-v0.1.md) before proposing
 behavior changes. Keep work focused on the frozen binary-classification scope.
@@ -40,7 +40,7 @@ test(profiling): add semantic inference cases
 refactor(executor): separate preprocessing execution
 ```
 
-These illustrate future changes; they do not imply code exists today.
+These illustrate commit-message formatting, not proposed changes to v0.1 scope.
 
 ## Validation and documentation
 
@@ -51,6 +51,17 @@ behavior changes, especially leakage prevention, validation, reproducibility,
 and proof that the exact persisted generated Python is executed. Preserve the
 complete fitted pipeline and immutable historical Run contracts. Explain
 untested cases honestly.
+
+Pull requests targeting `main` run [Contributor CI](.github/workflows/ci.yml).
+The exact required status-check names are **Frontend checks** and **Backend checks**.
+Both must pass before merge; a maintainer must configure that requirement in
+GitHub branch protection or a ruleset. The frontend job runs dependency installation,
+tests, typecheck, lint, production build, and a whitespace check of the PR diff.
+The backend job installs development dependencies, runs pytest and Ruff lint/format
+checks, checks dependency consistency, and builds a wheel with Hatchling via pip.
+CI uses GitHub-hosted runners, read-only permissions, no repository secrets, and
+no persisted checkout credentials. See the [development guide](docs/development.md#contributor-ci)
+for runtime versions and maintainer setup. Local Git hooks are not required.
 
 Update the authoritative document rather than duplicating its contents. Add an
 [ADR](docs/decisions/README.md) for significant architectural/product decisions.
