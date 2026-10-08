@@ -11,9 +11,11 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from mlstudio.api.health import router
 from mlstudio.api.projects import router as projects_router
+from mlstudio.api.runs import router as runs_router
 from mlstudio.api.upload_limit import UploadLimitMiddleware
 from mlstudio.core.config import Settings
 from mlstudio.db.session import create_database_engine
+from mlstudio.execution.coordinator import Coordinator
 from mlstudio.services.source import DomainError
 
 
@@ -24,9 +26,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = create_database_engine(settings)
         app.state.session_factory = sessionmaker(bind=engine, expire_on_commit=False)
+        app.state.execution = Coordinator(settings, app.state.session_factory)
+        app.state.execution.startup()
         try:
             yield
         finally:
+            app.state.execution.close()
             engine.dispose()
 
     app = FastAPI(title=settings.app_name, version=version("mlstudio"), lifespan=lifespan)
@@ -41,6 +46,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
+    app.include_router(runs_router, prefix=settings.api_prefix)
 
     @app.exception_handler(DomainError)
     async def domain_error(_request, error):

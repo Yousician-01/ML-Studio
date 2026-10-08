@@ -84,6 +84,7 @@ def test_migrations_on_fresh_database(settings: Settings):
                 "alembic_version",
                 "datasets",
                 "projects",
+                "runs",
             ]
         command.upgrade(config, "head")  # Re-running is safe.
         command.downgrade(config, "base")

@@ -11,7 +11,9 @@ deterministic source exploration. Phase 3 adds persisted Pipeline IR and Prepare
 configuration; Phase 3.5 adds visual exploration and improved semantic detection.
 Phase 4 completes Train configuration and code-generation readiness.
 Phase 5 adds deterministic complete Python source and a read-only Code preview.
-Production preprocessing/training execution, Runs, MLflow, and AI are not implemented.
+Phase 6A adds backend Run persistence, exact-source subprocess execution, output
+validation/finalization, and conservative recovery. Phase 6B adds Train execution,
+Runs/history inspection, and local MLflow tracking. Evaluate and AI remain deferred.
 The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
@@ -244,7 +246,7 @@ column metadata keeps schema observations and overrides together without adding
 one table per column. Project's composite active-Dataset foreign key enforces
 same-Project ownership, and Dataset's owner foreign key requires a real Project.
 SQLite foreign keys are enabled on every connection. No raw rows or profile caches are stored in these tables. Project also owns
-Working Pipeline JSON intent; Run records are not implemented.
+Working Pipeline JSON intent. Phase 6A adds immutable Run records separately.
 
 ## Source exploration and deletion
 
@@ -457,7 +459,10 @@ training dependency, or separate training-settings representation. GET is
 read-only; opening Train does not select a model or split. The response includes
 an explicit default catalog, Dataset filename, eligible/train/test row counts,
 contextual issues (including parameter field paths), and `code_generation_ready`.
-`executable` remains false because execution is not implemented.
+`executable` remains a legacy false field on this configuration contract. Train's
+Run action uses saved `code_generation_ready`, a current executable Code preview,
+revision/hash checks, and separately queried execution capacity. The Run API
+revalidates all inputs; the legacy field is not an execution authorization signal.
 
 The frozen specifications define the parameter surface, penalty values, and
 minimum model constraints. They explicitly leave numeric defaults to
@@ -684,5 +689,153 @@ parser parity, literal/adversarial checks, preview side-effect guards, and isola
 sklearn/joblib compatibility fixtures. Library test fixtures may fit tiny models
 and serialize to pytest temporary directories; application preview never does.
 No generated workload main function or production subprocess executor is run in
-Phase 5. Full generated-program execution, Runs, history, Evaluate, output
-finalization, and MLflow remain Phase 6 work.
+Phase 5. Phase 6A now exercises full generated-program execution and local Run
+finalization. Phase 6B adds Runs UI and MLflow; Evaluate remains later work.
+
+## Local Run execution (Phase 6A)
+
+Run `alembic upgrade head` before starting the backend. Migration `0004_runs`
+adds `runs` and a Project-local sequence counter. Counter allocation does not change
+the experiment revision or Project update timestamp. `psutil>=7,<8` is used only
+for process creation-time identity, tree termination, and restart reconciliation.
+
+The backend exposes:
+
+- `POST /api/v1/projects/{project_id}/runs`: accepts `request_id` (UUID),
+  `expected_revision`, `expected_source_sha256`, and `expected_plan_sha256` from
+  the current Code preview. Returns 202 after package creation and worker handoff.
+- `GET /api/v1/projects/{project_id}/runs?offset=0&limit=50`: descending sequence,
+  bounded pagination (maximum 100).
+- `GET /api/v1/projects/{project_id}/runs/{run_id}`: lifecycle, frozen summaries,
+  validated successful result, sanitized failure, and artifact integrity.
+- `GET /api/v1/projects/{project_id}/runs/{run_id}/code`: exact persisted source;
+  missing/corrupt source returns an error and is never regenerated.
+
+Matching request retries return the original attempt even after current edits.
+Inconsistent reuse and stale revision/source/plan hashes return 409. Fresh
+validation, resolution and generation precede creation. A short transaction checks
+revision and allocates sequence, publishes the verified package, then commits
+CREATED. No transaction stays open during training. Browser disconnect does not
+own or stop execution. Additional attempts receive 409 while capacity is occupied;
+there is one OS-locked execution slot per workspace and no queue.
+
+The managed layout is `projects/<project_id>/runs/<run_id>/`, containing frozen
+`pipeline_ir.json`, `execution_plan.json`, `generated_run.py`, and `package.json`.
+The manifest records Dataset reference, hashes/sizes, Project revision, versions,
+and source/eligible counts. No source CSV is copied into the Run. IR preserves
+excluded/dormant configuration; the effective plan remains separate evidence.
+
+The lifespan-owned worker launches the persisted script with the backend venv
+interpreter, `-I -B -u -X utf8`, explicit absolute Dataset/output arguments,
+`shell=False`, Run cwd, and stdin disconnected. Environment inheritance is limited
+to OS/runtime variables and numeric thread counts are fixed to one. **The subprocess
+is not a security sandbox.** No arbitrary Python is accepted by the Run API.
+
+Operational defaults (all use the `MLSTUDIO_` environment prefix):
+
+| Setting | Default |
+| --- | --- |
+| `RUN_TIMEOUT_SECONDS` | 1800 (30 minutes) |
+| `RUN_LOG_BYTES` | 10485760 per stdout/stderr stream (10 MiB) |
+| `RUN_RESULT_BYTES` | 1048576 (1 MiB) |
+| `RUN_MODEL_BYTES` | 1073741824 (1 GiB) |
+| `RUN_DISK_RESERVE_BYTES` | 67108864 (64 MiB package-preparation reserve) |
+| `RUN_TERMINATION_GRACE_SECONDS` | 5 |
+
+Both pipes are drained continuously; excess log bytes are discarded and truncation
+is recorded. Timeout terminates the owned process/tree, escalates if needed, reaps,
+and closes logs before terminal finalization. No memory quota or resource sandbox
+is claimed. Logs may contain sensitive information and are not returned by these APIs.
+
+The child writes result/model only into `.pending/`. Exit zero is insufficient:
+strict bounded JSON rejects duplicate keys/nonfinite values, checks exact protocol,
+Dataset/generator/environment, typed class orientation, matrix/counts, metric
+consistency, ROC-AUC availability, and the complete-pipeline model declaration.
+The model must be a bounded nonempty regular managed file. Production ingestion
+never unpickles it; checksums prove byte integrity, not pickle safety.
+
+After process quiescence, required inputs are reverified, outputs flushed/hashed
+and renamed, diagnostics finalized, and only then is SUCCEEDED committed. Failure
+keeps evidence without promoting partial output references or metrics. SQLite and
+filesystem writes are ordered but are not a shared atomic transaction. A storage
+or DB outage can leave an active record requiring recovery; it cannot manufacture
+success. Windows uses file fsync and same-volume rename; POSIX also fsyncs parent
+directories.
+
+Startup reconciliation never resumes or infers success. It verifies process
+creation time and exact arguments (or scans for the unique exact Run command in
+the launch/journal gap), stops safely owned workloads, and records interrupted
+attempts FAILED. Ownership uncertainty preserves evidence and blocks new execution
+until reconciled. Orphan published packages are quarantined in `.run-orphans/`,
+never launched. Missing historical inputs remain corruption, never regeneration.
+Active attempts block Project deletion; terminal Run rows are removed before
+Dataset/Project rows using the existing staged directory deletion protocol.
+
+Run tests use isolated temporary workspaces and include actual generated execution
+for all three supported classifiers. No Runs frontend, MLflow, Evaluate, queue,
+retry/cancellation endpoint, or editable code is introduced by Phase 6A.
+
+## Train, historical Runs, and local tracking (Phase 6B)
+
+Migration `0005_tracking` adds only the nullable MLflow Run ID, separate tracking
+status, sanitized tracking error, and tracking timestamp. It does not rewrite
+`0004_runs` or change immutable execution facts. Run `alembic upgrade head`.
+
+Train submits only saved, reviewed revision/source/plan hashes and a fresh request
+UUID. The browser retains an unresolved submission identity in localStorage before
+POST; this is transport recovery, never authoritative experiment or Run state.
+An uncertain response can be checked with the same request ID. A deliberate new
+execution gets a new ID. A stale 409 refreshes preview state and requires review;
+there is no automatic resubmission, save-and-run, queue, or execution retry.
+
+`GET /api/v1/projects/{project_id}/runs/capacity` reports workspace occupancy and
+recovery needs. The Run list accepts optional `request_id` filtering for recovery.
+Runs uses 20-item pages, descending sequence. Active detail/list reads poll every
+two seconds, stop at terminal state, and abort/clear timers on navigation. Capacity
+checks occur every three seconds while Train is mounted. Browser disconnection
+does not cancel execution. Network errors require explicit status refresh.
+
+Run detail reads verified frozen IR/plan, typed classes, metrics, compact confusion
+matrix, provenance and artifact integrity. Historical Code uses the dedicated
+`/runs/{run_id}/code` endpoint and never regenerates. Current Code is a preview of
+the mutable Working Pipeline. Dataset replacement or current edits cannot rewrite
+historical configuration or source. Runs does not implement Evaluate or comparison.
+
+The backend depends on `mlflow-skinny==3.16.1` (tracking client), using the existing
+SQLAlchemy/Alembic dependencies; no MLflow server or additional frontend library
+is needed. Explicit client URIs ignore inherited `MLFLOW_TRACKING_URI` and registry
+URI. MLflow telemetry and workspace multiplexing are disabled. The pinned client's
+`_MLFLOW_SERVER_ARTIFACT_ROOT` setting also places its default experiment locally;
+tests cover that integration detail. Reused experiment/Run artifact URIs must be
+local paths under the managed tracking root, including link checks.
+
+```text
+MLSTUDIO_HOME/
+├── mlstudio.db                    # authoritative domain database
+├── projects/<project_id>/runs/    # authoritative immutable evidence
+└── mlflow/
+    ├── mlflow.db                  # independent MLflow SQLite schema
+    └── artifacts/<project_id>/   # MLflow evidence copies/model references
+```
+
+Tracking begins after terminal local finalization and release of execution capacity.
+It uses a separate local tracking lock, synchronous MLflow client writes, one
+attempt per completion, and one reconciliation pass at backend startup. No retry
+scheduler exists. A failed synchronization records `FAILED` without changing the
+local SUCCEEDED/FAILED outcome. Startup reuses the persisted MLflow ID or searches
+the exact ML Studio Run tag after an interrupted association write. Ambiguous
+associations fail safely; they do not create another tracking Run.
+
+Captured data: identity/provenance tags, model/split/target/typed positive-class
+parameters, concise preprocessing, successful core metrics and available ROC-AUC,
+frozen IR/plan/package/source, and successful result. A model reference records its
+workspace-relative path, size and hash; tracking never loads the pickle. Failed
+attempts log safe failure stage/code and input evidence, without partial metrics
+or models. Raw CSV, stdout/stderr, arbitrary exceptions, autologging and generated
+workload MLflow imports are excluded. MLflow is repairable tracking infrastructure,
+not the domain authority or the only copy of required evidence. Project deletion
+does not implement MLflow garbage collection; tracking copies may remain locally.
+
+Frontend policy, transport, polling and server-rendered view checks use the existing
+Node/TypeScript/React dependencies: `npm run test`. They do not replace browser
+verification of interaction, responsive layout, focus, and reduced-motion behavior.

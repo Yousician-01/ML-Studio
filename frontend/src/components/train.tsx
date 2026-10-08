@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api/projects";
 import type { ModelIntent, PipelineIR, PipelineIssue, WorkingPipeline } from "@/lib/api/pipelines";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
+import { RunExperiment } from "./run-experiment";
 
 const models = {
   logistic_regression: ["Logistic Regression", "Linear probabilistic classifier."],
@@ -130,7 +131,7 @@ export function Train({ projectId, datasetId, onReload }: {
     ["Model", state.issues.filter(i => i.field?.startsWith("model"))],
   ] as const;
   return <div className="train-view">
-    <div className="section-heading"><div><div className="eyebrow">Experiment configuration</div><h2>Train</h2><p className="muted">Define the experiment. Training and code generation arrive in later phases.</p></div><span className="badge subtle" role="status">{busy ? "Saving…" : dirty ? "Unsaved edits" : `Saved · revision ${state.revision}`}</span></div>
+    <div className="section-heading"><div><div className="eyebrow">Experiment configuration</div><h2>Train</h2><p className="muted">Configure, review, and execute a saved experiment.</p></div><span className="badge subtle" role="status">{busy ? "Saving…" : dirty ? "Unsaved edits" : `Saved · revision ${state.revision}`}</span></div>
     {conflict && <Alert>Newer Project state exists. Reload before editing further. <Button onClick={onReload}>Reload Train</Button></Alert>}
     {feedback("pipeline")}
     <Panel title="Experiment" description={state.original_filename ?? "Source Dataset"}>
@@ -159,7 +160,7 @@ export function Train({ projectId, datasetId, onReload }: {
     <Panel title="Pipeline readiness" description="Validation of saved intent against the current source and effective semantics.">
       <p className={`readiness-status ${state.code_generation_ready && !dirty ? "complete" : ""}`} role="status">{dirty ? "Save edits to update readiness" : state.code_generation_ready ? "Ready for code generation" : "Pipeline needs attention"}</p>
       <div className="readiness-checks">{checks.map(([label, issues]) => <div key={label}><strong>{issues.some(i => i.severity === "blocking") ? "Needs attention" : "✓"} · {label}</strong><Issues issues={issues} /></div>)}</div>
-      <p className="muted">Configuration only. No model is trained and no Run is created.</p>
+      <RunExperiment projectId={projectId} revision={state.revision} ready={state.code_generation_ready && !state.stale} dirty={Boolean(dirty)} conflict={conflict} saving={busy} onReload={onReload} />
     </Panel>
     <details className="panel"><summary>Saved Pipeline IR · {ir.ir_version}</summary><pre>{JSON.stringify(ir, null, 2)}</pre></details>
   </div>;

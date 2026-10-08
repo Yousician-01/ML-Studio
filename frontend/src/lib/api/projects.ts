@@ -122,6 +122,11 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
+  createRun: (id: string, body: import("./runs").RunRequest) => request<import("./runs").Run>(projectPath(id) + "/runs", json("POST", body)),
+  runs: (id: string, offset = 0, signal?: AbortSignal, requestId?: string) => request<import("./runs").RunPage>(projectPath(id) + `/runs?limit=20&offset=${offset}${requestId ? `&request_id=${encodeURIComponent(requestId)}` : ""}`, { signal }),
+  run: (id: string, runId: string, signal?: AbortSignal) => request<import("./runs").Run>(projectPath(id) + `/runs/${encodeURIComponent(runId)}`, { signal }),
+  runCode: (id: string, runId: string, signal?: AbortSignal) => request<import("./runs").RunCode>(projectPath(id) + `/runs/${encodeURIComponent(runId)}/code`, { signal }),
+  capacity: (id: string, signal?: AbortSignal) => request<import("./runs").Capacity>(projectPath(id) + "/runs/capacity", { signal }),
   code: (id: string, signal?: AbortSignal) =>
     request<import("./code").CodePreview>(projectPath(id) + "/code", { signal }),
   pipeline: (id: string, signal?: AbortSignal) =>

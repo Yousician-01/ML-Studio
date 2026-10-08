@@ -75,12 +75,12 @@ export function CodeView({ projectId }: { projectId: string }) {
             <div><strong>{preview.filename}</strong><span className="muted"> · {preview.generator} · revision {preview.revision}</span></div>
             <Button onClick={copy}>Copy code</Button>
           </div>
-          <p role="status" className="muted">{copyStatus || "Ready for code generation. Execution becomes available in a later phase."}</p>
+          <p role="status" className="muted">{copyStatus || "Current preview. Create an immutable Run from Train to execute this saved experiment."}</p>
           {preview.issues.length > 0 && <Alert tone="info">Excluded features retain dormant configuration warnings in Prepare. They do not enter this workload.</Alert>}
           <details className="code-assumptions">
             <summary>Source and runtime assumptions</summary>
             <p>UTF-8 CSV, original missing-value interpretation, exact SHA-256 source bytes, and the resolved Python/library versions. Only missing-target rows are excluded. Preprocessing learns from training rows only.</p>
-            <p>The future executor supplies absolute <code>--dataset</code>, <code>--result</code>, and <code>--model</code> paths. Outputs are a structured result and the complete fitted pipeline. This preview creates neither.</p>
+            <p>The executor supplies absolute <code>--dataset</code>, <code>--result</code>, and <code>--model</code> paths. Outputs are a structured result and the complete fitted pipeline. This preview creates neither.</p>
             <p className="wrap">{Object.entries(preview.libraries).map(([name, version]) => `${name} ${version}`).join(" · ")}</p>
             <p className="wrap">Source fingerprint: <code>{preview.source_sha256}</code></p>
           </details>

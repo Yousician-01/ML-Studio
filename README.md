@@ -24,7 +24,10 @@ and split configuration with contextual code-generation readiness. Code provides
 a deterministic, read-only Python preview of the complete configured workload,
 including source integrity checks and training-only preprocessing. Previewing
 does not execute transformations, train, or create Run artifacts.
-ML execution is not implemented yet. Follow the verified
+Train executes saved experiments as immutable local Runs with validated results
+and complete model artifacts. Runs provides historical configuration and exact
+executed source; local MLflow tracking remains separate from authoritative Run state.
+Follow the verified
 [development setup](docs/development.md) to run the two local processes.
 
 ## Prototype v0.1

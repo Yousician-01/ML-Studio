@@ -1,22 +1,22 @@
 :root {
   color-scheme: light;
-  --bg: #f6f3ed;
-  --surface: #fffdf9;
-  --surface-subtle: #f0ebe3;
-  --border: #e5ddd1;
-  --border-strong: #cabead;
-  --text: #30271f;
-  --secondary: #645446;
-  --muted: #796959;
-  --accent: #65452f;
-  --accent-hover: #493021;
-  --accent-subtle: #eee4d6;
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-subtle: #eef0f5;
+  --border: #dfe3eb;
+  --border-strong: #b9c1cf;
+  --text: #252b36;
+  --secondary: #495365;
+  --muted: #647084;
+  --accent: #4c51a8;
+  --accent-hover: #383d87;
+  --accent-subtle: #edeefa;
   --success: #196044;
   --success-bg: #edf7f1;
   --warning: #805400;
   --danger: #a32525;
   --danger-bg: #fff1f0;
-  --focus: #986c45;
+  --focus: #6268c1;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -28,6 +28,35 @@
   --font: "Segoe UI", Arial, sans-serif;
   --mono: Consolas, "Courier New", monospace;
   --shadow-dialog: 0 12px 48px #38271624;
+}
+.runs-view { display: grid; gap: 20px; min-width: 0; }
+.runs-view .panel, .run-execution { min-width: 0; }
+.run-execution { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.run-summary { margin-top: 20px; padding: 16px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: var(--radius-small); }
+.run-summary p { overflow-wrap: anywhere; }
+.run-status { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.run-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.run-created { color: var(--secondary); }
+.run-running { color: var(--accent); }
+.run-succeeded { color: var(--success); }
+.run-failed { color: var(--danger); }
+.run-facts, .run-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px 24px; margin: 20px 0; }
+.run-facts div, .run-metrics div { min-width: 0; }
+.run-facts dt, .run-metrics dt { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+.run-facts dd, .run-metrics dd { margin: 0; overflow-wrap: anywhere; }
+.run-facts dd { font-size: 14px; letter-spacing: normal; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.run-metrics dd { font: 600 21px/1.5 var(--mono); font-variant-numeric: tabular-nums; }
+.run-ledger td, .run-ledger th { vertical-align: top; }
+.run-ledger small { display: block; color: var(--muted); margin-top: 3px; }
+.run-pagination { justify-content: flex-end; margin-top: 20px; }
+.run-hash { max-width: 360px; overflow-wrap: anywhere; font-size: 12px; }
+.run-json { max-height: 400px; overflow: auto; font: 12px/1.6 var(--mono); }
+.runs-view details { margin-top: 20px; }
+.runs-view summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 960px) {
+  .run-facts, .run-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .run-summary .section-heading { align-items: flex-start; }
 }
 .code-view { min-width: 0; }
 .code-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 24px; }
@@ -494,7 +523,7 @@ time {
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: 14px;
-  background: #ede7de;
+  background: var(--surface-subtle);
   overflow-x: auto;
 }
 .benches a {
@@ -795,22 +824,22 @@ footer {
   }
 }
 
-/* Warm studio details share the same tokens across Data and Explore. */
+/* Shared workspace details use the same tokens across benches. */
 body { -webkit-font-smoothing: antialiased; }
 header { padding-inline: max(32px, calc((100vw - 1280px) / 2)); letter-spacing: -0.02em; }
 .mark { border-radius: 11px; background: var(--accent); font-weight: 600; }
 .local { display: flex; align-items: center; gap: 8px; letter-spacing: 0; }
 .local::before { content: ""; width: 6px; height: 6px; background: #72816a; border-radius: 50%; }
-.eyebrow { color: #886a4b; letter-spacing: 0.16em; font-size: 10px; }
+.eyebrow { color: var(--muted); letter-spacing: 0.16em; font-size: 10px; }
 .page-heading > div > .muted { font-size: 14px; }
 .button { border-radius: 9px; box-shadow: 0 1px 2px #49302106; }
 .button-primary { box-shadow: inset 0 1px 0 #ffffff18, 0 2px 4px #49302112; }
-.button-danger { background: #fffaf6; }
+.button-danger { background: var(--danger-bg); }
 .button, input, textarea, select { transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
 input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #65452f0d; }
 .project-surface { overflow: hidden; }
 .project-list li { padding: 28px; }
-.project-list li:hover { background: #fbf8f3; }
+.project-list li:hover { background: var(--surface-subtle); }
 .project-context > div { margin-top: 16px; }
 .project-context p { color: var(--secondary); }
 .badge { border-radius: 6px; padding: 4px 9px; font-size: 10px; letter-spacing: 0.015em; }
@@ -822,11 +851,11 @@ input:not([type="checkbox"]):focus, textarea:focus, select:focus { border-color:
 dt { font-size: 11px; }
 dd { letter-spacing: -0.035em; }
 .table-scroll { border: 1px solid var(--border); border-radius: 9px; }
-thead { background: #f5f0e8; }
+thead { background: var(--surface-subtle); }
 thead th { font-size: 10px; letter-spacing: 0.025em; padding-block: 12px; }
-tbody tr:hover { background: #faf6f0; }
+tbody tr:hover { background: var(--surface-subtle); }
 tbody tr.selected-row { background: var(--accent-subtle); }
-.target-status { background: #f7f2e9; }
+.target-status { background: var(--surface-subtle); }
 dialog { background: var(--surface); padding: 32px; border-radius: 18px; }
 dialog::backdrop { backdrop-filter: blur(3px); }
 footer { border-top: 0; padding-block: 28px; }
@@ -929,7 +958,7 @@ footer { border-top: 0; padding-block: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .eda-bin { transition: none; } }
 
-/* Train configures canonical intent; no execution controls. */
+/* Train configures canonical intent and submits immutable execution attempts. */
 .train-view { display: grid; gap: 18px; }
 .train-view .panel { margin-bottom: 0; }
 .train-view .panel > p, .train-fields .muted { font-size: 12px; }

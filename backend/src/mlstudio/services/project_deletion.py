@@ -4,11 +4,11 @@ import shutil
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from mlstudio.core.config import Settings
-from mlstudio.models import Dataset, Project, utc_now
+from mlstudio.models import Dataset, Project, Run, utc_now
 from mlstudio.services.source import DomainError
 
 
@@ -62,6 +62,12 @@ def delete_project(session: Session, project_id: str, revision: int, settings: S
         # staging. Otherwise another live deletion's rename looks like a crash.
         project.updated_at = utc_now()
         session.flush()
+        if session.scalar(
+            select(Run.id)
+            .where(Run.project_id == project.id, Run.state.in_(("CREATED", "RUNNING")))
+            .limit(1)
+        ):
+            raise DomainError("Project has an active execution; deletion was not performed.", 409)
         check_tree(original)
         check_tree(pending)
         if pending.exists():
@@ -73,6 +79,7 @@ def delete_project(session: Session, project_id: str, revision: int, settings: S
         project.target_column = None
         project.active_dataset_id = None
         session.flush()  # Check revision and acquire the database write lock.
+        session.execute(delete(Run).where(Run.project_id == project.id))
         session.execute(delete(Dataset).where(Dataset.project_id == project.id))
         session.delete(project)
         session.flush()

@@ -10,13 +10,14 @@ import { Explore } from "./explore";
 import { Prepare } from "./prepare";
 import { Train } from "./train";
 import { CodeView } from "./code-view";
+import { Runs } from "./runs";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
 
 export function Workspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const search = useSearchParams();
-  const view = search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
+  const view = search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
   const [project, setProject] = useState<Project | null>(null);
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,12 +121,13 @@ export function Workspace({ projectId }: { projectId: string }) {
             {name === "data" ? "Data" : name === "explore" ? "Explore" : name === "prepare" ? "Prepare" : "Train"}
           </Link>
         ))}
-        {["Evaluate", "Runs"].map((name) => (
+        {["Evaluate"].map((name) => (
           <button key={name} disabled>
             {name}
             <span>Upcoming</span>
           </button>
         ))}
+        <Link href={`/projects/${projectId}?view=runs`} aria-current={view === "runs" ? "page" : undefined} onNavigate={() => { if (view !== "runs") setLoading(true); }}>Runs</Link>
         <Link href={`/projects/${projectId}?view=code`} aria-current={view === "code" ? "page" : undefined}
           onNavigate={() => { if (view !== "code") setLoading(true); }}>Code</Link>
       </nav>
@@ -147,6 +149,8 @@ export function Workspace({ projectId }: { projectId: string }) {
             onSaved={saved}
             onReload={reload}
           />
+        ) : view === "runs" ? (
+          <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} />
         ) : view === "code" ? (
           <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />
         ) : view === "train" ? (

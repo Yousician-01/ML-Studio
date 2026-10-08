@@ -1,7 +1,8 @@
 # Architecture — Prototype v0.1
 
-**Status:** frozen design direction for implementation; no application
-components are implemented yet. [ADR 0001](decisions/0001-use-pipeline-ir.md)
+**Status:** implemented through Phase 6: local execution, immutable Run history,
+and separate local MLflow tracking. Evaluate and AI remain unimplemented.
+[ADR 0001](decisions/0001-use-pipeline-ir.md)
 establishes Pipeline IR, and the [v0.1 specifications](specifications/project-v0.1.md)
 define the current contracts. Prefer the smallest local application that
 validates the [prototype](prototype.md), without speculative services.

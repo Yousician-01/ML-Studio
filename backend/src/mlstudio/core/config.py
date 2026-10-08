@@ -19,6 +19,12 @@ class Settings(BaseSettings):
     home: Path = Field(default_factory=lambda: user_data_path("ML Studio", appauthor=False))
     database_url: str | None = None
     max_csv_upload_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    run_timeout_seconds: float = Field(default=1800, gt=0)
+    run_log_bytes: int = Field(default=10 * 1024 * 1024, gt=0)
+    run_result_bytes: int = Field(default=1024 * 1024, gt=0)
+    run_model_bytes: int = Field(default=1024 * 1024 * 1024, gt=0)
+    run_disk_reserve_bytes: int = Field(default=64 * 1024 * 1024, ge=0)
+    run_termination_grace_seconds: float = Field(default=5, gt=0)
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     @field_validator("home")
