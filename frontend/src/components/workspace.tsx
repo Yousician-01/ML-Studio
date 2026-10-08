@@ -10,6 +10,7 @@ import { Explore } from "./explore";
 import { Prepare } from "./prepare";
 import { Train } from "./train";
 import { CodeView } from "./code-view";
+import { Evaluate } from "./evaluate";
 import { Runs } from "./runs";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
@@ -17,7 +18,7 @@ import { Alert, Button, Dialog, Loading } from "./ui";
 export function Workspace({ projectId }: { projectId: string }) {
   const router = useRouter();
   const search = useSearchParams();
-  const view = search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
+  const view = search.get("view") === "evaluate" ? "evaluate" : search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
   const [project, setProject] = useState<Project | null>(null);
   const [dataset, setDataset] = useState<Dataset | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,12 +122,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             {name === "data" ? "Data" : name === "explore" ? "Explore" : name === "prepare" ? "Prepare" : "Train"}
           </Link>
         ))}
-        {["Evaluate"].map((name) => (
-          <button key={name} disabled>
-            {name}
-            <span>Upcoming</span>
-          </button>
-        ))}
+        <Link href={`/projects/${projectId}?view=evaluate`} aria-current={view === "evaluate" ? "page" : undefined} onNavigate={() => { if (view !== "evaluate") setLoading(true); }}>Evaluate</Link>
         <Link href={`/projects/${projectId}?view=runs`} aria-current={view === "runs" ? "page" : undefined} onNavigate={() => { if (view !== "runs") setLoading(true); }}>Runs</Link>
         <Link href={`/projects/${projectId}?view=code`} aria-current={view === "code" ? "page" : undefined}
           onNavigate={() => { if (view !== "code") setLoading(true); }}>Code</Link>
@@ -149,6 +145,8 @@ export function Workspace({ projectId }: { projectId: string }) {
             onSaved={saved}
             onReload={reload}
           />
+        ) : view === "evaluate" ? (
+          <Evaluate key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} compareId={search.get("compare")} latest={search.get("selection") === "latest"} />
         ) : view === "runs" ? (
           <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} />
         ) : view === "code" ? (

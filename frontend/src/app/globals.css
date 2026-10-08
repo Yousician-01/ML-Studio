@@ -991,3 +991,13 @@ footer { border-top: 0; padding-block: 28px; }
 .train-view pre { overflow: auto; max-height: 400px; font-family: var(--mono); }
 @media (max-width: 1000px) { .train-summary, .train-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) { .train-summary, .train-fields, .model-selector, .readiness-checks { grid-template-columns: minmax(0, 1fr); } }
+
+/* Immutable historical evaluation */
+.evaluate-view, .evaluation-run { display: grid; gap: 20px; min-width: 0; }
+.evaluation-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.confusion-table { width: 100%; table-layout: fixed; }
+.confusion-table th small { display: block; overflow-wrap: anywhere; font-weight: normal; margin-top: 6px; }
+.confusion-table td { text-align: center; padding: 24px 12px; background: color-mix(in srgb, var(--accent) calc(var(--cell-strength) * 100%), var(--surface)); }
+.confusion-table td span { display: block; font-size: 12px; }
+.confusion-table td strong { display: block; font-size: 28px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+@media (max-width: 960px) { .evaluation-columns { grid-template-columns: minmax(0, 1fr); } }

@@ -15,8 +15,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
 const cache = new Map();
 function load(file) {
   if (cache.has(file)) return cache.get(file).exports;
-  const module = { exports: {} };
-  cache.set(file, module);
+  const loadedModule = { exports: {} };
+  cache.set(file, loadedModule);
   const source = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, target: ts.ScriptTarget.ES2022 } }).outputText;
   const localRequire = name => {
     if (!name.startsWith(".") && !name.startsWith("@/")) return require(name);
@@ -25,8 +25,8 @@ function load(file) {
     if (!target) throw new Error(`Unresolved test import ${name}`);
     return load(target);
   };
-  runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: file })(localRequire, module, module.exports);
-  return module.exports;
+  runInThisContext(`(function(require,module,exports){${source}\n})`, { filename: file })(localRequire, loadedModule, loadedModule.exports);
+  return loadedModule.exports;
 }
 const { RunSummary, Runs } = load(resolve(root, "components/runs.tsx"));
 const { api, ApiError } = load(resolve(root, "lib/api/projects.ts"));
@@ -96,4 +96,41 @@ test("uncertain transport failure does not cause an automatic second submission"
   context.mock.method(globalThis, "fetch", async () => { calls++; throw new Error("Lost response"); });
   await assert.rejects(api.createRun("project-one", {}), error => error instanceof ApiError && error.status === 0);
   assert.equal(calls, 1);
+});
+
+import { evaluationRun } from "./fixtures/evaluation.mjs";
+const { ConfusionMatrix, RunMetrics, IntegrityNotice } = load(resolve(root, "components/run-results.tsx"));
+const { EvaluationComparison } = load(resolve(root, "components/evaluate.tsx"));
+
+test("visual confusion matrix retains typed orientation and accessible row/column headers", () => {
+  const result = evaluationRun().result;
+  result.confusion_matrix.labels = [{value_type:"integer",value:"9007199254740993"},{value_type:"string",value:"yes"}];
+  result.confusion_matrix.values = [[11,2],[3,7]];
+  const html = renderToStaticMarkup(React.createElement(ConfusionMatrix,{result}));
+  assert.match(html,/actual rows, predicted columns/);
+  assert.match(html,/scope="row"/);
+  assert.match(html,/9007199254740993.*integer/);
+  assert.match(html,/yes.*string/);
+  for (const [label,count] of [["TN",11],["FP",2],["FN",3],["TP",7]]) assert.match(html,new RegExp(`<span>${label}</span><strong>${count}</strong>`));
+});
+
+test("shared metrics show real zero and the reason for unavailable AUC", () => {
+  const html = renderToStaticMarkup(React.createElement(RunMetrics,{result:evaluationRun().result}));
+  assert.match(html,/0.0000/);
+  assert.match(html,/Unavailable/);
+  assert.match(html,/Only one observed held-out class/);
+});
+
+test("integrity warning retains SQLite metrics and comparison suppresses delta column", () => {
+  const a=evaluationRun(),b=evaluationRun("b");
+  b.artifacts["result.json"].integrity="missing";
+  const warning=renderToStaticMarkup(React.createElement(IntegrityNotice,{run:b}));
+  const html=renderToStaticMarkup(React.createElement(EvaluationComparison,{projectId:"project",runs:[a,b]}));
+  assert.match(warning,/retained SQLite results/);
+  assert.match(html,/no metric deltas/);
+  assert.match(html,/0.7500/);
+  assert.doesNotMatch(html,/<th scope="col">B − A/);
+  const duplicate=renderToStaticMarkup(React.createElement(EvaluationComparison,{projectId:"project",runs:[a,a]}));
+  assert.match(duplicate,/exactly two distinct/);
+  assert.doesNotMatch(duplicate,/<table/);
 });
