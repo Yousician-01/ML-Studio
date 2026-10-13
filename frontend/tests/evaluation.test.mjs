@@ -75,3 +75,28 @@ test("corrupt, missing or unverifiable artifacts exclude retained results from d
   b.snapshot_error = "Frozen configuration corrupt.";
   assert.ok(integrityProblems(b).includes("frozen configuration"));
 });
+
+test("SciPy compatibility requires matching available frozen versions", () => {
+  const a = evaluationRun(), b = evaluationRun("b");
+  assert.equal(compareContext("project", [a, b]).compatible, true);
+  b.execution_plan.implementation.libraries.scipy = "different";
+  assert.equal(metricDelta("project", [a, b], "accuracy"), null);
+  assert.equal(b.result.metrics.accuracy, .75);
+  delete b.execution_plan.implementation.libraries.scipy;
+  assert.equal(compareContext("project", [a, b]).compatible, false);
+  delete a.execution_plan.implementation.libraries.scipy;
+  assert.equal(compareContext("project", [a, b]).compatible, false);
+});
+
+test("historical source loss or missing integrity evidence excludes deltas", () => {
+  for (const status of ["missing", "unavailable_or_corrupt"]) {
+    const a = evaluationRun(), b = evaluationRun("b");
+    b.artifacts.dataset_source.integrity = status;
+    assert.deepEqual(integrityProblems(b), ["dataset_source"]);
+    assert.equal(metricDelta("project", [a, b], "accuracy"), null);
+    assert.equal(b.result.metrics.accuracy, .75);
+  }
+  const a = evaluationRun(), b = evaluationRun("b");
+  delete b.artifacts.dataset_source;
+  assert.equal(compareContext("project", [a, b]).compatible, false);
+});

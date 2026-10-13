@@ -30,7 +30,7 @@ export type Run = {
     target: { column: string; positive_class: TypedScalar; negative_class: TypedScalar }; dataset_fingerprint: string };
   result: RunResult | null;
   failure: null | { code: string; stage: string; message: string };
-  provenance: Record<string, string>; artifacts: Record<string, { size_bytes: number; sha256: string; integrity: string }>;
+  provenance: Record<string, string>; artifacts: Record<string, { size_bytes: number | null; sha256: string | null; integrity: string }>;
   tracking_status: "NOT_ATTEMPTED" | "SYNCHRONIZED" | "FAILED"; mlflow_run_id: string | null; tracking_error: string | null;
   pipeline_ir: PipelineIR | null; execution_plan: FrozenPlan | null;
   snapshot_error: string | null;

@@ -134,3 +134,20 @@ test("integrity warning retains SQLite metrics and comparison suppresses delta c
   assert.match(duplicate,/exactly two distinct/);
   assert.doesNotMatch(duplicate,/<table/);
 });
+
+test("source integrity and SciPy mismatch keep visible metrics without comparison deltas", () => {
+  for (const problem of ["source", "scipy"]) {
+    const a = evaluationRun(), b = evaluationRun("b");
+    if (problem === "source") b.artifacts.dataset_source.integrity = "missing";
+    else b.execution_plan.implementation.libraries.scipy = "different";
+    const html = renderToStaticMarkup(React.createElement(EvaluationComparison, { projectId: "project", runs: [a, b] }));
+    assert.match(html, /0.7500/);
+    assert.match(html, /no metric deltas/);
+    assert.doesNotMatch(html, /<th scope="col">B − A/);
+    if (problem === "source") {
+      const warning = renderToStaticMarkup(React.createElement(IntegrityNotice, { run: b }));
+      assert.match(warning, /dataset_source/);
+      assert.match(warning, /retained SQLite results/);
+    }
+  }
+});

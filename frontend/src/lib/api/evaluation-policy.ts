@@ -12,7 +12,7 @@ export function integrityProblems(run: Run): string[] {
   const artifacts = run.artifacts ?? {};
   const problems = Object.entries(artifacts).filter(([, ref]) => ref.integrity !== "verified").map(([name]) => name);
   if (successful(run)) {
-    for (const name of ["pipeline_ir.json", "execution_plan.json", "package.json", "generated_run.py", "result.json", "model.joblib"]) {
+    for (const name of ["dataset_source", "pipeline_ir.json", "execution_plan.json", "package.json", "generated_run.py", "result.json", "model.joblib"]) {
       if (!artifacts[name]) problems.push(name);
     }
   }
@@ -50,7 +50,7 @@ export function compareContext(projectId: string, runs: Run[]) {
   const versions = (run: Run) => {
     const plan = run.execution_plan;
     if (!plan?.implementation || !plan.generator || !run.provenance.executor || !run.provenance.mlstudio || !plan.implementation.python || !plan.implementation.version || !plan.runtime?.version || !plan.plan_version || !plan.ir_version) return null;
-    const libraries = Object.fromEntries(["pandas", "numpy", "scikit-learn"].map(name => [name, plan.implementation.libraries?.[name]]));
+    const libraries = Object.fromEntries(["pandas", "numpy", "scikit-learn", "scipy"].map(name => [name, plan.implementation.libraries?.[name]]));
     if (Object.values(libraries).some(value => !value)) return null;
     return { mlstudio: run.provenance.mlstudio, plan: plan.plan_version, ir: plan.ir_version, runtime: plan.runtime.version, generator: plan.generator, executor: run.provenance.executor, implementation: plan.implementation.version, python: plan.implementation.python, libraries };
   };
