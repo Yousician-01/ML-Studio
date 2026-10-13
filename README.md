@@ -2,69 +2,96 @@
 
 **Visual ML. Real code. Reproducible experiments.**
 
-ML Studio is an open-source, local-first machine-learning workspace where visual
-operations, executable Python, experiments, and AI reasoning operate over the
-same reproducible ML pipeline. It aims to make an unfamiliar tabular Dataset
-easier to understand, prepare, train on, and evaluate without hiding what ran.
+ML Studio **0.1.0** is an open-source, local-first binary-classification prototype.
+Create a prediction problem, inspect a CSV, configure explicit preprocessing and
+a model, execute the generated Python, and review immutable experiment evidence.
 
 > Start visually. Understand everything. Drop into code whenever you need.
 > Never lose reproducibility.
 
-## Status
+## What is implemented
 
-The Prototype v0.1 domain specifications are complete. **Projects, CSV ingestion,
-source exploration, Prepare, and Train configuration are implemented:** create a local Project, inspect source
-columns and preview rows, override semantic types, and select a binary target.
-SQLite preserves configuration, and managed source artifacts survive replacement.
-Explore provides interactive histograms, boxplots, frequency/missingness bars,
-a correlation heatmap, and searchable column observations. Projects can be permanently deleted with explicit confirmation.
-Prepare persists versioned Pipeline IR with explicit positive class, feature
-participation, and ordered preprocessing intent. Train completes explicit model
-and split configuration with contextual code-generation readiness. Code provides
-a deterministic, read-only Python preview of the complete configured workload,
-including source integrity checks and training-only preprocessing. Previewing
-does not execute transformations, train, or create Run artifacts.
-Train executes saved experiments as immutable local Runs with validated results
-and complete model artifacts. Runs provides historical configuration and exact
-executed source; local MLflow tracking remains separate from authoritative Run state.
-Follow the verified
-[development setup](docs/development.md) to run the two local processes.
+| Workspace | Existing v0.1 capability |
+| --- | --- |
+| Projects | Create, edit, open, and explicitly delete local Projects |
+| Data | One active managed CSV, source preview, physical/semantic types, overrides, binary target, and explicit replacement |
+| Explore | Deterministic source summaries, distributions, missingness, quality observations, and correlation |
+| Prepare | Explicit positive class, feature inclusion/exclusion, compatible imputation, scaling, and one-hot encoding |
+| Train | Logistic Regression, Decision Tree, or Random Forest; curated parameters; one reproducible train/test split; actual local execution |
+| Evaluate | Frozen Run metrics and confusion matrix; conditional ROC-AUC; exactly-two comparison with context/integrity warnings |
+| Runs | Immutable attempts, frozen configuration, provenance, artifacts, tracking status, and historical Code |
+| Code | Read-only generated Python for the current Working Pipeline; historical Python is retrieved from its original Run artifact |
 
-## Prototype v0.1
+Generated Python is the **actual workload executed**, not decorative export code.
+Preprocessing learns from training rows only. Precision, Recall, F1 and ROC-AUC use
+the explicit positive class. Missing metrics are unavailable, never fabricated zero.
+Matching comparison context does not independently prove identical held-out rows;
+there is no ranking or automatic winner.
 
-The planned local workflow creates a Project, uploads one active CSV Dataset,
-explores the source, configures a Working Pipeline, trains a binary classifier,
-and inspects or compares historical Runs. The workspace areas are **Data,
-Explore, Prepare, Train, and Evaluate**, with **Runs** and **Code** as supporting
-views. The Working Pipeline can be incomplete while the user edits it; only a
-validated configuration can execute.
+SQLite and managed local files own Project, Dataset, Working Pipeline and Run
+truth. Local MLflow is supporting tracking; its failure does not invalidate an
+otherwise successful Run. Dataset replacement retains the source used by history.
+Missing/corrupt historical sources or Run artifacts produce integrity warnings;
+retained SQLite metrics remain available and comparison deltas are suppressed.
 
-The supported classifiers are Logistic Regression, Decision Tree Classifier,
-and Random Forest Classifier. Preparation includes compatible imputation,
-scaling, one-hot encoding, and explicit feature inclusion. Evaluation uses one
-train/test split and reports Accuracy, Precision, Recall, F1, a Confusion Matrix,
-and ROC-AUC when valid and available. Preprocessing learns only from training
-data.
+## Supported installation: source checkout only
 
-**Visual → Inspect → Extend** is the broader direction: configure visually,
-inspect the Python and experiment evidence, and eventually use explicit code
-extension points. In v0.1, generated Python is read-only and is the **actual ML
-workload executed** for a Run, not decorative export code. Current Working
-Pipeline Code is a preview; each historical Run keeps the exact generated source
-attempted for that Run. Runs preserve Dataset identity, configuration, results,
-and the complete fitted preprocessing-plus-classifier pipeline.
+Acceptance environment: **Windows, Python 3.14.2, Node.js 24.13.0**, with npm.
+Broader manifest runtime ranges are compatibility declarations, not additional
+tested platforms. macOS/Linux and other runtime versions are **not verified** for
+this release. No Docker, remote database, or MLflow server is required.
 
-ML Studio's local persistence design uses SQLite through SQLAlchemy, Alembic
-migrations, managed filesystem artifacts, joblib model serialization, and local
-MLflow tracking. ML Studio owns Project and Run truth; MLflow supports tracking.
-Stable IDs identify domain entities; storage paths do not.
+Clone/download the 0.1.0 source and run these PowerShell commands from its root:
 
-Prototype v0.1 does not include regression, multiclass classification, XGBoost,
-arbitrary Python editing, AutoML, cross-validation, cloud execution, production
-serving, or multi-user collaboration. The planned AI Advisor follows the
-deterministic workflow; it is not part of the first implementation slice.
+~~~powershell
+python -m venv backend/.venv
+cd backend
+.venv/Scripts/python.exe -m pip install -e ".[dev]"
+.venv/Scripts/python.exe -m alembic upgrade head
+.venv/Scripts/python.exe -m uvicorn mlstudio.main:create_app --factory --host 127.0.0.1 --port 8000
+~~~
 
-> An AI that understands your experiment—not merely your prompt.
+In a second terminal, from the source root:
+
+~~~powershell
+cd frontend
+npm.cmd ci
+npm.cmd run dev
+~~~
+
+Open http://127.0.0.1:3000. The default API is http://127.0.0.1:8000/api/v1.
+Follow [Development](docs/development.md) for settings, migration checks,
+production-build validation, storage paths, and contributor CI.
+
+Keep the source checkout: migration discovery depends on its layout. Installing
+only the backend wheel is **not supported** for launching the application. CI's
+wheel build checks packaging quality; it does not prove standalone installability.
+
+## First reproducible experiment
+
+Use the committed [synthetic retention demo](examples/retention/README.md): create
+a Project, upload its CSV, select the target, inspect Explore, configure Prepare
+and Train, inspect Code, and click **Run experiment**. Evaluate its held-out results
+and inspect historical Code in Runs. Create a second Run and compare exactly two.
+
+## Limits and local safety
+
+This is a trusted local development tool, not a production service. Keep both
+processes bound to loopback. There is no authentication or multi-user isolation.
+The separate Python subprocess is **not sandboxed**. Uploads default to 50 MiB;
+parsing and training can consume substantially more memory. Treat joblib models
+as trusted local artifacts, not a safe external interchange format.
+
+State persists under the configurable local workspace outside the source tree.
+Crash remnants can remain; recovery fails closed if process ownership or storage
+cannot be established. Project deletion is permanent and may leave local MLflow
+tracking copies. No automatic garbage collection or backup is provided.
+See [Security](SECURITY.md) and [recovery/retention guidance](docs/development.md#recovery-and-retention).
+
+v0.1 excludes regression/multiclass, additional model families, AutoML,
+cross-validation, ROC curves, prediction storage, threshold tuning, editable
+Python, AI assistance, authentication, cloud execution, and production serving.
+The broader product vision does not expand this release's frozen contracts.
 
 ## Project documents
 

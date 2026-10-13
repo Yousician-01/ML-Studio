@@ -22,10 +22,10 @@ from mlstudio.execution.artifacts import (
     verify,
     write_new,
 )
-from mlstudio.execution.schemas import Manifest, RunResponse
+from mlstudio.execution.schemas import Artifact, Manifest, RunResponse
 from mlstudio.models import Project, Run, utc_now
 from mlstudio.pipeline_schemas import PipelineIR
-from mlstudio.services.artifacts import verified_source
+from mlstudio.services.artifacts import source_path, verified_source
 from mlstudio.services.pipelines import snapshot
 from mlstudio.services.source import DomainError
 
@@ -200,8 +200,38 @@ def create(session, project_id, body, coordinator):
             coordinator.release(lease)
 
 
+def source_integrity(run, home):
+    """Inspect the frozen source reference without consulting the active Dataset.
+
+    Availability is response-only evidence, never a change to terminal Run facts.
+    The UUID-owned path and fingerprint must agree with the frozen Run identity,
+    even if a redirected reference happens to point at bytes with the same hash.
+    """
+    status = {"size_bytes": None, "sha256": None, "integrity": "unavailable_or_corrupt"}
+    try:
+        ref = Artifact.model_validate(run.manifest["dataset"])
+        status.update(size_bytes=ref.size_bytes, sha256=ref.sha256)
+        if (
+            run.manifest["project_id"] != run.project_id
+            or run.manifest["dataset_id"] != run.dataset_id
+            or ref.sha256 != run.summary["dataset_fingerprint"]
+            or ref.size_bytes == 0
+        ):
+            raise ValueError("Frozen source identity differs.")
+        expected = source_path(home, run.project_id, run.dataset_id)
+        if ref.path != expected.relative_to(home).as_posix():
+            raise ValueError("Frozen source ownership differs.")
+        verify(home, ref.model_dump())
+        status["integrity"] = "verified"
+    except FileNotFoundError:
+        status["integrity"] = "missing"
+    except (OSError, ValueError, TypeError, KeyError, DomainError):
+        pass  # Sanitized availability only; never expose an invalid path or exception.
+    return status
+
+
 def response(run, home, *, detail=False):
-    artifacts = {}
+    artifacts = {"dataset_source": source_integrity(run, home)}
     for name, ref in run.artifacts.items():
         try:
             verify(home, ref)

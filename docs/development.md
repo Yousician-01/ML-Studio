@@ -26,10 +26,14 @@ work; PRs record review; CHANGELOG records user-visible changes; Git records edi
 
 ## Verified local setup
 
-The backend targets Python 3.12+. These commands were verified on Windows
-PowerShell using Python 3.14.2 and Node 24.13.0. The frontend requires Node 22.13+
-and npm; Node 24 is recommended. Other platforms were not exercised in Phase 0.
-No Docker or separate database service is needed.
+The supported v0.1 acceptance environment is Windows with Python 3.14.2,
+Node.js 24.13.0 and npm. Manifest ranges (Python >=3.12, Node >=22.13) do not
+claim acceptance coverage for other versions. Other operating systems and runtime
+versions are NOT VERIFIED for this release.
+No Docker or separate database service is needed. Distribution is source checkout
+with an editable backend installation only. Keep the checkout and run Alembic
+from `backend/`; the backend wheel alone cannot launch the application. The CI
+wheel build remains a packaging-quality check, not standalone installation proof.
 
 From the repository root:
 
@@ -52,8 +56,9 @@ Initialize the database, then start the backend:
 .venv/Scripts/python.exe -m uvicorn mlstudio.main:create_app --factory --host 127.0.0.1 --port 8000
 ```
 
-Migration `0002_project_dataset` adds `projects` and `datasets` after the unchanged
-`0001_foundation`. Both fresh installation and upgrade from Phase 0 are tested.
+The migration chain is `0001_foundation` → `0002_project_dataset` →
+`0003_working_pipeline` → `0004_runs` → `0005_tracking` (current head).
+Fresh installation and upgrades are covered by the existing migration tests.
 Startup does not run migrations or call `metadata.create_all()`; Alembic owns
 schema evolution. Run `alembic upgrade head` when updating an existing workspace.
 
@@ -76,7 +81,8 @@ request; a successful check is remembered for the app lifetime. Restart the
 backend after deploying code or replacing a running database. Multiple current
 and required heads are compared as sets. The message also cautions that databases
 from a newer app version need that version; it never suggests a downgrade.
-OpenAPI uses the package's `0.0.0` development metadata, not a published release.
+OpenAPI reports backend package version `0.1.0`. Reinstall the editable package
+after updating package metadata: `.venv/Scripts/python.exe -m pip install -e ".[dev]"`.
 
 From `frontend/`:
 
@@ -341,6 +347,7 @@ From `backend/`:
 .venv/Scripts/python.exe -m ruff format --check .
 .venv/Scripts/python.exe -m pytest
 .venv/Scripts/python.exe -m pip check
+.venv/Scripts/python.exe -m pip wheel --no-deps --wheel-dir dist .
 ```
 
 Tests cover health, Project persistence, source bytes/fingerprints, schema and
@@ -617,7 +624,7 @@ Project state, refreshes on focus/navigation, and hides old source while refresh
 The generator identity is `mlstudio-python-v1`; the plan schema is `0.1` and the
 implementation contract is `sklearn-local-v1`. Bump generator identity whenever
 rendered source or embedded helper behavior changes after release. Working previews
-may change; Phase 6 must preserve exact historical source instead of regenerating it.
+may change; historical Runs preserve exact persisted source instead of regenerating it.
 
 Python remains >=3.12, pandas >=2.2,<4, and NumPy >=2,<3. The tested local environment
 is Python 3.14.2, pandas 3.0.6, NumPy 2.5.3, scipy 1.18.1, scikit-learn 1.9.1,
@@ -627,7 +634,7 @@ and joblib 1.5.3. Scikit-learn is pinned to 1.9.1; joblib is explicit
 L2/lbfgs are verified with real library fixtures. Other declared pandas/NumPy/Python
 versions are not claimed tested by this acceptance run.
 
-A plan records the exact installed relevant versions and Python version. The future
+A plan records the exact installed relevant versions and Python version. The generated
 script refuses an environment that differs. Dataset parser/pandas provenance must
 match the current interpretation; restore a compatible environment or explicitly
 replace/review the Dataset when it does not. This is compatibility protection, not
@@ -673,7 +680,7 @@ parsed. This prevents a later path replacement from changing the already-verifie
 buffer; it is not a filesystem sandbox or an atomic-read guarantee against all
 local concurrent writers. Digest mismatch refuses loading.
 
-### Future workload interface: cli-v1
+### Workload interface: cli-v1
 
 The source accepts three required absolute paths, supplied by Phase 6:
 
@@ -728,7 +735,7 @@ sklearn/joblib compatibility fixtures. Library test fixtures may fit tiny models
 and serialize to pytest temporary directories; application preview never does.
 No generated workload main function or production subprocess executor is run in
 Phase 5. Phase 6A now exercises full generated-program execution and local Run
-finalization. Phase 6B adds Runs UI and MLflow; Evaluate remains later work.
+finalization. Phase 6B adds Runs UI and MLflow; Phase 7 implements Evaluate and comparison.
 
 ## Local Run execution (Phase 6A)
 
@@ -810,8 +817,8 @@ Active attempts block Project deletion; terminal Run rows are removed before
 Dataset/Project rows using the existing staged directory deletion protocol.
 
 Run tests use isolated temporary workspaces and include actual generated execution
-for all three supported classifiers. No Runs frontend, MLflow, Evaluate, queue,
-retry/cancellation endpoint, or editable code is introduced by Phase 6A.
+for all three supported classifiers. Later phases add Runs, Evaluate and MLflow;
+queueing, retry/cancellation endpoints and editable Python remain excluded.
 
 ## Train, historical Runs, and local tracking (Phase 6B)
 
@@ -837,7 +844,8 @@ Run detail reads verified frozen IR/plan, typed classes, metrics, compact confus
 matrix, provenance and artifact integrity. Historical Code uses the dedicated
 `/runs/{run_id}/code` endpoint and never regenerates. Current Code is a preview of
 the mutable Working Pipeline. Dataset replacement or current edits cannot rewrite
-historical configuration or source. Runs does not implement Evaluate or comparison.
+historical configuration or source. Evaluate provides metric inspection and exactly-two comparison using these frozen
+responses. It never uses current Pipeline state or MLflow as evaluation authority.
 
 The backend depends on `mlflow-skinny==3.16.1` (tracking client), using the existing
 SQLAlchemy/Alembic dependencies; no MLflow server or additional frontend library
@@ -877,3 +885,47 @@ does not implement MLflow garbage collection; tracking copies may remain locally
 Frontend policy, transport, polling and server-rendered view checks use the existing
 Node/TypeScript/React dependencies: `npm run test`. They do not replace browser
 verification of interaction, responsive layout, focus, and reduced-motion behavior.
+
+## Historical integrity and comparison (0.1.0)
+
+Run responses include `artifacts.dataset_source`, computed from the frozen manifest
+reference, Run Project/Dataset identity, owned managed path, exact size and SHA-256.
+It does not consult the active Dataset. Availability is `verified`, `missing`, or
+`unavailable_or_corrupt`; malformed references have unavailable hash/size metadata.
+No path is exposed, artifact is repaired, or terminal Run fact is rewritten.
+Evaluate retains SQLite results with a warning and excludes compromised evidence
+from deltas. Comparison also requires matching available frozen SciPy, pandas,
+NumPy, scikit-learn, Python, generator and execution-version evidence. Model or
+preprocessing differences alone do not make an evaluation context incompatible.
+
+## Recovery and retention
+
+Browser closure does not cancel execution. Normal backend shutdown requests child
+termination and waits for the owned worker. Restart reconciliation checks process
+creation time and exact arguments before terminating an owned process; interrupted
+attempts become FAILED, never resumed or inferred successful from partial outputs.
+If ownership, journaling, or database/storage access is uncertain, capacity remains
+blocked. Preserve the workspace and diagnostic evidence; restore known filesystem
+access/availability and restart. If it remains blocked, report sanitized diagnostics
+privately where appropriate. Do not clear locks, modify Run rows, delete journals,
+or terminate arbitrary PIDs to force capacity open. There is no automated repair UI.
+
+A crash can leave `.ingestion`, `.run-staging`, `.pending`, or unreferenced Dataset
+files. Validated unpublished Run directories may be moved to `.run-orphans` during
+recovery; no automatic garbage collection is implemented. An interrupted Project
+deletion can leave `.deleting/<project_id>`; the existing explicit DELETE retry
+protocol restores pre-commit staging or finishes post-commit cleanup. Do not manually
+purge it when the database still retains the Project. Active Runs block deletion.
+
+Replacement retains historical sources. Permanent Project deletion removes its
+SQLite domain records and managed Project directory, but local MLflow database/
+artifact copies may remain under `MLSTUDIO_HOME/mlflow`. It is not an erasure or
+backup guarantee. Source data and all tracking artifacts need appropriate local
+permissions and handling. No quota, encryption-at-rest, secure external model
+loading, or multi-user isolation is claimed.
+
+## Prototype demonstration
+
+Follow [the committed synthetic retention walkthrough](../examples/retention/README.md).
+It uses only existing controls and two local experiments. Use a disposable
+`MLSTUDIO_HOME` for validation; do not corrupt or delete real historical evidence.
