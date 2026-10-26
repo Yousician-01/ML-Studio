@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, type Dataset } from "@/lib/api/projects";
+import { api, type Dataset, type ProjectTask } from "@/lib/api/projects";
 import type { ColumnProfile, Profile } from "@/lib/api/profiles";
+import { RegressionExplore } from "./regression-explore";
 import { displayScalar } from "@/lib/api/scalars";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 import { Bars, Boxplot, Heatmap, Histogram, compactNumber, percentage } from "./explore-charts";
@@ -52,8 +53,8 @@ function ColumnDetail({ column }: { column: ColumnProfile }) {
   </article>;
 }
 
-export function Explore({ projectId, dataset, onReload }: {
-  projectId: string; dataset: Pick<Dataset, "id" | "revision"> | null; onReload: () => void;
+export function Explore({ projectId, dataset, onReload, task = "binary_classification" }: {
+  task?: ProjectTask; projectId: string; dataset: Pick<Dataset, "id" | "revision"> | null; onReload: () => void;
 }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [offset, setOffset] = useState(0);
@@ -64,18 +65,19 @@ export function Explore({ projectId, dataset, onReload }: {
   const [filters, setFilters] = useState({ query: "", kind: "all", observation: "all" });
   const id = dataset?.id, revision = dataset?.revision;
   useEffect(() => {
-    if (!id || revision === undefined) return;
+    if (!id || revision === undefined || task === "regression") return;
     const controller = new AbortController();
     api.profile(projectId, { id, revision }, offset, controller.signal, filters).then(value => {
-      if (!controller.signal.aborted) { setProfile(value); setLoading(false); setError(""); }
+      if (!controller.signal.aborted) { if (value.task !== "binary_classification") throw new Error("Profile task changed. Reload the workspace."); setProfile(value); setLoading(false); setError(""); }
     }).catch((err: unknown) => {
       if (!controller.signal.aborted) { setError(err instanceof Error ? err.message : "Explore unavailable."); setLoading(false); }
     });
     return () => controller.abort();
-  }, [projectId, id, revision, offset, filters]);
+  }, [projectId, id, revision, offset, filters, task]);
   function filter(change: Partial<typeof filters>) {
     setFilters(current => ({ ...current, ...change })); setOffset(0); setSelected(0); setLoading(true);
   }
+  if (task === "regression") return <RegressionExplore projectId={projectId} dataset={dataset} onReload={onReload} />;
   if (!dataset) return <Panel title="Explore"><EmptyState title="Add a source Dataset first">Upload a CSV in Data to inspect distributions and quality observations.</EmptyState></Panel>;
   if (error) return <Panel title="Explore could not load"><Alert>{error}</Alert><Button onClick={onReload}>Reload current Dataset</Button></Panel>;
   if (!profile) return <Panel title="Explore"><Loading>Profiling source observations…</Loading></Panel>;

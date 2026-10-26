@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type Project } from "@/lib/api/projects";
+import { taskLabel } from "@/lib/api/task-policy";
 import { ProjectForm } from "./project-form";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, EmptyState, Loading } from "./ui";
@@ -86,7 +87,7 @@ export function Projects() {
                     <small className="muted">{project.description}</small>
                   )}
                   <div>
-                    <span className="badge">Binary classification</span>
+                    <span className="badge">{taskLabel(project.ml_objective)}</span>
                     <span className="badge subtle">
                       {project.active_dataset_id
                         ? "Dataset attached"

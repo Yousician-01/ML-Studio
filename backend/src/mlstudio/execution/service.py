@@ -8,8 +8,8 @@ from pydantic import ValidationError
 from sqlalchemy import select, update
 
 from mlstudio.codegen.csv_runtime import parse_csv_bytes
-from mlstudio.codegen.plan import resolve
-from mlstudio.codegen.render import generate
+from mlstudio.codegen.dispatch import generate_for_version as generate
+from mlstudio.codegen.dispatch import resolve_for_version as resolve
 from mlstudio.codegen.workload_runtime import read_verified_bytes
 from mlstudio.execution.artifacts import (
     bounded_read,
@@ -24,7 +24,7 @@ from mlstudio.execution.artifacts import (
 )
 from mlstudio.execution.schemas import Artifact, Manifest, RunResponse
 from mlstudio.models import Project, Run, utc_now
-from mlstudio.pipeline_schemas import PipelineIR
+from mlstudio.pipeline_schemas import load_ir
 from mlstudio.services.artifacts import source_path, verified_source
 from mlstudio.services.pipelines import snapshot
 from mlstudio.services.source import DomainError
@@ -57,7 +57,7 @@ def create(session, project_id, body, coordinator):
             raise DomainError("An execution-ready Dataset and Pipeline are required.", 422)
         settings = coordinator.settings
         try:
-            ir = PipelineIR.model_validate(project.working_pipeline)
+            ir = load_ir(project.working_pipeline, project.ml_objective)
             source_path = verified_source(settings.home, dataset)
             frame = parse_csv_bytes(
                 read_verified_bytes(source_path, dataset.fingerprint, dataset.size_bytes)
@@ -105,6 +105,16 @@ def create(session, project_id, body, coordinator):
                 "sha256": digest(data),
                 "size_bytes": len(data),
             }
+        task_context = (
+            {
+                "task": "regression",
+                "ir_version": plan.ir_version,
+                "plan_version": plan.plan_version,
+                "result_schema": plan.runtime.result_schema,
+            }
+            if plan.plan_version == "0.2"
+            else {}
+        )
         manifest = Manifest(
             run_id=run_id,
             project_id=project_id,
@@ -123,6 +133,7 @@ def create(session, project_id, body, coordinator):
                 "generator": plan.generator,
                 "python": plan.implementation.python,
                 **plan.implementation.libraries,
+                **task_context,
             },
             population={
                 "source": len(frame),
@@ -141,6 +152,7 @@ def create(session, project_id, body, coordinator):
         }
         dataset_id = dataset.id
         summary = {
+            **task_context,
             "model": plan_data["model"],
             "split": plan_data["split"],
             "target": plan_data["target"],
@@ -231,6 +243,28 @@ def source_integrity(run, home):
 
 
 def response(run, home, *, detail=False):
+    result, result_error = run.result, None
+    if result is not None:
+        # Frozen generator/protocol identity only: current Project state is irrelevant.
+        generator = run.manifest.get("provenance", {}).get("generator")
+        if not isinstance(result, dict) or not (
+            (
+                generator == "mlstudio-python-v1"
+                and result.get("schema_version") == "mlstudio-result-v1"
+            )
+            or (
+                generator == "mlstudio-python-v2"
+                and result.get("schema_version") == "mlstudio-result-v2"
+                and result.get("task") == "regression"
+                and run.summary.get("task") == "regression"
+                and run.summary.get("result_schema") == "mlstudio-result-v2"
+            )
+        ):
+            result = None
+            result_error = (
+                "Stored Run result protocol is unsupported or mismatched. "
+                "Frozen evidence is retained; it will not be reinterpreted."
+            )
     artifacts = {"dataset_source": source_integrity(run, home)}
     for name, ref in run.artifacts.items():
         try:
@@ -276,7 +310,6 @@ def response(run, home, *, detail=False):
                 "started_at",
                 "finished_at",
                 "summary",
-                "result",
                 "failure",
                 "tracking_status",
                 "mlflow_run_id",
@@ -285,6 +318,8 @@ def response(run, home, *, detail=False):
             )
         },
         provenance=run.manifest["provenance"],
+        result=result,
+        result_error=result_error,
         artifacts=artifacts,
         **snapshots,
     )

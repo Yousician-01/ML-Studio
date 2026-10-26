@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
+from alembic.util import CommandError
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from sqlalchemy import inspect, text
@@ -87,7 +88,13 @@ def test_migrations_on_fresh_database(settings: Settings):
                 "runs",
             ]
         command.upgrade(config, "head")  # Re-running is safe.
-        command.downgrade(config, "base")
+        with pytest.raises(CommandError, match="Downgrade.*refused"):
+            command.downgrade(config, "base")
+        with engine.connect() as connection:
+            assert (
+                connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+                == revision
+            )
         command.upgrade(config, "head")
     finally:
         engine.dispose()

@@ -1,5 +1,11 @@
 # Contributing to ML Studio
 
+ML Studio 0.2.0 is a source-installed binary-classification and regression workspace.
+Read the current [architecture](docs/architecture.md) and
+[development guide](docs/development.md), including its v0.2 phase references,
+before proposing behavior changes. Preserve the historical binary contracts in
+the [frozen v0.1 specifications](docs/specifications/project-v0.1.md), source goldens
+and immutable Run evidence. Project task and version boundaries must stay explicit.
 ML Studio 0.1.0 is a source-installed binary-classification prototype. Its frozen
 v0.1 contracts govern maintenance and contributor changes. Read the [prototype](docs/prototype.md), current
 [architecture](docs/architecture.md), and authoritative
@@ -40,7 +46,7 @@ test(profiling): add semantic inference cases
 refactor(executor): separate preprocessing execution
 ```
 
-These illustrate commit-message formatting, not proposed changes to v0.1 scope.
+These illustrate commit-message formatting, not proposals to expand release scope.
 
 ## Validation and documentation
 

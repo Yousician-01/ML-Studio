@@ -1,8 +1,11 @@
+import math
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from importlib.metadata import version
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
@@ -47,6 +50,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(runs_router, prefix=settings.api_prefix)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(_request, error):
+        # Rejected numeric inputs may contain inf/NaN (including JSON 1e309).
+        # Preserve validation locations/messages without making the 422 itself
+        # invalid JSON. This never coerces or accepts the rejected configuration.
+        detail = jsonable_encoder(
+            error.errors(), custom_encoder={float: lambda v: v if math.isfinite(v) else None}
+        )
+        return JSONResponse({"detail": detail}, status_code=422)
 
     @app.exception_handler(DomainError)
     async def domain_error(_request, error):

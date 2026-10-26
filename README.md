@@ -2,44 +2,42 @@
 
 **Visual ML. Real code. Reproducible experiments.**
 
-ML Studio **0.1.0** is an open-source, local-first binary-classification prototype.
-Create a prediction problem, inspect a CSV, configure explicit preprocessing and
-a model, execute the generated Python, and review immutable experiment evidence.
-
-> Start visually. Understand everything. Drop into code whenever you need.
-> Never lose reproducibility.
+ML Studio **0.2.0** is an open-source, local-first workspace for binary
+classification and regression. Inspect a CSV, configure explicit preparation and
+a model, review generated Python, and run a reproducible local experiment.
+Code is read-only; the generated source is the actual workload executed.
 
 ## What is implemented
 
-| Workspace | Existing v0.1 capability |
+| Workspace | Capability |
 | --- | --- |
-| Projects | Create, edit, open, and explicitly delete local Projects |
-| Data | One active managed CSV, source preview, physical/semantic types, overrides, binary target, and explicit replacement |
-| Explore | Deterministic source summaries, distributions, missingness, quality observations, and correlation |
-| Prepare | Explicit positive class, feature inclusion/exclusion, compatible imputation, scaling, and one-hot encoding |
-| Train | Logistic Regression, Decision Tree, or Random Forest; curated parameters; one reproducible train/test split; actual local execution |
-| Evaluate | Frozen Run metrics and confusion matrix; conditional ROC-AUC; exactly-two comparison with context/integrity warnings |
-| Runs | Immutable attempts, frozen configuration, provenance, artifacts, tracking status, and historical Code |
-| Code | Read-only generated Python for the current Working Pipeline; historical Python is retrieved from its original Run artifact |
+| Projects | Create, edit, open and explicitly delete local Projects; choose an immutable task at creation |
+| Data | One active managed CSV, source preview, physical/semantic types, overrides, task-specific target validation and explicit replacement |
+| Explore | Classification summaries, distributions, missingness and correlations; regression target statistics/histogram and numeric feature relationships |
+| Prepare | Explicit feature inclusion/exclusion, compatible imputation, scaling and one-hot encoding; typed positive class for binary classification |
+| Train | Logistic Regression, Decision Tree and Random Forest classifiers; Linear Regression and Ridge regressors; curated parameters and one reproducible train/test split |
+| Evaluate | Frozen classification metrics/confusion matrix/conditional ROC-AUC, or MAE/MSE/RMSE/R²; exactly-two comparison with context and integrity warnings |
+| Runs | Immutable attempts, frozen configuration, provenance, artifacts, tracking status and historical Code |
+| Code | Deterministic read-only Python for the current Working Pipeline, and original persisted Python for a historical Run |
 
-Generated Python is the **actual workload executed**, not decorative export code.
-Preprocessing learns from training rows only. Precision, Recall, F1 and ROC-AUC use
-the explicit positive class. Missing metrics are unavailable, never fabricated zero.
-Matching comparison context does not independently prove identical held-out rows;
-there is no ranking or automatic winner.
+Preprocessing learns from training rows only. Missing targets are excluded, never
+imputed. Classification metrics use the explicitly selected positive class;
+regression has no class orientation or stratification. Missing metrics are
+unavailable, never zero; negative R² remains valid. Comparisons do not rank Runs
+or independently prove identical held-out row membership.
 
-SQLite and managed local files own Project, Dataset, Working Pipeline and Run
-truth. Local MLflow is supporting tracking; its failure does not invalidate an
-otherwise successful Run. Dataset replacement retains the source used by history.
-Missing/corrupt historical sources or Run artifacts produce integrity warnings;
-retained SQLite metrics remain available and comparison deltas are suppressed.
+SQLite and managed local files own Project, Dataset, Pipeline and Run truth.
+MLflow provides separate local tracking; its failure does not invalidate an
+otherwise successful Run. Replacement retains historical source artifacts.
+Missing/corrupt evidence produces warnings and suppresses comparison deltas
+without rewriting retained SQLite metrics.
 
 ## Supported installation: source checkout only
 
-Acceptance environment: **Windows, Python 3.14.2, Node.js 24.13.0**, with npm.
-Broader manifest runtime ranges are compatibility declarations, not additional
-tested platforms. macOS/Linux and other runtime versions are **not verified** for
-this release. No Docker, remote database, or MLflow server is required.
+Verified environment: **Windows, Python 3.14.2, Node.js 24.13.0**, npm 11.6.2.
+Broader manifest ranges are compatibility declarations, not verified platforms.
+macOS/Linux and other runtime versions are not acceptance-verified. No Docker,
+remote database or MLflow server is required.
 
 Clone/download the 0.1.0 source and run these PowerShell commands from its root:
 
@@ -60,6 +58,46 @@ npm.cmd run dev
 ~~~
 
 Open http://127.0.0.1:3000. The default API is http://127.0.0.1:8000/api/v1.
+See [Development](docs/development.md) for configuration and storage details.
+MLflow initializes its separate local storage through the application integration;
+do not start a separate tracking service.
+
+**Existing workspace:** stop the backend and all workers, and back up SQLite and
+managed files together before running migrations. The new head is
+`0006_task_objectives`. Downgrade across this revision is refused; restore a
+consistent pre-upgrade backup for rollback. Keep the source checkout: migration
+discovery depends on it. The backend wheel is a packaging check, not a supported
+standalone installation.
+
+## First reproducible experiments
+
+Follow the committed [classification demonstration](examples/retention/README.md)
+or [regression demonstration](examples/regression/README.md). Both use the same
+entirely synthetic CSV. Create the appropriate Project task, inspect Data/Explore,
+configure Prepare and Train, review Code, execute, then inspect Evaluate and Runs.
+Create a second Run to compare exactly two frozen contexts.
+
+## Limits and local safety
+
+This is a trusted local tool, not a production service. Keep both processes on
+loopback. There is no authentication or multi-user isolation. The subprocess is
+**not a secure sandbox** and inherits local user privileges. Uploads default to
+50 MiB; parsing, profiling and training can consume substantially more memory.
+Treat joblib artifacts as trusted local files, not a safe external interchange.
+
+- Regression Explore provides numeric relationships; categorical grouped target
+  summaries are not implemented. Its bounded source scatter is not prediction data.
+- No prediction-level evidence is stored, so regression residual/predicted-versus-
+  actual plots and classification ROC curves are unavailable.
+- No Visual Mode, editable Code Mode, arbitrary Python, AI assistance, multiclass,
+  neural networks, NLP, clustering, AutoML, cross-validation, threshold tuning,
+  cloud execution or production serving is implemented.
+- SQLite and managed files are local; no automatic garbage collection, backup,
+  encryption-at-rest or secure multi-tenant isolation is provided. Crash remnants
+  can remain; recovery fails closed when ownership cannot be established.
+- Permanent Project deletion may leave local MLflow tracking copies.
+
+See [Security](SECURITY.md) and [recovery/retention](docs/development.md#recovery-and-retention).
 Follow [Development](docs/development.md) for settings, migration checks,
 production-build validation, storage paths, and contributor CI.
 
@@ -95,21 +133,15 @@ The broader product vision does not expand this release's frozen contracts.
 
 ## Project documents
 
-- [Vision](VISION.md) explains the long-term product direction.
-- [Roadmap](ROADMAP.md) records staged work; [Prototype](docs/prototype.md)
-  summarizes the v0.1 scope; [Architecture](docs/architecture.md) explains the
-  frozen execution and persistence boundaries.
-- The authoritative v0.1 contracts cover [Project](docs/specifications/project-v0.1.md),
-  [Dataset](docs/specifications/dataset-v0.1.md),
-  [User Journey](docs/specifications/user-journey-v0.1.md),
-  [Pipeline IR](docs/specifications/pipeline-ir-v0.1.md),
-  [Run](docs/specifications/run-v0.1.md),
-  [Execution](docs/specifications/execution-v0.1.md),
-  [Code Generation](docs/specifications/code-generation-v0.1.md), and
-  [Persistence](docs/specifications/persistence-v0.1.md).
-- [ADRs](docs/decisions/README.md) preserve architectural decisions;
-  [Development](docs/development.md) and [Contributing](CONTRIBUTING.md) explain
-  the repository workflow. See [Security](SECURITY.md), the
-  [Code of Conduct](CODE_OF_CONDUCT.md), and the [Changelog](CHANGELOG.md).
+- [Architecture](docs/architecture.md) describes current version boundaries;
+  [Development](docs/development.md) owns setup, validation and phase references.
+- [Frozen v0.1 contracts](docs/specifications/project-v0.1.md) retain their historical
+  binary identity. The [v0.2 contracts](docs/development/v0.2-phase-2-contracts.md),
+  [compiler](docs/development/v0.2-phase-4-compiler.md) and remaining linked phase
+  documents describe the implemented regression extension.
+- [Vision](VISION.md), [Roadmap](ROADMAP.md) and the [v0.1 prototype](docs/prototype.md)
+  preserve longer-term direction and historical scope, not additional implemented features.
+- [Contributing](CONTRIBUTING.md), [ADRs](docs/decisions/README.md),
+  [Changelog](CHANGELOG.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ML Studio is licensed under the [Apache License 2.0](LICENSE).

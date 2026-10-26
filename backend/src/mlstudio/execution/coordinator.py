@@ -7,10 +7,12 @@ from uuid import UUID, uuid4
 import psutil
 from sqlalchemy import select
 
+from mlstudio.codegen.dispatch import load_plan
 from mlstudio.db.revision import migration_message
 from mlstudio.execution import process, tracking
 from mlstudio.execution.artifacts import (
     bounded_read,
+    digest,
     reference,
     regular,
     run_directory,
@@ -20,7 +22,11 @@ from mlstudio.execution.artifacts import (
     verify,
     write_evidence,
 )
-from mlstudio.execution.results import ExecutionFailure, failure_stage, validate_result
+from mlstudio.execution.result_dispatch import (
+    failure_stage_for_version,
+    validate_result_for_version,
+)
+from mlstudio.execution.results import ExecutionFailure
 from mlstudio.models import Run, utc_now
 from mlstudio.services.source import DomainError
 
@@ -150,6 +156,21 @@ class Coordinator:
                 )
             )
             try:
+                load_plan(plan)
+                if (
+                    digest(
+                        bounded_read(
+                            directory / "execution_plan.json",
+                            run.artifacts["execution_plan.json"]["size_bytes"],
+                        )
+                    )
+                    != run.plan_sha256
+                    or run.artifacts["generated_run.py"]["sha256"] != run.source_sha256
+                ):
+                    raise ValueError("Frozen hashes differ.")
+            except ValueError:
+                raise ExecutionFailure("package_corrupt", "launch") from None
+            try:
                 dataset = verify(self.settings.home, run.manifest["dataset"])
             except (OSError, ValueError):
                 raise ExecutionFailure("dataset_mismatch", "data_loading") from None
@@ -188,18 +209,19 @@ class Coordinator:
             if exit_code != 0:
                 raise ExecutionFailure(
                     "nonzero_exit",
-                    failure_stage(
-                        directory / ".pending/result.json", self.settings.run_result_bytes
+                    failure_stage_for_version(
+                        directory / ".pending/result.json", self.settings.run_result_bytes, plan
                     ),
                 )
             for artifact in run.artifacts.values():
                 verify(self.settings.home, artifact)
             verify(self.settings.home, run.manifest["dataset"])
-            result = validate_result(
+            result = validate_result_for_version(
                 directory / ".pending/result.json",
                 self.settings.run_result_bytes,
                 plan,
                 run.manifest["population"],
+                expected_source_sha256=run.source_sha256,
             )
             model = directory / ".pending/model.joblib"
             try:

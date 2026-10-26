@@ -20,8 +20,8 @@ synthetic reproduction. Redact credentials, private paths and Dataset contents.
 
 ## Supported boundary: trusted local development
 
-ML Studio 0.1.0 is a source-installed binary-classification prototype. Its supported
-acceptance environment is Windows, Python 3.14.2 and Node.js 24.13.0. Other platforms
+ML Studio 0.2.0 is a source-installed binary-classification and regression prototype.
+Its verified acceptance environment is Windows, Python 3.14.2 and Node.js 24.13.0. Other platforms
 and runtime versions are not acceptance-verified. It is not a production service.
 
 - Bind frontend and backend to loopback using the documented startup commands.
@@ -57,6 +57,7 @@ guessing that cleanup is safe. Follow [recovery and retention guidance](docs/dev
 do not edit historical Run rows or delete evidence to force recovery.
 
 There is no cloud execution, deployment, arbitrary model import, automatic garbage
+collection, backup service or multi-tenant security claim in v0.2. Future security
 collection, backup service or multi-tenant security claim in v0.1. Future security
 fixes should preserve immutable experiment evidence and avoid expanding scope.
 

@@ -36,7 +36,9 @@ class Project(Base):
             name="fk_project_active_dataset_owner",
             use_alter=True,  # Break metadata sorting cycles; SQLite still emits this inline.
         ),
-        CheckConstraint("ml_objective = 'binary_classification'", name="ck_project_objective"),
+        CheckConstraint(
+            "ml_objective IN ('binary_classification', 'regression')", name="ck_project_objective"
+        ),
         CheckConstraint(
             "active_dataset_id IS NOT NULL OR target_column IS NULL",
             name="ck_target_requires_dataset",
@@ -53,10 +55,19 @@ class Project(Base):
     updated_at: Mapped[str] = mapped_column(String(32), default=utc_now)
     active_dataset_id: Mapped[str | None] = mapped_column(String(36))
     target_column: Mapped[str | None]
-    working_pipeline: Mapped[dict] = mapped_column(JSON, default=empty_pipeline)
+    working_pipeline: Mapped[dict] = mapped_column(
+        JSON,
+        default=lambda context: empty_pipeline(context.get_current_parameters()["ml_objective"]),
+    )
     revision: Mapped[int] = mapped_column(default=1)
     next_run_sequence: Mapped[int] = mapped_column(default=1, server_default="1")
     __mapper_args__ = {"version_id_col": revision}
+
+
+@event.listens_for(Project, "before_update")
+def protect_project_task(_mapper, _connection, project):
+    if inspect(project).attrs.ml_objective.history.has_changes():
+        raise ValueError("Project objective is immutable after creation.")
 
 
 class Dataset(Base):

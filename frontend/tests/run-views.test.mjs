@@ -42,7 +42,7 @@ test("active Run reports real lifecycle without fake progress or cancel controls
 });
 
 test("successful summary shows test population and unavailable AUC honestly", () => {
-  const html = render({ ...base, state: "SUCCEEDED", result: { population: { test: 4 }, metrics: { accuracy: 0.75, precision: 1, recall: 0.5, f1: 2 / 3, roc_auc: null }, roc_auc_unavailable_reason: "Held-out target contains only one class." } });
+  const html = render({ ...base, state: "SUCCEEDED", result: { schema_version: "mlstudio-result-v1", population: { test: 4 }, metrics: { accuracy: 0.75, precision: 1, recall: 0.5, f1: 2 / 3, roc_auc: null }, roc_auc_unavailable_reason: "Held-out target contains only one class." } });
   assert.match(html, /Succeeded/);
   assert.match(html, /0.7500/);
   assert.match(html, /4 rows/);

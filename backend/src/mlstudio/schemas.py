@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 SemanticType = Literal[
     "continuous", "categorical", "binary", "datetime", "identifier", "text", "unknown"
 ]
+ProjectTask = Literal["binary_classification", "regression"]
 
 
 class LosslessInteger(BaseModel):
@@ -26,6 +27,7 @@ class ProjectCreate(InputModel):
     problem_statement: Context
     description: Annotated[str, Field(max_length=10000)] | None = None
     success_context: Annotated[str, Field(max_length=10000)] | None = None
+    ml_objective: ProjectTask = "binary_classification"
 
 
 class ProjectPatch(InputModel):
@@ -45,7 +47,7 @@ class ProjectPatch(InputModel):
 class ProjectResponse(ProjectCreate):
     model_config = ConfigDict(from_attributes=True)
     id: str
-    ml_objective: Literal["binary_classification"]
+    ml_objective: ProjectTask
     created_at: str
     updated_at: str
     active_dataset_id: str | None

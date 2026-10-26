@@ -4,9 +4,9 @@ import math
 import re
 from typing import Annotated, Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
-from mlstudio.schemas import ColumnResponse, InputModel
+from mlstudio.schemas import ColumnResponse, InputModel, ProjectTask
 
 
 class TypedScalar(InputModel):
@@ -124,6 +124,67 @@ class PipelineIR(InputModel):
     split: SplitIntent | None = None
 
 
+class RegressionTargetIntent(InputModel):
+    column: str
+    value_type: Literal["numeric"] = "numeric"
+    missing_value_policy: Literal["exclude_rows"] = "exclude_rows"
+
+
+class RegressionSplitIntent(InputModel):
+    test_size: Number | None = 0.2
+    random_seed: Integer | None = 42
+
+
+class LinearParameters(InputModel):
+    fit_intercept: Annotated[bool, Field(strict=True)] = True
+
+
+class RidgeParameters(LinearParameters):
+    alpha: Annotated[float, Field(strict=True, allow_inf_nan=False, ge=0)] = 1.0
+
+
+class LinearModel(InputModel):
+    type: Literal["linear_regression"]
+    parameters: LinearParameters = Field(default_factory=LinearParameters)
+
+
+class RidgeModel(InputModel):
+    type: Literal["ridge"]
+    parameters: RidgeParameters = Field(default_factory=RidgeParameters)
+
+
+RegressionModelIntent = Annotated[LinearModel | RidgeModel, Field(discriminator="type")]
+AnyModelIntent = Annotated[
+    LogisticModel | TreeModel | ForestModel | LinearModel | RidgeModel, Field(discriminator="type")
+]
+
+
+class RegressionPipelineIR(InputModel):
+    ir_version: Literal["0.2"]
+    task: Literal["regression"]
+    dataset: DatasetBinding | None = None
+    target: RegressionTargetIntent | None = None
+    features: dict[str, FeatureIntent] = Field(default_factory=dict)
+    model: RegressionModelIntent | None = None
+    split: RegressionSplitIntent | None = None
+
+
+VersionedPipelineIR = Annotated[
+    PipelineIR | RegressionPipelineIR, Field(discriminator="ir_version")
+]
+
+
+def load_ir(payload: dict, objective: ProjectTask) -> PipelineIR | RegressionPipelineIR:
+    """No fallback, implicit conversion, or reinterpretation of historical v0.1 intent."""
+    if not isinstance(payload, dict):
+        raise ValueError("Pipeline must be a versioned object.")
+    if objective == "binary_classification" and payload.get("ir_version", "0.1") == "0.1":
+        return PipelineIR.model_validate(payload)
+    if objective == "regression" and payload.get("ir_version") == "0.2":
+        return RegressionPipelineIR.model_validate(payload)
+    raise ValueError("Pipeline version/task does not match the Project objective.")
+
+
 class PipelineIssue(InputModel):
     severity: Literal["blocking", "non_blocking"] = "blocking"
     scope: Literal["pipeline", "target", "feature", "train"]
@@ -133,28 +194,75 @@ class PipelineIssue(InputModel):
     field: str | None = None
 
 
+class ContextualConstraint(InputModel):
+    minimum: int | None = None
+    exclusive_minimum: float | None = None
+    choices: list[str] | None = None
+    allow_none: bool = False
+    message: str
+
+
+class FeatureRequirements(InputModel):
+    requires_numeric_input: bool = True
+    requires_complete_features: bool = True
+    supports_sparse: bool = True
+    supported_semantics: list[Literal["continuous", "categorical", "binary"]] = Field(
+        default_factory=lambda: ["continuous", "categorical", "binary"]
+    )
+
+
+class ModelDescriptor(InputModel):
+    catalogue_version: Literal["model-catalog-v1"] = "model-catalog-v1"
+    id: Literal[
+        "logistic_regression", "decision_tree", "random_forest", "linear_regression", "ridge"
+    ]
+    task: ProjectTask
+    name: str
+    parameter_schema: dict[str, JsonValue]
+    defaults: dict[str, JsonValue]
+    contextual_constraints: dict[str, ContextualConstraint]
+    feature_requirements: FeatureRequirements
+    compiler_adapter: Literal[
+        "sklearn-logistic-v1",
+        "sklearn-tree-classifier-v1",
+        "sklearn-forest-classifier-v1",
+        "sklearn-linear-v2",
+        "sklearn-ridge-v2",
+    ]
+
+
 class PipelineResponse(InputModel):
     revision: int
-    ir: PipelineIR
+    ir: VersionedPipelineIR
     columns: list[ColumnResponse]
     target_classes: list[TypedScalar]
     target_missing_count: int
     issues: list[PipelineIssue]
     prepare_valid: bool
+    configuration_ready: bool
     code_generation_ready: bool
     original_filename: str | None
     eligible_rows: int
     train_rows: int | None
     test_rows: int | None
-    model_defaults: list[ModelIntent]
-    split_defaults: SplitIntent = Field(default_factory=SplitIntent)
+    model_defaults: list[AnyModelIntent]
+    model_catalogue: list[ModelDescriptor]
+    split_defaults: SplitIntent | RegressionSplitIntent = Field(default_factory=SplitIntent)
     executable: Literal[False] = False
     stale: bool
 
 
 class PipelineUpdate(InputModel):
     revision: Annotated[int, Field(ge=1)]
-    ir: PipelineIR
+    ir: VersionedPipelineIR
+
+    @field_validator("ir", mode="before")
+    @classmethod
+    def legacy_version_default(cls, value):
+        if isinstance(value, dict) and "ir_version" not in value:
+            # Preserve the original binary reader's optional 0.1 version default.
+            return PipelineIR.model_validate(value)
+        return value
 
 
 class PipelineReset(InputModel):

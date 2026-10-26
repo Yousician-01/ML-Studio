@@ -2,20 +2,27 @@
 
 ## Implemented workflow
 
-The application supports Project creation and metadata editing, managed CSV
-ingestion/replacement, source summaries and previews, semantic overrides, and
-binary target selection. SQLite stores domain metadata; immutable source files
-live in the managed workspace. Phase 1.5 adds a shared visual foundation,
-contextual validation, and permanent Project deletion. Phase 2 implements
-deterministic source exploration. Phase 3 adds persisted Pipeline IR and Prepare
-configuration; Phase 3.5 adds visual exploration and improved semantic detection.
-Phase 4 completes Train configuration and code-generation readiness.
-Phase 5 adds deterministic complete Python source and a read-only Code preview.
-Phase 6A adds backend Run persistence, exact-source subprocess execution, output
-validation/finalization, and conservative recovery. Phase 6B adds Train execution,
-Runs/history inspection, and local MLflow tracking. Phase 7 adds frozen Run
-evaluation and exactly-two Run comparison. AI remains deferred.
-The [v0.1 contracts](specifications/project-v0.1.md) remain authoritative.
+ML Studio 0.2.0 supports binary classification and regression from Project creation
+through managed CSV ingestion, task-aware Explore, explicit Prepare/Train,
+deterministic read-only Python, local execution, immutable Runs and Evaluate.
+SQLite and managed files are authoritative; MLflow is separate local tracking.
+The Project task is selected at creation and cannot be changed by metadata edits.
+
+The [frozen v0.1 contracts](specifications/project-v0.1.md) retain their historical
+binary identity. These phase records describe each phase at its completion,
+rather than current blockers:
+
+- [Phase 1: compatibility and migration proof](development/v0.2-phase-1-compatibility.md).
+- [Phase 2: task, target and IR contracts](development/v0.2-phase-2-contracts.md).
+- [Phase 3: model catalogue and configuration](development/v0.2-phase-3-configuration.md).
+- [Phase 4: compiler and result protocol](development/v0.2-phase-4-compiler.md).
+- [Phase 5: shared Run lifecycle and tracking](development/v0.2-phase-5-execution.md).
+- [Phase 6: task-aware frontend and history](development/v0.2-phase-6-frontend.md).
+- [Phase 6.1: bounded regression Explore](development/v0.2-phase-6.1-regression-explore.md).
+
+Later sections labelled Phase 1–7 record the original v0.1 implementation. Their
+binary-specific details apply to the legacy path; the v0.2 differences below and
+linked phase records describe the current regression path. AI remains deferred.
 
 Keep changes scoped, use mature libraries, preserve exact generated-source
 execution and training-only preprocessing, and validate behavior
@@ -26,7 +33,7 @@ work; PRs record review; CHANGELOG records user-visible changes; Git records edi
 
 ## Verified local setup
 
-The supported v0.1 acceptance environment is Windows with Python 3.14.2,
+The verified v0.2 acceptance environment is Windows with Python 3.14.2,
 Node.js 24.13.0 and npm. Manifest ranges (Python >=3.12, Node >=22.13) do not
 claim acceptance coverage for other versions. Other operating systems and runtime
 versions are NOT VERIFIED for this release.
@@ -57,10 +64,16 @@ Initialize the database, then start the backend:
 ```
 
 The migration chain is `0001_foundation` → `0002_project_dataset` →
-`0003_working_pipeline` → `0004_runs` → `0005_tracking` (current head).
+`0003_working_pipeline` → `0004_runs` → `0005_tracking` →
+`0006_task_objectives` (current head).
 Fresh installation and upgrades are covered by the existing migration tests.
 Startup does not run migrations or call `metadata.create_all()`; Alembic owns
-schema evolution. Run `alembic upgrade head` when updating an existing workspace.
+schema evolution. Before upgrading an existing workspace, stop the backend and all
+workers and back up SQLite and managed files together. Then run `alembic upgrade head`.
+Revision 0006 rebuilds the Project objective constraint within the checked offline
+SQLite boundary. Downgrade across it is refused; restore a consistent pre-upgrade
+backup instead. See the Phase 1/2 records for failure/crash coverage and platform
+limitations. Restart with the updated editable installation.
 
 In another terminal:
 
@@ -81,7 +94,7 @@ request; a successful check is remembered for the app lifetime. Restart the
 backend after deploying code or replacing a running database. Multiple current
 and required heads are compared as sets. The message also cautions that databases
 from a newer app version need that version; it never suggests a downgrade.
-OpenAPI reports backend package version `0.1.0`. Reinstall the editable package
+OpenAPI reports backend package version `0.2.0`. Reinstall the editable package
 after updating package metadata: `.venv/Scripts/python.exe -m pip install -e ".[dev]"`.
 
 From `frontend/`:
@@ -103,6 +116,44 @@ The [frontend example](../frontend/.env.example) documents public
 It includes the API prefix and is embedded at build time. Restart development or
 rebuild production after changes. The browser calls FastAPI directly; CORS must
 allow the frontend origin.
+
+## Current v0.2 task and version behavior
+
+Creation accepts `ml_objective` as `binary_classification` (the omitted default)
+or `regression`; metadata PATCH cannot change it. The same Project/Dataset/Pipeline/
+Run endpoints serve both tasks. Pipeline GET/PATCH discriminates binary IR `0.1`
+and explicit regression IR `0.2`; unknown or cross-task payloads are rejected.
+The backend model catalogue supplies descriptors and defaults to Train.
+
+Regression offers Linear Regression (`fit_intercept`) and Ridge (`alpha`,
+`fit_intercept`). Numeric non-Boolean targets must be finite and convert losslessly
+from parsed integers to float64; constant and two-valued targets are valid. Missing
+target rows are excluded. There is no positive class or stratification control.
+Preparation is explicit and fitted only on training rows. Regression uses generator
+`mlstudio-python-v2` and result `mlstudio-result-v2`; binary v1 source/protocols
+remain unchanged. Both execute the exact persisted generated file through the
+shared local Run lifecycle. Results contain MAE/MSE/RMSE and conditional R², not
+binary metrics. Negative R² and true zero remain numbers; unavailable R² is null
+with a reason. No predictions or residuals are persisted.
+
+Explore uses the existing profile endpoint with an explicit task discriminator.
+Regression returns `regression-source-profile-v1`, bounded target statistics and
+histogram, and one numeric-feature relationship. It verifies the configured
+upload-size bound (50 MiB by default), owned path, exact length and SHA-256 before
+parsing the same buffer; revision checks bracket computation. Feature options page
+at 20 and scatter previews at 200 source pairs. Pearson uses all complete pairs,
+not the scatter sample. Raw pairs exist only in explicit local-UI responses.
+Categorical grouped target summaries are deferred. Binary profile definitions
+retain `source-profile-v2` and add only the explicit task field.
+
+Train protects dirty raw drafts in memory/sessionStorage with revision binding and
+navigation/unload guards. Stale drafts are retained with a conflict, not rebased.
+They are not authoritative Pipeline state. Saved intent comes from SQLite.
+Runs/Evaluate and historical Code read frozen evidence; current source/Pipeline
+edits do not rewrite past facts. Comparisons require compatible task, source/target,
+split, versions, population, metric definitions and integrity; no winner is chosen.
+Source scatter is not a prediction plot. Visual Mode and editable Code Mode are
+not implemented. See [Architecture](architecture.md) for the trust boundary.
 
 ## Central configuration and runtime workspace
 
@@ -248,7 +299,7 @@ value of null restores inference. Stale configuration or unconfirmed replacement
 returns 409. Invalid CSV or target returns sanitized 422 feedback. Reads do not
 update Project timestamps; persisted edits use UTC ISO timestamps.
 
-The two domain tables use ordinary SQLAlchemy types. Dataset's ordered JSON
+The Project and Dataset tables use ordinary SQLAlchemy types. Dataset's ordered JSON
 column metadata keeps schema observations and overrides together without adding
 one table per column. Project's composite active-Dataset foreign key enforces
 same-Project ownership, and Dataset's owner foreign key requires a real Project.
@@ -316,8 +367,9 @@ NumPy is now a direct backend dependency for numeric summaries and correlation;
 pandas remains responsible for parsing and source observations. Charts use native
 HTML/SVG with readable tables and labels, without a chart framework. Explore
 provides interactive histograms, boxplots, frequency/missingness bars, and a
-Pearson heatmap with exact hover/focus values and accessible tables. Charts use
-bounded backend aggregates, not source rows. Positive class is displayed only
+Pearson heatmap with exact hover/focus values and accessible tables. Binary charts use
+bounded backend aggregates; the v0.2 regression scatter additionally uses at most
+200 transient source pairs, as documented above. Positive class is displayed only
 when explicitly configured in a matching Working Pipeline.
 
 The [Data Inspector reference](https://github.com/Yousician-01/Data-Inspector)
@@ -526,8 +578,9 @@ automatically inserted and no feature is silently dropped.
 Train parameter and split forms save explicitly; model selection saves defaults
 immediately. Pending editor strings are visibly unsaved UI state and suppress the
 ready message until saved. Editing one form temporarily disables the other so a
-save cannot discard its unsaved input. Navigation discards only unsaved input;
-saved intent survives navigation, reload, and app restart. Revision conflicts
+save cannot discard its unsaved input. In v0.2, navigation/unload guards and
+revision-bound draft recovery protect unsaved input as described above; saved
+intent survives navigation, reload, and app restart. Revision conflicts
 return 409, preserve the current editor, and require reload before further edits.
 Target changes retain model/split, reset positive class, reconcile participation,
 and revalidate stratification. Replacement retains a stale old binding; explicit
@@ -926,6 +979,7 @@ loading, or multi-user isolation is claimed.
 
 ## Prototype demonstration
 
-Follow [the committed synthetic retention walkthrough](../examples/retention/README.md).
-It uses only existing controls and two local experiments. Use a disposable
+Follow the committed [classification walkthrough](../examples/retention/README.md)
+or [regression walkthrough](../examples/regression/README.md).
+Each uses existing controls and two local experiments. Use a disposable
 `MLSTUDIO_HOME` for validation; do not corrupt or delete real historical evidence.

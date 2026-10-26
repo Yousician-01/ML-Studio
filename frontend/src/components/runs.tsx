@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/projects";
 import type { Run, RunCode, RunPage } from "@/lib/api/runs";
-import { metricText } from "@/lib/api/evaluation-policy";
+import { metricText, frozenModelName, knownResult } from "@/lib/api/evaluation-policy";
 import { ConfusionMatrix, FrozenRunContext, IntegrityNotice, RunMetrics } from "./run-results";
 import { active } from "@/lib/api/run-policy";
 import { pollRuns } from "@/lib/api/run-polling";
@@ -19,8 +19,8 @@ export function RunStatus({ run }: { run: Run }) {
 
 export function RunSummary({ run }: { run: Run }) {
   return <div className="run-summary">
-    <div className="section-heading"><div><strong>Run #{run.sequence} · {run.summary.model.name}</strong><p className="muted">Dataset {run.dataset_id} · started {date(run.started_at)}</p></div><span role="status" aria-live="polite"><RunStatus run={run} /></span></div>
-    {run.state === "SUCCEEDED" && run.result && <><IntegrityNotice run={run} /><RunMetrics result={run.result} /><Link href={`/projects/${run.project_id}?view=evaluate&run=${run.id}`}>Evaluate this Run</Link></>}
+    <div className="section-heading"><div><strong>Run #{run.sequence} · {frozenModelName(run)}</strong><p className="muted">Dataset {run.dataset_id} · started {date(run.started_at)}</p></div><span role="status" aria-live="polite"><RunStatus run={run} /></span></div>
+    {run.result_error && <Alert>{run.result_error}</Alert>}{run.state === "SUCCEEDED" && run.result && <><IntegrityNotice run={run} /><RunMetrics result={run.result} /><Link href={`/projects/${run.project_id}?view=evaluate&run=${run.id}`}>Evaluate this Run</Link></>}
     {run.failure && <Alert><strong>{run.failure.stage} · {run.failure.code}</strong><p>{run.failure.message}</p></Alert>}
     {active(run.state) && <p className="muted">Execution continues if you navigate away or close this browser. No completion percentage is available.</p>}
     <Link href={runHref(run.project_id, run.id)}>Open Run details</Link>
@@ -62,7 +62,7 @@ function RunList({ projectId }: { projectId: string }) {
   function refresh() { setError(""); setPage(null); setAttempt(value => value + 1); }
   return <Panel title="Runs" description="Immutable experiment history · newest first" action={<Button onClick={refresh}>Refresh history</Button>}>
     {error ? <Alert>{error}<Button onClick={refresh}>Retry</Button></Alert> : !page || page.offset !== offset ? <Loading>Loading experiment history…</Loading> : page.items.length === 0 ? <EmptyState title="No Runs yet">Configure a saved experiment in <Link href={`/projects/${projectId}?view=train`}>Train</Link> to create your first historical Run.</EmptyState> : <>
-      <div className="table-scroll"><table className="run-ledger"><caption className="sr-only">Historical Runs</caption><thead><tr><th>Run</th><th>Status</th><th>Experiment</th><th>Created</th><th>Accuracy</th><th>Tracking</th></tr></thead><tbody>{page.items.map(run => <tr key={run.id}><th scope="row"><Link href={runHref(projectId, run.id)}>#{run.sequence}</Link></th><td><RunStatus run={run} /></td><td><strong>{run.summary.model.name}</strong><small>Target: {run.summary.target.column}</small><small title={run.dataset_id}>Dataset {run.dataset_id.slice(0, 8)}</small></td><td>{date(run.created_at)}</td><td>{run.state === "SUCCEEDED" && run.result ? metricText(run.result.metrics.accuracy) : "—"}</td><td>{run.tracking_status === "SYNCHRONIZED" ? "Synchronized" : run.tracking_status === "FAILED" ? "Tracking failed" : "Not yet synchronized"}</td></tr>)}</tbody></table></div>
+      <div className="table-scroll"><table className="run-ledger"><caption className="sr-only">Historical Runs</caption><thead><tr><th>Run</th><th>Status</th><th>Experiment</th><th>Created</th><th>Held-out metric</th><th>Tracking</th></tr></thead><tbody>{page.items.map(run => <tr key={run.id}><th scope="row"><Link href={runHref(projectId, run.id)}>#{run.sequence}</Link></th><td><RunStatus run={run} /></td><td><strong>{frozenModelName(run)}</strong><small>Target: {run.summary.target.column}</small><small title={run.dataset_id}>Dataset {run.dataset_id.slice(0, 8)}</small></td><td>{date(run.created_at)}</td><td>{run.result_error ? "Unsupported protocol" : run.state === "SUCCEEDED" && run.result ? knownResult(run.result) ? (run.result.schema_version === "mlstudio-result-v2" ? `RMSE ${metricText(run.result.metrics.rmse)}` : `Accuracy ${metricText(run.result.metrics.accuracy)}`) : "Unsupported protocol" : "—"}</td><td>{run.tracking_status === "SYNCHRONIZED" ? "Synchronized" : run.tracking_status === "FAILED" ? "Tracking failed" : "Not yet synchronized"}</td></tr>)}</tbody></table></div>
       <div className="actions run-pagination"><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 20))}>Previous</Button><span>{offset + 1}–{Math.min(offset + page.items.length, page.total)} of {page.total}</span><Button disabled={offset + page.items.length >= page.total} onClick={() => setOffset(offset + 20)}>Next</Button></div>
     </>}
   </Panel>;

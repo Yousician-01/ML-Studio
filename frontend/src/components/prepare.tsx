@@ -69,28 +69,28 @@ export function Prepare({ projectId, datasetId, onReload }: {
   return <div className="prepare-view">
     <Panel title="Prepare" description="Define feature participation and ordered preprocessing. Source data stays unchanged. Each change saves immediately.">
       <p role="status"><strong>{state.stale ? "Stale configuration" : state.prepare_valid ? "Prepare configuration valid" : hasInvalidIntent ? "Prepare has blocking issues" : "Prepare configuration incomplete"}</strong>{busy ? " · Saving…" : saved ? " · Saved" : ""}</p>
-      <p className="muted">Complete model and split configuration in Train. No training executes yet.</p>
+      <p className="muted">Complete model and split configuration in Train. Preparation does not execute training.</p>
       <Issues issues={state.issues.filter(i => i.scope === "pipeline")} />
       {localError("pipeline")}
       {conflict && <Alert>Newer Project state exists. Reload Prepare to review it before making further edits. <Button onClick={onReload}>Reload Prepare</Button></Alert>}
       <details><summary>Reset preparation</summary>
-        <p>Replace this working recipe with the current Dataset and target. All feature candidates start included, with no operations. Previous preparation choices, positive class, model, and split will be cleared.</p>
+        <p>Replace this working recipe with the current Dataset and target. All feature candidates start included, with no operations. Previous preparation choices{ir.ir_version === "0.1" ? ", positive class" : ""}, model, and split will be cleared.</p>
         <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy || conflict} onChange={e => setConfirmed(e.target.checked)} /> I understand that this replaces the working preparation.</label>
         <Button disabled={!confirmed || busy || conflict} onClick={() => void reset()}>Reset for current Dataset</Button>
       </details>
     </Panel>
     {!state.stale && <>
-      <Panel title="Target" description="Choose the positive class for the target selected in Data.">
+      <Panel title="Target" description={ir.ir_version === "0.2" ? "Numeric target selected in Data. Missing target rows are excluded; the target is never imputed." : "Choose the positive class for the target selected in Data."}>
         <p><strong>{ir.target?.column ?? "No target selected"}</strong>{targetColumn ? ` · ${targetColumn.effective_semantic_type}` : ""} · <Link href={`/projects/${projectId}?view=data`}>Change target in Data</Link></p>
         <Issues issues={state.issues.filter(i => i.scope === "target")} />
         {localError("target")}
-        {ir.target && <label>Positive class
-          <select aria-label="Positive class" disabled={disabled || state.target_classes.length !== 2} value={state.target_classes.findIndex(c => JSON.stringify(c) === JSON.stringify(ir.target?.positive_class))} onChange={e => void persist({ ...ir, target: { ...ir.target!, positive_class: Number(e.target.value) < 0 ? null : state.target_classes[Number(e.target.value)] } }, "target")}>
+        {ir.ir_version === "0.1" && ir.target && <label>Positive class
+          <select aria-label="Positive class" disabled={disabled || state.target_classes.length !== 2} value={state.target_classes.findIndex(c => JSON.stringify(c) === JSON.stringify(ir.ir_version === "0.1" ? ir.target?.positive_class : null))} onChange={e => void persist({ ...ir, target: { ...ir.target!, positive_class: Number(e.target.value) < 0 ? null : state.target_classes[Number(e.target.value)] } } as PipelineIR, "target")}>
             <option value={-1}>Choose explicitly</option>
             {state.target_classes.map((c, index) => <option value={index} key={index}>{String(c.value)} ({c.value_type})</option>)}
           </select>
         </label>}
-        <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. Choosing a positive class confirms this policy.</p>
+        <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. {ir.ir_version === "0.1" ? "Choosing a positive class confirms this policy." : "Constant or two-valued numeric targets are permitted; R² availability is determined by the held-out population."}</p>
       </Panel>
       <Panel title="Features" description="Operations are ordered: imputation first, then scaling or encoding. None means no operation. Excluded features retain dormant choices.">
         <div className="table-scroll"><table className="prepare-table"><thead><tr><th>Feature / effective type</th><th>Participation</th><th>Missing values</th><th>Scaling / encoding</th><th>Validation / intent</th></tr></thead><tbody>

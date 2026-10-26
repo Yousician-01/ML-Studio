@@ -51,6 +51,7 @@ export type ColumnProfile = {
   unavailable_reason: string | null;
 };
 export type Profile = {
+  task: "binary_classification";
   dataset_id: string;
   revision: number;
   fingerprint: string;
@@ -95,3 +96,23 @@ export type Profile = {
     unavailable_reason: string | null;
   };
 };
+
+export type TargetRelationship = {
+  feature: string; target: string; paired_rows: number; missing_pair_rows: number;
+  missing_feature_rows: number; missing_target_rows: number;
+  pearson: number | null; correlation_unavailable_reason: string | null;
+  points: { x: number; y: number }[]; point_limit: 200;
+  sampling: "evenly-spaced-source-order-v1"; scatter_unavailable_reason: string | null;
+};
+export type RegressionProfile = {
+  task: "regression"; profile_version: "regression-source-profile-v1"; population: "full_source";
+  dataset_id: string; revision: number; fingerprint: string; original_filename: string;
+  source_integrity: "verified"; row_count: number; column_count: number;
+  target: null | { name: string; physical_dtype: string; semantic_type: Column["effective_semantic_type"];
+    role: "target"; observed_count: number; missing_count: number; distinct_count: number;
+    constant: boolean; numeric: NumericProfile; standard_deviation_definition: "sample-ddof-1"; quantile_definition: "linear" };
+  numeric_feature_count: number; feature_offset: number; feature_limit: 20; histogram_bin_limit: 10;
+  feature_options: { name: string; physical_dtype: string; semantic_type: Column["effective_semantic_type"]; role: Column["role"] }[];
+  relationship: TargetRelationship | null;
+};
+export type SourceProfile = Profile | RegressionProfile;
