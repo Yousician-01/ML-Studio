@@ -6,6 +6,11 @@ Read the current [architecture](docs/architecture.md) and
 before proposing behavior changes. Preserve the historical binary contracts in
 the [frozen v0.1 specifications](docs/specifications/project-v0.1.md), source goldens
 and immutable Run evidence. Project task and version boundaries must stay explicit.
+ML Studio 0.1.0 is a source-installed binary-classification prototype. Its frozen
+v0.1 contracts govern maintenance and contributor changes. Read the [prototype](docs/prototype.md), current
+[architecture](docs/architecture.md), and authoritative
+[v0.1 specifications](docs/specifications/project-v0.1.md) before proposing
+behavior changes. Keep work focused on the frozen binary-classification scope.
 
 ## Discuss a problem first
 

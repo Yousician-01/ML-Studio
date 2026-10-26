@@ -58,6 +58,7 @@ do not edit historical Run rows or delete evidence to force recovery.
 
 There is no cloud execution, deployment, arbitrary model import, automatic garbage
 collection, backup service or multi-tenant security claim in v0.2. Future security
+collection, backup service or multi-tenant security claim in v0.1. Future security
 fixes should preserve immutable experiment evidence and avoid expanding scope.
 
 ## Known development-tooling advisory

@@ -39,7 +39,7 @@ Broader manifest ranges are compatibility declarations, not verified platforms.
 macOS/Linux and other runtime versions are not acceptance-verified. No Docker,
 remote database or MLflow server is required.
 
-From the source root, in PowerShell:
+Clone/download the 0.1.0 source and run these PowerShell commands from its root:
 
 ~~~powershell
 python -m venv backend/.venv
@@ -98,6 +98,38 @@ Treat joblib artifacts as trusted local files, not a safe external interchange.
 - Permanent Project deletion may leave local MLflow tracking copies.
 
 See [Security](SECURITY.md) and [recovery/retention](docs/development.md#recovery-and-retention).
+Follow [Development](docs/development.md) for settings, migration checks,
+production-build validation, storage paths, and contributor CI.
+
+Keep the source checkout: migration discovery depends on its layout. Installing
+only the backend wheel is **not supported** for launching the application. CI's
+wheel build checks packaging quality; it does not prove standalone installability.
+
+## First reproducible experiment
+
+Use the committed [synthetic retention demo](examples/retention/README.md): create
+a Project, upload its CSV, select the target, inspect Explore, configure Prepare
+and Train, inspect Code, and click **Run experiment**. Evaluate its held-out results
+and inspect historical Code in Runs. Create a second Run and compare exactly two.
+
+## Limits and local safety
+
+This is a trusted local development tool, not a production service. Keep both
+processes bound to loopback. There is no authentication or multi-user isolation.
+The separate Python subprocess is **not sandboxed**. Uploads default to 50 MiB;
+parsing and training can consume substantially more memory. Treat joblib models
+as trusted local artifacts, not a safe external interchange format.
+
+State persists under the configurable local workspace outside the source tree.
+Crash remnants can remain; recovery fails closed if process ownership or storage
+cannot be established. Project deletion is permanent and may leave local MLflow
+tracking copies. No automatic garbage collection or backup is provided.
+See [Security](SECURITY.md) and [recovery/retention guidance](docs/development.md#recovery-and-retention).
+
+v0.1 excludes regression/multiclass, additional model families, AutoML,
+cross-validation, ROC curves, prediction storage, threshold tuning, editable
+Python, AI assistance, authentication, cloud execution, and production serving.
+The broader product vision does not expand this release's frozen contracts.
 
 ## Project documents
 
