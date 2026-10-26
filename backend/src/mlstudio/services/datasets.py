@@ -19,8 +19,8 @@ from mlstudio.services.source import (
     infer_semantic,
     json_scalar,
     parse_source,
-    target_classes,
 )
+from mlstudio.services.task_policies import validate_target_for_task
 
 
 def current_dataset(session: Session, project: Project) -> Dataset:
@@ -63,7 +63,7 @@ def dataset_response(dataset: Dataset, project: Project, frame: pd.DataFrame) ->
         columns=columns,
         revision=project.revision,
         target_column=project.target_column,
-        target_classes=target_classes(frame, project.target_column)
+        target_classes=validate_target_for_task(frame, project.target_column, project.ml_objective)
         if project.target_column
         else [],
         preview=[
@@ -149,7 +149,7 @@ def ingest(
         project.active_dataset_id = dataset.id
         project.target_column = None
         if project.working_pipeline["dataset"] is None:
-            project.working_pipeline = initialize(dataset, None)
+            project.working_pipeline = initialize(dataset, None, objective=project.ml_objective)
         project.updated_at = utc_now()
         session.flush()  # Resolve the revision represented by the returned snapshot.
         result = dataset_response(dataset, project, frame)
@@ -180,7 +180,7 @@ def configure(
         raise DomainError("Semantic overrides must refer to active Dataset columns.")
     if "target_column" in change.model_fields_set:
         if change.target_column is not None:
-            target_classes(frame, change.target_column)
+            validate_target_for_task(frame, change.target_column, project.ml_objective)
         old_target = project.target_column
         project.target_column = change.target_column
         if old_target != change.target_column:

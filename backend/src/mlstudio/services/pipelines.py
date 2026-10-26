@@ -5,19 +5,20 @@ from pandas.api.types import is_bool_dtype, is_numeric_dtype
 from sqlalchemy import select
 
 from mlstudio.codegen.compatibility import compatibility_issues
+from mlstudio.model_catalog import descriptor_for, model_catalogue, model_defaults
 from mlstudio.models import Dataset, Project, utc_now
 from mlstudio.pipeline_schemas import (
-    ForestModel,
-    LogisticModel,
     PipelineIR,
     PipelineIssue,
     PipelineResponse,
-    TreeModel,
+    RegressionSplitIntent,
     TypedScalar,
+    load_ir,
 )
 from mlstudio.services.artifacts import verified_source
 from mlstudio.services.pipeline_state import column_role, initialize
 from mlstudio.services.source import DomainError, json_scalar, parse_source
+from mlstudio.services.task_policies import validate_target_for_task
 from mlstudio.services.train_validation import partition_sizes, train_issues
 
 
@@ -31,14 +32,24 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    regression = ir.ir_version == "0.2"
 
     def issue(code, message, scope="pipeline", column=None, dormant=False):
+        field = None
+        if regression:
+            if scope == "target":
+                field = "target.column"
+            elif column:
+                field = f"features.{column}.operations"
+            else:
+                field = "dataset" if code.startswith("dataset_") else "features"
         issues.append(
             PipelineIssue(
                 code=code,
                 message=message,
                 scope=scope,
                 column=column,
+                field=field,
                 severity="non_blocking" if dormant else "blocking",
             )
         )
@@ -48,24 +59,40 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         if dataset is not None and ir.target and ir.target.column in frame
         else None
     )
-    issues.extend(train_issues(ir, target_series))
+    if not regression:
+        issues.extend(train_issues(ir, target_series))
     if dataset is None:
+        if regression:
+            issues.extend(train_issues(ir, None))
         issue("dataset_missing", "Upload a Dataset in Data.")
         return issues, [], 0, False
     stale = ir.dataset is not None and (
         ir.dataset.dataset_id != dataset.id or ir.dataset.fingerprint != dataset.fingerprint
     )
     if stale:
+        if regression:
+            issues.extend(train_issues(ir, None))
         issue(
             "dataset_stale", "Dataset changed. Explicitly reset preparation for the current source."
         )
         return issues, [], 0, True
     if ir.dataset is None:
         issue("dataset_missing", "Initialize preparation for the current Dataset.")
+    if regression:
+        issues.extend(train_issues(ir, target_series))
+    descriptor = (
+        descriptor_for(ir.model, "regression" if regression else "binary_classification")
+        if ir.model
+        else None
+    )
     columns = {c["name"]: c for c in dataset.columns}
     classes, missing = [], 0
     if ir.target is None:
-        issue("target_missing", "Select a binary target in Data.", "target")
+        issue(
+            "target_missing",
+            "Select a numeric target in Data." if regression else "Select a binary target in Data.",
+            "target",
+        )
     else:
         name = ir.target.column
         if name != selected_target:
@@ -79,7 +106,12 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         else:
             series = frame[name]
             missing = int(series.isna().sum())
-            if series.nunique() != 2:
+            if regression:
+                try:
+                    validate_target_for_task(frame, name, "regression")
+                except DomainError as error:
+                    issue("target_not_numeric", error.message, "target")
+            elif series.nunique() != 2:
                 issue(
                     "target_not_binary",
                     "Target must contain exactly two non-missing classes.",
@@ -87,7 +119,9 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 )
             else:
                 classes = [typed_scalar(v) for v in series.dropna().unique()]
-            if ir.target.positive_class is None:
+            if regression:
+                pass  # Numeric targets have no class orientation.
+            elif ir.target.positive_class is None:
                 issue("positive_class_missing", "Choose the positive class explicitly.", "target")
             elif ir.target.positive_class not in classes:
                 issue(
@@ -128,7 +162,12 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         def feature_issue(code, message, name=name, dormant=dormant):
             issue(code, message, "feature", name, dormant)
 
-        if semantic not in {"continuous", "categorical", "binary"}:
+        supported_semantics = (
+            descriptor.feature_requirements.supported_semantics
+            if descriptor
+            else ["continuous", "categorical", "binary"]
+        )
+        if semantic not in supported_semantics:
             if feature.included:
                 feature_issue(
                     "unsupported_semantic",
@@ -166,18 +205,27 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                     "train",
                     name,
                 )
-            elif observed.isna().any() and "impute" not in families:
+            elif (
+                observed.isna().any()
+                and "impute" not in families
+                and descriptor
+                and descriptor.feature_requirements.requires_complete_features
+            ):
                 issue(
                     "feature_missing_values",
-                    "Configure imputation in Prepare. This v0.1 "
-                    "configuration requires complete classifier inputs.",
+                    "Configure imputation in Prepare. This configuration requires complete inputs.",
                     "train",
                     name,
                 )
-            if not (numeric or is_bool_dtype(frame[name].dtype)) and "encode" not in families:
+            if (
+                not (numeric or is_bool_dtype(frame[name].dtype))
+                and "encode" not in families
+                and descriptor
+                and descriptor.feature_requirements.requires_numeric_input
+            ):
                 issue(
                     "feature_encoding",
-                    "Non-numeric classifier input requires one-hot encoding in Prepare.",
+                    "Non-numeric model input requires one-hot encoding in Prepare.",
                     "train",
                     name,
                 )
@@ -215,7 +263,12 @@ def snapshot(session, project_id):
 
 def response(project, dataset, settings):
     frame = parse_source(verified_source(settings.home, dataset)) if dataset else pd.DataFrame()
-    ir = PipelineIR.model_validate(project.working_pipeline)
+    try:
+        ir = load_ir(project.working_pipeline, project.ml_objective)
+    except ValueError:
+        raise DomainError(
+            "Stored Pipeline version/task is unsupported. Reset preparation."
+        ) from None
     issues, classes, missing, stale = validate(ir, dataset, project.target_column, frame)
     columns = (
         [
@@ -233,6 +286,10 @@ def response(project, dataset, settings):
         int(frame[ir.target.column].count()) if ir.target and ir.target.column in frame else 0
     )
     train_rows, test_rows = partition_sizes(eligible, ir.split)
+    regression = ir.ir_version == "0.2"
+    if regression and stale:
+        eligible, train_rows, test_rows = 0, None, None
+    configuration_ready = not any(i.severity == "blocking" for i in issues)
     return PipelineResponse(
         revision=project.revision,
         ir=ir,
@@ -240,16 +297,15 @@ def response(project, dataset, settings):
         target_classes=classes,
         target_missing_count=missing,
         issues=issues,
+        configuration_ready=configuration_ready,
         code_generation_ready=not any(i.severity == "blocking" for i in issues),
         original_filename=dataset.original_filename if dataset else None,
         eligible_rows=eligible,
         train_rows=train_rows,
         test_rows=test_rows,
-        model_defaults=[
-            LogisticModel(type="logistic_regression"),
-            TreeModel(type="decision_tree"),
-            ForestModel(type="random_forest"),
-        ],
+        model_defaults=model_defaults(project.ml_objective),
+        model_catalogue=model_catalogue(project.ml_objective),
+        split_defaults=RegressionSplitIntent() if ir.ir_version == "0.2" else {},
         prepare_valid=not any(i.severity == "blocking" and i.scope != "train" for i in issues),
         stale=stale,
     )
@@ -267,10 +323,17 @@ def save(session, project, body, settings, reset=False):
     if reset:
         if dataset is None or body.dataset_id != dataset.id:
             raise DomainError("Dataset changed. Reload before resetting preparation.", 409)
-        project.working_pipeline = initialize(dataset, project.target_column)
+        project.working_pipeline = initialize(
+            dataset, project.target_column, objective=project.ml_objective
+        )
     else:
         # Binding changes are deliberate reset operations, never generic edit side effects.
-        if body.ir.dataset != PipelineIR.model_validate(project.working_pipeline).dataset:
+        try:
+            load_ir(body.ir.model_dump(mode="json"), project.ml_objective)
+            current = load_ir(project.working_pipeline, project.ml_objective)
+        except ValueError:
+            raise DomainError("Pipeline version/task must match the Project objective.") from None
+        if body.ir.dataset != current.dataset:
             raise DomainError("Use explicit reset to change the Dataset binding.", 409)
         project.working_pipeline = body.ir.model_dump(mode="json")
     project.updated_at = utc_now()

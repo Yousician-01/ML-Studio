@@ -1,4 +1,4 @@
-import type { Profile } from "./profiles";
+import type { SourceProfile } from "./profiles";
 import type { PipelineIR, WorkingPipeline } from "./pipelines";
 
 export const semanticTypes = [
@@ -13,6 +13,7 @@ export const semanticTypes = [
 export type SemanticType = (typeof semanticTypes)[number];
 export type LosslessInteger = { value_type: "integer"; value: string };
 export type Scalar = string | number | boolean | LosslessInteger | null;
+export type ProjectTask = "binary_classification" | "regression";
 export type ProjectInput = {
   name: string;
   description: string | null;
@@ -21,7 +22,7 @@ export type ProjectInput = {
 };
 export type Project = ProjectInput & {
   id: string;
-  ml_objective: "binary_classification";
+  ml_objective: ProjectTask;
   created_at: string;
   updated_at: string;
   active_dataset_id: string | null;
@@ -145,17 +146,18 @@ export const api = {
     offset: number,
     signal?: AbortSignal,
     filters: { query: string; kind: string; observation: string } = { query: "", kind: "all", observation: "all" },
+    feature?: string,
   ) =>
-    request<Profile>(
+    request<SourceProfile>(
       projectPath(id) +
-        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}&${new URLSearchParams(filters)}`,
+        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}&${new URLSearchParams(filters)}${feature ? `&feature=${encodeURIComponent(feature)}` : ""}`,
       { signal },
     ),
   projects: (signal?: AbortSignal) =>
     request<Project[]>("/projects", { signal }),
   project: (id: string, signal?: AbortSignal) =>
     request<Project>(projectPath(id), { signal }),
-  createProject: (body: ProjectInput) =>
+  createProject: (body: ProjectInput & { ml_objective?: ProjectTask }) =>
     request<Project>("/projects", json("POST", body)),
   updateProject: (id: string, body: ProjectInput) =>
     request<Project>(projectPath(id), json("PATCH", body)),

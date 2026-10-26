@@ -8,12 +8,12 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from mlstudio.codegen.csv_runtime import parse_csv_bytes
-from mlstudio.codegen.plan import resolve
-from mlstudio.codegen.render import generate
+from mlstudio.codegen.dispatch import generate_for_version as generate
+from mlstudio.codegen.dispatch import resolve_for_version as resolve
 from mlstudio.codegen.schemas import CodePreview
 from mlstudio.codegen.workload_runtime import read_verified_bytes
 from mlstudio.models import Project
-from mlstudio.pipeline_schemas import PipelineIR, PipelineIssue
+from mlstudio.pipeline_schemas import PipelineIssue, load_ir
 from mlstudio.services.artifacts import verified_source
 from mlstudio.services.pipelines import snapshot
 from mlstudio.services.source import DomainError
@@ -24,9 +24,11 @@ def preview(session, project, settings):
     identity = dict(
         project_id=project.id, revision=project.revision, dataset_id=dataset.id if dataset else None
     )
+    if project.ml_objective == "regression":
+        identity["generator"] = "mlstudio-python-v2"
     try:
-        ir = PipelineIR.model_validate(project.working_pipeline)
-    except ValidationError:
+        ir = load_ir(project.working_pipeline, project.ml_objective)
+    except ValueError:
         return CodePreview(
             **identity,
             ready=False,

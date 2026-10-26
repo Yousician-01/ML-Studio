@@ -3,21 +3,24 @@
 from copy import deepcopy
 
 
-def empty_pipeline() -> dict:
-    return {
-        "ir_version": "0.1",
+def empty_pipeline(objective="binary_classification") -> dict:
+    ir = {
+        "ir_version": "0.2" if objective == "regression" else "0.1",
         "dataset": None,
         "target": None,
         "features": {},
         "model": None,
         "split": None,
     }
+    if objective == "regression":
+        ir["task"] = "regression"
+    return ir
 
 
-def initialize(dataset, target: str | None, excluded=()) -> dict:
-    ir = empty_pipeline()
+def initialize(dataset, target: str | None, excluded=(), objective="binary_classification") -> dict:
+    ir = empty_pipeline(objective)
     ir["dataset"] = {"dataset_id": dataset.id, "fingerprint": dataset.fingerprint}
-    ir["target"] = target_intent(target)
+    ir["target"] = target_intent(target, objective)
     # Preserve the existing candidate-role default, without inventing preprocessing.
     # Unsupported included semantics are explicit blocking issues, never auto-deleted.
     ir["features"] = {
@@ -28,12 +31,15 @@ def initialize(dataset, target: str | None, excluded=()) -> dict:
     return ir
 
 
-def target_intent(column):
-    return (
-        {"column": column, "positive_class": None, "missing_value_policy": "exclude_rows"}
-        if column is not None
-        else None
-    )
+def target_intent(column, objective="binary_classification"):
+    if column is None:
+        return None
+    intent = {"column": column, "missing_value_policy": "exclude_rows"}
+    if objective == "regression":
+        intent["value_type"] = "numeric"
+    else:
+        intent["positive_class"] = None
+    return intent
 
 
 def bound_to(ir, dataset) -> bool:
@@ -49,7 +55,7 @@ def reconcile_target(project, dataset, old_target):
     if old_target is not None:
         ir["features"][old_target] = {"included": False, "operations": []}
     ir["features"].pop(project.target_column, None)
-    ir["target"] = target_intent(project.target_column)
+    ir["target"] = target_intent(project.target_column, project.ml_objective)
     project.working_pipeline = ir
 
 

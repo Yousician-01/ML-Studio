@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type Project, type Dataset } from "@/lib/api/projects";
+import { confirmTrainLeave } from "@/lib/train-drafts";
+import { taskLabel } from "@/lib/api/task-policy";
 import { ProjectForm } from "./project-form";
 import { DataView } from "./data-view";
 import { Explore } from "./explore";
@@ -27,6 +29,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   function reload() {
+    if (!confirmTrainLeave()) return;
     setLoading(true);
     setError("");
     setAttempt((v) => v + 1);
@@ -94,7 +97,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       </div>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">Binary classification</div>
+          <div className="eyebrow">{taskLabel(project?.ml_objective)}</div>
           <h1>{project?.name ?? "Project workspace"}</h1>
           <p className="project-problem">{project?.problem_statement}</p>
         </div>
@@ -103,7 +106,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             <Button disabled={loading} onClick={reload}>
               Refresh
             </Button>
-            <Button onClick={() => setSettingsOpen(true)}>
+            <Button onClick={() => { if (confirmTrainLeave()) setSettingsOpen(true); }}>
               Project settings
             </Button>
           </div>
@@ -157,6 +160,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           <Prepare key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : (
           <Explore
+            task={project.ml_objective}
             key={`${project.active_dataset_id}:${project.revision}:${attempt}`}
             projectId={projectId}
             dataset={

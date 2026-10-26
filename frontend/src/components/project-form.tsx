@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { ProjectInput } from "@/lib/api/projects";
+import type { ProjectInput, ProjectTask } from "@/lib/api/projects";
+import { taskLabel } from "@/lib/api/task-policy";
 import { Alert, Button } from "./ui";
 
 export function ProjectForm({
@@ -9,8 +10,8 @@ export function ProjectForm({
   onSave,
   submitLabel,
 }: {
-  initial?: ProjectInput;
-  onSave: (input: ProjectInput) => Promise<void>;
+  initial?: ProjectInput & { ml_objective?: ProjectTask };
+  onSave: (input: ProjectInput & { ml_objective?: ProjectTask }) => Promise<void>;
   submitLabel: string;
 }) {
   const [busy, setBusy] = useState(false);
@@ -22,6 +23,7 @@ export function ProjectForm({
     setError("");
     try {
       await onSave({
+        ...(!initial ? { ml_objective: data.get("ml_objective") as ProjectTask } : {}),
         name: String(data.get("name")).trim(),
         problem_statement: String(data.get("problem_statement")).trim(),
         description: String(data.get("description")).trim() || null,
@@ -81,9 +83,7 @@ export function ProjectForm({
           What matters when evaluating a solution? This context does not choose
           a metric or model.
         </p>
-        <p>
-          ML objective <strong className="badge">Binary Classification</strong>
-        </p>
+        <div>{initial ? <p>ML objective <strong className="badge">{taskLabel(initial.ml_objective)}</strong></p> : <label>ML objective<select name="ml_objective" defaultValue="binary_classification"><option value="binary_classification">Binary Classification</option><option value="regression">Regression</option></select></label>}<p className="muted">The task is immutable and cannot be changed after Project creation.</p></div>
         {error && <Alert>{error}</Alert>}
         <Button variant="primary" type="submit">
           {busy ? "Saving…" : submitLabel}

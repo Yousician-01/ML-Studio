@@ -1,4 +1,6 @@
 "use client";
+import { numericTargetCandidate } from "@/lib/api/task-policy";
+
 
 import { useState } from "react";
 import {
@@ -217,15 +219,14 @@ export function DataView({
                     <option key={column.name} value={column.name}>
                       {column.name} · {column.effective_semantic_type} ·{" "}
                       {column.unique_count} distinct values
-                      {column.unique_count === 2
+                      {project.ml_objective === "regression" ? (numericTargetCandidate(column) ? " · numeric candidate" : " · not numeric") : column.unique_count === 2
                         ? " · binary candidate"
                         : " · not a binary target"}
                     </option>
                   ))}
                 </select>
                 <p id="target-help" className="muted">
-                  Binary classification requires exactly two distinct
-                  non-missing values. Missing values do not create a class.
+                  {project.ml_objective === "regression" ? "Regression requires finite numeric, non-Boolean targets. Constant and two-valued numeric targets are allowed. Missing target rows are excluded; the backend validates numeric precision." : "Binary classification requires exactly two distinct non-missing values. Missing values do not create a class."}
                 </p>
                 <div id="target-feedback">
                   {errors.target && (
@@ -254,8 +255,8 @@ export function DataView({
                   </div>
                 )}
                 <p className="muted">
-                  Choose the positive class in Prepare. Missing target rows are
-                  eligible for exclusion during execution.
+                  {project.ml_objective === "regression" ? "No positive class is required. Missing target rows are excluded during execution." : "Choose the positive class in Prepare. Missing target rows are eligible for exclusion during execution."}
+                  {dataset.target_column && (() => { const c = dataset.columns.find(c => c.name === dataset.target_column); return c ? <span> {dataset.row_count - c.missing_count} observed · {c.missing_count} missing.</span> : null; })()}
                 </p>
               </div>
             </div>

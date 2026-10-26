@@ -8,7 +8,7 @@ from mlstudio.codegen.schemas import CodePreview
 from mlstudio.db.session import get_session
 from mlstudio.models import Project, utc_now
 from mlstudio.pipeline_schemas import PipelineReset, PipelineResponse, PipelineUpdate
-from mlstudio.profile_schemas import ProfileResponse
+from mlstudio.profile_schemas import SourceProfileResponse
 from mlstudio.schemas import (
     DatasetPatch,
     DatasetResponse,
@@ -18,6 +18,7 @@ from mlstudio.schemas import (
 )
 from mlstudio.services import datasets, pipelines
 from mlstudio.services.code_preview import preview
+from mlstudio.services.pipeline_state import empty_pipeline
 from mlstudio.services.profiles import read_profile
 from mlstudio.services.project_deletion import delete_project
 from mlstudio.services.source import DomainError
@@ -62,7 +63,7 @@ def reset_pipeline(
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 def create_project(body: ProjectCreate, session: Database):
-    project = Project(**body.model_dump())
+    project = Project(**body.model_dump(), working_pipeline=empty_pipeline(body.ml_objective))
     session.add(project)
     session.commit()
     return project
@@ -86,7 +87,7 @@ def remove_project(
     return Response(status_code=204)
 
 
-@router.get("/{project_id}/dataset/profile", response_model=ProfileResponse)
+@router.get("/{project_id}/dataset/profile", response_model=SourceProfileResponse)
 def profile(
     project: CurrentProject,
     session: Database,
@@ -94,6 +95,7 @@ def profile(
     dataset_id: str,
     revision: Annotated[int, Query(ge=1)],
     offset: Annotated[int, Query(ge=0)] = 0,
+    feature: Annotated[str | None, Query(max_length=10000)] = None,
     query: Annotated[str, Query(max_length=200)] = "",
     kind: Literal[
         "all",
@@ -126,6 +128,7 @@ def profile(
         query,
         kind,
         observation,
+        feature,
     )
 
 

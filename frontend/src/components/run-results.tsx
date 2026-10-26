@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Run, RunResult } from "@/lib/api/runs";
-import { classLabel, integrityProblems, metrics, metricText } from "@/lib/api/evaluation-policy";
+import { classLabel, integrityProblems, resultMetrics, metricText, metricValue, knownResult, frozenModelName, runTask, supportedPlan } from "@/lib/api/evaluation-policy";
 import { Alert, Panel } from "./ui";
 
 export function IntegrityNotice({ run }: { run: Run }) {
@@ -9,10 +9,13 @@ export function IntegrityNotice({ run }: { run: Run }) {
 }
 
 export function RunMetrics({ result }: { result: RunResult }) {
-  return <><p className="muted">Held-out test population: {result.population.test} rows</p><dl className="run-metrics">{metrics.map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{metricText(result.metrics[key])}</dd></div>)}</dl>{result.metrics.roc_auc == null && <p className="muted">ROC-AUC: {result.roc_auc_unavailable_reason || "No availability reason was retained."}</p>}</>;
+  if (!knownResult(result)) return <Alert>Historical result protocol is unsupported.</Alert>;
+  const regression = result.schema_version === "mlstudio-result-v2";
+  return <><p className="muted">Held-out test population: {result.population.test} rows</p><dl className="run-metrics">{resultMetrics(result).map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{metricText(metricValue(result, key))}</dd></div>)}</dl>{result.schema_version === "mlstudio-result-v1" && result.metrics.roc_auc == null && <p className="muted">ROC-AUC: {result.roc_auc_unavailable_reason || "No availability reason was retained."}</p>}{regression && result.metrics.r2 === null && <p className="muted">R² unavailable: {result.r2_unavailable_reason === "constant_test_target" ? "The held-out target is constant." : result.r2_unavailable_reason === "test_population_too_small" ? "Fewer than two held-out rows." : result.r2_unavailable_reason || "No reason was retained."}</p>}{regression && <p className="muted">Lower MAE, MSE and RMSE are better; higher R² is better. {result.population.training} training rows. R² may be negative.</p>}</>;
 }
 
 export function ConfusionMatrix({ result }: { result: RunResult }) {
+  if (!knownResult(result) || result.schema_version !== "mlstudio-result-v1") return null;
   const matrix = result.confusion_matrix;
   const maximum = Math.max(1, ...matrix.values.flat());
   return <Panel title="Held-out confusion matrix" description="Actual classes by row; predicted classes by column. Negative then positive class order.">
@@ -24,8 +27,8 @@ export function ConfusionMatrix({ result }: { result: RunResult }) {
 export function FrozenRunContext({ run }: { run: Run }) {
   return <Panel title="Frozen experiment" description="Historical Run evidence, independent of current Project configuration.">
     <p className="wrap">Dataset {run.dataset_id}<br /><code>{run.summary.dataset_fingerprint}</code></p>
-    <dl className="run-facts"><div><dt>Target</dt><dd>{run.summary.target.column}</dd></div><div><dt>Positive class</dt><dd>{classLabel(run.summary.target.positive_class)}</dd></div><div><dt>Negative class</dt><dd>{classLabel(run.summary.target.negative_class)}</dd></div><div><dt>Split</dt><dd>{run.summary.split.test_size * 100}% test · seed {run.summary.split.random_seed} · {run.summary.split.stratify ? "stratified" : "unstratified"}</dd></div></dl>
-    <h3>{run.summary.model.name}</h3><dl className="run-facts">{Object.entries(run.summary.model.parameters).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{JSON.stringify(value)}</dd></div>)}</dl>
-    {run.snapshot_error || !run.execution_plan ? <Alert>Frozen configuration unavailable. {run.snapshot_error}</Alert> : <><h3>Included features & preprocessing</h3><div className="table-scroll"><table><caption className="sr-only">Frozen feature configuration</caption><thead><tr><th>Feature</th><th>Semantic type</th><th>Ordered preprocessing</th></tr></thead><tbody>{run.execution_plan.features.map(feature => <tr key={feature.name}><th scope="row">{feature.name}</th><td>{feature.semantic_type}</td><td>{feature.operations.length ? feature.operations.map(operation => `${operation.name} ${JSON.stringify(operation.parameters)}`).join(" → ") : "Passthrough"}</td></tr>)}</tbody></table></div><details><summary>Resolved model parameters and original configured IR</summary><pre className="run-json">{JSON.stringify({ model: run.execution_plan.model, pipeline_ir: run.pipeline_ir }, null, 2)}</pre></details></>}
+    <dl className="run-facts"><div><dt>Target</dt><dd>{run.summary.target.column}</dd></div>{runTask(run) !== "regression" && run.summary.target.positive_class && run.summary.target.negative_class && <><div><dt>Positive class</dt><dd>{classLabel(run.summary.target.positive_class)}</dd></div><div><dt>Negative class</dt><dd>{classLabel(run.summary.target.negative_class)}</dd></div></>}<div><dt>Split</dt><dd>{run.summary.split.test_size * 100}% test · seed {run.summary.split.random_seed} · {run.summary.split.stratify ? "stratified" : "unstratified"}</dd></div></dl>
+    <h3>{frozenModelName(run)}</h3><dl className="run-facts">{Object.entries(run.summary.model.parameters ?? {}).map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{JSON.stringify(value)}</dd></div>)}</dl>
+    {run.snapshot_error || !supportedPlan(run.execution_plan) ? <Alert>Frozen configuration unavailable or unsupported. {run.snapshot_error}</Alert> : <><h3>Included features & preprocessing</h3><div className="table-scroll"><table><caption className="sr-only">Frozen feature configuration</caption><thead><tr><th>Feature</th><th>Semantic type</th><th>Ordered preprocessing</th></tr></thead><tbody>{run.execution_plan.features.map(feature => <tr key={feature.name}><th scope="row">{feature.name}</th><td>{feature.semantic_type}</td><td>{feature.operations.length ? feature.operations.map(operation => `${operation.name} ${JSON.stringify(operation.parameters)}`).join(" → ") : "Passthrough"}</td></tr>)}</tbody></table></div><details><summary>Resolved model parameters and original configured IR</summary><pre className="run-json">{JSON.stringify({ model: run.execution_plan.model, pipeline_ir: run.pipeline_ir }, null, 2)}</pre></details></>}
   </Panel>;
 }

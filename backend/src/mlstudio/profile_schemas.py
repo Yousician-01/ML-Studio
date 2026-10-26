@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from mlstudio.pipeline_schemas import TypedScalar
 from mlstudio.schemas import Scalar, SemanticType
@@ -102,6 +102,7 @@ class CorrelationProfile(BaseModel):
 
 
 class ProfileResponse(BaseModel):
+    task: Literal["binary_classification"] = "binary_classification"
     dataset_id: str
     revision: int
     fingerprint: str
@@ -125,3 +126,65 @@ class ProfileResponse(BaseModel):
     category_limit: int
     histogram_bin_limit: int
     correlation: CorrelationProfile
+
+
+class NumericFeature(BaseModel):
+    name: str
+    physical_dtype: str
+    semantic_type: SemanticType
+    role: Literal["feature", "target", "excluded"]
+
+
+class RegressionTargetProfile(NumericFeature):
+    observed_count: int
+    missing_count: int
+    distinct_count: int
+    constant: bool
+    numeric: NumericProfile
+    standard_deviation_definition: Literal["sample-ddof-1"] = "sample-ddof-1"
+    quantile_definition: Literal["linear"] = "linear"
+
+
+class ScatterPoint(BaseModel):
+    x: float = Field(allow_inf_nan=False)
+    y: float = Field(allow_inf_nan=False)
+
+
+class TargetRelationship(BaseModel):
+    feature: str
+    target: str
+    paired_rows: int
+    missing_pair_rows: int
+    missing_feature_rows: int
+    missing_target_rows: int
+    pearson: float | None
+    correlation_unavailable_reason: str | None
+    points: list[ScatterPoint] = Field(max_length=200)
+    point_limit: Literal[200] = 200
+    sampling: Literal["evenly-spaced-source-order-v1"] = "evenly-spaced-source-order-v1"
+    scatter_unavailable_reason: str | None = None
+
+
+class RegressionProfileResponse(BaseModel):
+    task: Literal["regression"] = "regression"
+    profile_version: Literal["regression-source-profile-v1"] = "regression-source-profile-v1"
+    population: Literal["full_source"] = "full_source"
+    dataset_id: str
+    revision: int
+    fingerprint: str
+    original_filename: str
+    source_integrity: Literal["verified"] = "verified"
+    row_count: int
+    column_count: int
+    target: RegressionTargetProfile | None
+    numeric_feature_count: int
+    feature_options: list[NumericFeature]
+    feature_offset: int
+    feature_limit: Literal[20] = 20
+    histogram_bin_limit: Literal[10] = 10
+    relationship: TargetRelationship | None
+
+
+SourceProfileResponse = Annotated[
+    ProfileResponse | RegressionProfileResponse, Field(discriminator="task")
+]

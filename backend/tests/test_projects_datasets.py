@@ -84,7 +84,7 @@ def test_project_crud_and_restart(client, settings):
         {"name": "", "problem_statement": "x"},
         {"name": "x", "problem_statement": " "},
         {"name": "x"},
-        {"name": "x", "problem_statement": "x", "ml_objective": "regression"},
+        {"name": "x", "problem_statement": "x", "ml_objective": "clustering"},
     ],
 )
 def test_project_input_validation(client, body):

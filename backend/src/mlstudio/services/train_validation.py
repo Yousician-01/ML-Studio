@@ -4,6 +4,7 @@ import math
 
 import numpy as np
 
+from mlstudio.model_catalog import model_parameter_issues
 from mlstudio.pipeline_schemas import PipelineIssue
 
 
@@ -33,31 +34,12 @@ def stratified_train_counts(counts, train_rows, seed):
     return allocation
 
 
-def train_issues(ir, target):
+def split_issues(split):
     issues = []
 
     def issue(code, message, field):
         issues.append(PipelineIssue(scope="train", code=code, message=message, field=field))
 
-    if ir.model is None:
-        issue("model_missing", "Select a model in Train.", "model")
-    else:
-        for name, value in ir.model.parameters.model_dump().items():
-            if name == "max_depth" and value is None:
-                continue
-            if name == "penalty":
-                valid = value in {"l1", "l2"}
-                requirement = "Choose l1 or l2."
-            elif name == "C":
-                valid = value is not None and value > 0
-                requirement = "C must be finite and greater than zero."
-            else:
-                minimum = 2 if name == "min_samples_split" else 1
-                valid = value is not None and value >= minimum
-                requirement = f"{name} must be an integer of at least {minimum}."
-            if not valid:
-                issue("model_parameter", requirement, f"model.parameters.{name}")
-    split = ir.split
     if split is None:
         issue("split_missing", "Configure the train/test split in Train.", "split")
         return issues
@@ -65,6 +47,79 @@ def train_issues(ir, target):
         issue("test_size_invalid", "Test size must be between 5% and 50%.", "split.test_size")
     if split.random_seed is None or not 0 <= split.random_seed <= 2147483647:
         issue("seed_invalid", "Experiment seed must be 0 to 2147483647.", "split.random_seed")
+    return issues
+
+
+def regression_train_issues(ir, target):
+    issues = model_parameter_issues(ir.model, "regression") + split_issues(ir.split)
+    if target is None or ir.split is None:
+        return issues
+    eligible = int(target.count())
+    train, test = partition_sizes(eligible, ir.split)
+    if train is None:
+        return issues
+    if eligible < 3:
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="eligible_observations",
+                field="target.column",
+                message="Regression needs at least three non-missing target observations.",
+            )
+        )
+    if train < 2:
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="split_training_rows",
+                field="split.test_size",
+                message="The split must leave at least two usable training rows.",
+            )
+        )
+    if test < 1:
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="split_test_rows",
+                field="split.test_size",
+                message="The split must leave at least one usable test row.",
+            )
+        )
+    if test < 2:
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="r2_test_rows",
+                field="split.test_size",
+                severity="non_blocking",
+                message="R² will be unavailable with fewer than two held-out rows.",
+            )
+        )
+    if eligible and target.nunique() == 1:
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="r2_constant_target",
+                field="target.column",
+                severity="non_blocking",
+                message="The observed target is constant. R² will be unavailable; "
+                "a constant target does not invalidate regression configuration.",
+            )
+        )
+    return issues
+
+
+def train_issues(ir, target):
+    if ir.ir_version == "0.2":
+        return regression_train_issues(ir, target)
+    issues = model_parameter_issues(ir.model, "binary_classification") + split_issues(ir.split)
+
+    def issue(code, message, field):
+        issues.append(PipelineIssue(scope="train", code=code, message=message, field=field))
+
+    split = ir.split
+    if split is None:
+        return issues
     if split.stratify is None:
         issue("stratify_missing", "Choose whether to stratify by target.", "split.stratify")
     if target is None or target.nunique() != 2:

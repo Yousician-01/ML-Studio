@@ -390,7 +390,8 @@ def read_profile(
     query: str = "",
     kind: str = "all",
     observation: str = "all",
-) -> ProfileResponse:
+    feature: str | None = None,
+):
     snapshot = session.execute(
         select(Project, Dataset)
         .join(Dataset, Dataset.id == Project.active_dataset_id)
@@ -405,8 +406,28 @@ def read_profile(
             "Dataset or configuration changed. Reload the workspace to Explore its current source.",
             409,
         )
-    frame = parse_source(verified_source(settings.home, dataset))
-    result = build_profile(frame, dataset, project, offset, query, kind, observation)
+    if project.ml_objective == "regression":
+        from mlstudio.codegen.csv_runtime import parse_csv_bytes
+        from mlstudio.codegen.workload_runtime import read_verified_bytes
+        from mlstudio.services.artifacts import source_path
+        from mlstudio.services.regression_profiles import build_regression_profile
+
+        if not 0 < dataset.size_bytes <= settings.max_csv_upload_bytes:
+            raise DomainError("Managed source exceeds the configured profiling size limit.", 413)
+        try:
+            path = source_path(settings.home, dataset.project_id, dataset.id)
+            if dataset.source_relative_path != path.relative_to(settings.home).as_posix():
+                raise ValueError()
+            data = read_verified_bytes(path, dataset.fingerprint, dataset.size_bytes)
+            frame = parse_csv_bytes(data)
+        except (OSError, ValueError):
+            raise DomainError(
+                "Managed source is missing, corrupt or unreadable. Reload Data.", 409
+            ) from None
+        result = build_regression_profile(frame, dataset, project, offset, feature)
+    else:
+        frame = parse_source(verified_source(settings.home, dataset))
+        result = build_profile(frame, dataset, project, offset, query, kind, observation)
     # A concurrent replacement during computation cannot be presented as current.
     latest = session.execute(
         select(Project.active_dataset_id, Project.revision).where(Project.id == project_id)

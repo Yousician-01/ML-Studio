@@ -10,6 +10,7 @@ from urllib.request import url2pathname
 from sqlalchemy import select
 from sqlalchemy.engine import URL
 
+from mlstudio.codegen.dispatch import load_plan
 from mlstudio.execution.artifacts import bounded_read, canonical, safe_path, strict_json, verify
 from mlstudio.execution.process import WorkspaceLease
 from mlstudio.models import Run, utc_now
@@ -109,6 +110,13 @@ def synchronize(settings, sessions, run_id):
         if run.failure:
             tags["mlstudio.failure_code"] = run.failure["code"]
             tags["mlstudio.failure_stage"] = run.failure["stage"]
+        plan_ref = run.artifacts["execution_plan.json"]
+        plan = strict_json(bounded_read(verify(settings.home, plan_ref), plan_ref["size_bytes"]))
+        resolved = load_plan(plan)
+        regression = resolved.plan_version == "0.2"
+        if regression:
+            tags["mlstudio.task"] = "regression"
+            tags["mlstudio.result_schema"] = resolved.runtime.result_schema
         external_id = run.mlflow_run_id
         if external_id:
             external = client.get_run(external_id)
@@ -141,17 +149,13 @@ def synchronize(settings, sessions, run_id):
         for key, value in tags.items():
             client.set_tag(external_id, key, value, synchronous=True)
         params = {
-            "model": run.summary["model"]["name"],
-            **{
-                f"model.{k}": canonical(v).decode()
-                for k, v in run.summary["model"]["parameters"].items()
-            },
-            **{f"split.{k}": canonical(v).decode() for k, v in run.summary["split"].items()},
-            "target": run.summary["target"]["column"],
-            "positive_class": canonical(run.summary["target"]["positive_class"]).decode(),
+            "model": plan["model"]["estimator"] if regression else plan["model"]["name"],
+            **{f"model.{k}": canonical(v).decode() for k, v in plan["model"]["parameters"].items()},
+            **{f"split.{k}": canonical(v).decode() for k, v in plan["split"].items()},
+            "target": plan["target"]["column"],
         }
-        plan_ref = run.artifacts["execution_plan.json"]
-        plan = strict_json(bounded_read(verify(settings.home, plan_ref), plan_ref["size_bytes"]))
+        if not regression:
+            params["positive_class"] = canonical(plan["target"]["positive_class"]).decode()
         params["preprocessing"] = canonical(
             [
                 {"name": feature["name"], "operations": feature["operations"]}
@@ -164,6 +168,8 @@ def synchronize(settings, sessions, run_id):
         for key, value in params.items():
             client.log_param(external_id, key, value, synchronous=True)
         if run.state == "SUCCEEDED":
+            if run.result["schema_version"] != resolved.runtime.result_schema:
+                raise ValueError("Unsupported tracking result protocol")
             for key, value in run.result["metrics"].items():
                 if value is not None:
                     client.log_metric(

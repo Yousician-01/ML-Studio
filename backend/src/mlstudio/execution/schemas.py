@@ -59,6 +59,7 @@ class RunResponse(Contract):
     pipeline_ir: dict | None = None
     execution_plan: dict | None = None
     snapshot_error: str | None = None
+    result_error: str | None = None
 
 
 class ExecutionCapacity(Contract):

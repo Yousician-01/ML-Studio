@@ -51,7 +51,7 @@ def compatibility_issues(ir, dataset, frame):
                 message="Restore the documented sklearn/joblib environment before generating code.",
             )
         )
-    if ir.target and ir.target.column in frame:
+    if ir.ir_version == "0.1" and ir.target and ir.target.column in frame:
         target = frame[ir.target.column]
         if target.nunique() == 2 and not target_supported(target):
             issues.append(
