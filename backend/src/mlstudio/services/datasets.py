@@ -95,6 +95,9 @@ def ingest(
     expected_dataset_id: str | None,
     settings: Settings,
 ) -> DatasetResponse:
+    from mlstudio.services.code_drafts import require_visual_mode
+
+    require_visual_mode(session, project.id)
     if expected_dataset_id != project.active_dataset_id:
         raise DomainError(
             "Dataset changed or replacement was not confirmed. Reload and try again.", 409
@@ -171,6 +174,9 @@ def ingest(
 def configure(
     session: Session, project: Project, change: DatasetPatch, settings: Settings
 ) -> DatasetResponse:
+    from mlstudio.services.code_drafts import require_visual_mode
+
+    require_visual_mode(session, project.id)
     dataset = current_dataset(session, project)
     if change.dataset_id != dataset.id or change.revision != project.revision:
         raise DomainError("Project changed. Reload before saving Dataset configuration.", 409)

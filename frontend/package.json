@@ -3,6 +3,10 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
+    "prepare-editor": "node scripts/prepare-editor.mjs",
+    "postinstall": "npm run prepare-editor",
+    "predev": "npm run prepare-editor",
+    "prebuild": "npm run prepare-editor",
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
@@ -14,9 +18,14 @@
     "node": ">=22.13.0"
   },
   "dependencies": {
+    "@monaco-editor/react": "4.7.0",
+    "monaco-editor": "0.57.0",
     "next": "16.3.8",
     "react": "19.3.0",
     "react-dom": "19.3.0"
+  },
+  "overrides": {
+    "monaco-editor": { "dompurify": "3.4.17" }
   },
   "devDependencies": {
     "@types/node": "^24",

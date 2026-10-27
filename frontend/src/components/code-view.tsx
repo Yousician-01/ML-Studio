@@ -5,8 +5,12 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api/projects";
 import type { CodePreview } from "@/lib/api/code";
 import { Alert, Button, Loading, Panel } from "./ui";
+import { useCodeMode } from "./code-mode-state";
+import { CodeModeConfirmation } from "./code-mode-actions";
 
 export function CodeView({ projectId }: { projectId: string }) {
+  const mode = useCodeMode();
+  const [confirming, setConfirming] = useState(false);
   const [preview, setPreview] = useState<CodePreview | null>(null);
   const [error, setError] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
@@ -73,7 +77,7 @@ export function CodeView({ projectId }: { projectId: string }) {
         </div> : <>
           <div className="code-toolbar">
             <div><strong>{preview.filename}</strong><span className="muted"> · {preview.generator} · revision {preview.revision}</span></div>
-            <Button onClick={copy}>Copy code</Button>
+            <div className="actions"><Button onClick={copy}>Copy code</Button><Button variant="primary" disabled={!mode.ready || mode.busy || Boolean(mode.recovery)} onClick={() => setConfirming(true)}>Edit Code</Button></div>
           </div>
           <p role="status" className="muted">{copyStatus || "Current preview. Create an immutable Run from Train to execute this saved experiment."}</p>
           {preview.issues.length > 0 && <Alert tone="info">Excluded features retain dormant configuration warnings in Prepare. They do not enter this workload.</Alert>}
@@ -89,5 +93,6 @@ export function CodeView({ projectId }: { projectId: string }) {
           )}</code></pre>
         </>}
     </Panel>
+    {confirming && <CodeModeConfirmation busy={mode.busy} error={mode.error} onClose={() => setConfirming(false)} onConfirm={() => { if (preview) void mode.enter(preview).then(entered => { if (entered) setConfirming(false); }); }} />}
   </div>;
 }

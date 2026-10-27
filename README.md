@@ -5,7 +5,13 @@
 ML Studio **0.2.0** is an open-source, local-first workspace for binary
 classification and regression. Inspect a CSV, configure explicit preparation and
 a model, review generated Python, and run a reproducible local experiment.
-Code is read-only; the generated source is the actual workload executed.
+The generated preview is read-only; its source is the actual visual-workflow
+workload executed.
+
+**v0.3 development:** this checkout adds Code Mode Phase 1: explicitly confirmed
+editable Python drafts and independent code snapshots. Manual Python cannot be
+executed in this phase. Release metadata remains 0.2.0 until release finalization.
+See [Code Mode behavior](docs/development/v0.3-phase-1-code-mode.md).
 
 ## What is implemented
 
@@ -18,7 +24,7 @@ Code is read-only; the generated source is the actual workload executed.
 | Train | Logistic Regression, Decision Tree and Random Forest classifiers; Linear Regression and Ridge regressors; curated parameters and one reproducible train/test split |
 | Evaluate | Frozen classification metrics/confusion matrix/conditional ROC-AUC, or MAE/MSE/RMSE/R²; exactly-two comparison with context and integrity warnings |
 | Runs | Immutable attempts, frozen configuration, provenance, artifacts, tracking status and historical Code |
-| Code | Deterministic read-only Python for the current Working Pipeline, and original persisted Python for a historical Run |
+| Code | Deterministic generated preview, confirmed editable Code drafts, independent code snapshots, and original persisted Python for historical Runs |
 
 Preprocessing learns from training rows only. Missing targets are excluded, never
 imputed. Classification metrics use the explicitly selected positive class;
@@ -64,7 +70,7 @@ do not start a separate tracking service.
 
 **Existing workspace:** stop the backend and all workers, and back up SQLite and
 managed files together before running migrations. The new head is
-`0006_task_objectives`. Downgrade across this revision is refused; restore a
+`0007_code_drafts` (including `0006_task_objectives`). Downgrade across these revisions is refused; restore a
 consistent pre-upgrade backup for rollback. Keep the source checkout: migration
 discovery depends on it. The backend wheel is a packaging check, not a supported
 standalone installation.
@@ -89,7 +95,9 @@ Treat joblib artifacts as trusted local files, not a safe external interchange.
   summaries are not implemented. Its bounded source scatter is not prediction data.
 - No prediction-level evidence is stored, so regression residual/predicted-versus-
   actual plots and classification ROC curves are unavailable.
-- No Visual Mode, editable Code Mode, arbitrary Python, AI assistance, multiclass,
+- Code Mode drafts suspend visual editing; changes never update Pipeline IR.
+  No manual-code execution, terminal or arbitrary filesystem API is provided.
+- No Visual Mode, arbitrary Python execution, AI assistance, multiclass,
   neural networks, NLP, clustering, AutoML, cross-validation, threshold tuning,
   cloud execution or production serving is implemented.
 - SQLite and managed files are local; no automatic garbage collection, backup,

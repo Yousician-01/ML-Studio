@@ -12,12 +12,21 @@ import { Explore } from "./explore";
 import { Prepare } from "./prepare";
 import { Train } from "./train";
 import { CodeView } from "./code-view";
+import { CodeModeProvider, useCodeMode } from "./code-mode-state";
+import { CodeModeEditor } from "./code-mode-editor";
+import { CodeSessions } from "./code-sessions";
+import { VisualReentryWarning } from "./code-mode-actions";
 import { Evaluate } from "./evaluate";
 import { Runs } from "./runs";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
 
 export function Workspace({ projectId }: { projectId: string }) {
+  return <CodeModeProvider key={projectId} projectId={projectId}><WorkspaceContent projectId={projectId} /></CodeModeProvider>;
+}
+
+function WorkspaceContent({ projectId }: { projectId: string }) {
+  const mode = useCodeMode();
   const router = useRouter();
   const search = useSearchParams();
   const view = search.get("view") === "evaluate" ? "evaluate" : search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
@@ -130,6 +139,13 @@ export function Workspace({ projectId }: { projectId: string }) {
         <Link href={`/projects/${projectId}?view=code`} aria-current={view === "code" ? "page" : undefined}
           onNavigate={() => { if (view !== "code") setLoading(true); }}>Code</Link>
       </nav>
+      {mode.error && <Alert>{mode.error}<Button disabled={mode.busy} onClick={() => void mode.reopen()}>Reopen saved Code</Button></Alert>}
+      {mode.notice && <Alert tone="info">{mode.notice}</Alert>}
+      {mode.recovery && <Alert tone="info">Unsaved text from an earlier Code revision is retained below. It has not been rebased onto the saved draft. Copy it before explicitly discarding this recovery buffer to continue.
+        <details><summary>Inspect recovered unsaved Python</summary><pre className="code-source" tabIndex={0}><code>{mode.recovery.source}</code></pre></details>
+        <Button onClick={mode.dropRecovery}>Use saved state and discard recovered text</Button>
+      </Alert>}
+      <div hidden={view !== "code" || loading}><CodeModeEditor /></div>
       {error ? (
         <Alert>
           {error}
@@ -140,7 +156,12 @@ export function Workspace({ projectId }: { projectId: string }) {
         <Loading>Loading current Project and Dataset…</Loading>
       ) : (
         project &&
-        (view === "data" ? (
+        (!mode.ready ? <Loading>Checking saved Code Mode session…</Loading> : mode.draft && ["data", "prepare", "train"].includes(view) ? (
+          <VisualReentryWarning modified={mode.modified} dirty={mode.dirty} busy={mode.busy || Boolean(mode.recovery)}
+            onContinue={() => router.push(`/projects/${projectId}?view=code`)}
+            onSnapshot={() => { void mode.exit("save_snapshot").then(ok => { if (ok) reload(); }); }}
+            onDiscard={() => { void mode.exit("discard").then(ok => { if (ok) reload(); }); }} />
+        ) : view === "data" ? (
           <DataView
             key={`${dataset?.id ?? "empty"}:${attempt}`}
             project={project}
@@ -153,7 +174,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         ) : view === "runs" ? (
           <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} />
         ) : view === "code" ? (
-          <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />
+          <>{!mode.draft && <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />}<CodeSessions key={`${project.id}:${mode.draft?.revision}:${attempt}`} projectId={projectId} /></>
         ) : view === "train" ? (
           <Train key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : view === "prepare" ? (

@@ -132,7 +132,9 @@ def test_released_history_is_read_only_and_current_head_upgrade_preserves_everyt
     assert_history_readable(released)
     after = snapshot(released)
     assert after["heads"] == tuple(ScriptDirectory.from_config(config).get_heads())
-    assert_preserved(before, after, objective_changed=True)
+    assert_preserved(
+        before, after, objective_changed=True, added_tables=("code_drafts", "code_snapshots")
+    )
 
 
 @pytest.mark.parametrize("damage", ["source_missing", "source_changed", "code_changed"])
@@ -165,7 +167,12 @@ def test_upgrade_preserves_unavailable_evidence_without_repair(released, damage,
             else tuple(ScriptDirectory.from_config(migration_config(released)).get_heads())
         )
         assert after["heads"] == expected_heads
-        assert_preserved(before, after, objective_changed=True)
+        assert_preserved(
+            before,
+            after,
+            objective_changed=True,
+            added_tables=() if rebuild else ("code_drafts", "code_snapshots"),
+        )
         with Session(engine) as session:
             detail = response(session.get(Run, RUNS["success"]), released.home, detail=True)
             assert detail.state == "SUCCEEDED" and detail.result == original_result

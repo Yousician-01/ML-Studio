@@ -123,6 +123,15 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
+  codeSessions: (id: string, offset = 0, signal?: AbortSignal) => request<Pick<import("./code-drafts").CodeDraft, "id" | "status" | "origin_revision" | "created_at" | "updated_at">[]>(projectPath(id) + `/code-drafts?offset=${offset}`, { signal }),
+  codeDraft: (id: string, draft: string, signal?: AbortSignal) => request<import("./code-drafts").CodeDraft>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}`, { signal }),
+  activeCodeDraft: (id: string, signal?: AbortSignal) => request<import("./code-drafts").CodeDraft | null>(projectPath(id) + "/code-drafts/active", { signal }),
+  createCodeDraft: (id: string, body: { revision: number; source_sha256: string; plan_sha256: string }) => request<import("./code-drafts").CodeDraft>(projectPath(id) + "/code-drafts", json("POST", body)),
+  saveCodeDraft: (id: string, draft: string, revision: number, source: string) => request<import("./code-drafts").CodeDraft>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}`, json("PATCH", { revision, source })),
+  exitCodeDraft: (id: string, draft: string, revision: number, action: "discard" | "save_snapshot", source: string) => request<import("./code-drafts").CodeDraft>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}/exit`, json("POST", { revision, action, ...(action === "save_snapshot" ? { source } : {}) })),
+  codeSnapshots: (id: string, draft: string, offset = 0, signal?: AbortSignal) => request<Omit<import("./code-drafts").CodeSnapshot, "source">[]>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}/snapshots?offset=${offset}`, { signal }),
+  codeSnapshot: (id: string, draft: string, snapshot: string, signal?: AbortSignal) => request<import("./code-drafts").CodeSnapshot>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}/snapshots/${encodeURIComponent(snapshot)}`, { signal }),
+  saveCodeSnapshot: (id: string, draft: string, revision: number, source: string) => request<{ draft: import("./code-drafts").CodeDraft; snapshot: import("./code-drafts").CodeSnapshot }>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}/snapshots`, json("POST", { revision, source })),
   createRun: (id: string, body: import("./runs").RunRequest) => request<import("./runs").Run>(projectPath(id) + "/runs", json("POST", body)),
   runs: (id: string, offset = 0, signal?: AbortSignal, requestId?: string) => request<import("./runs").RunPage>(projectPath(id) + `/runs?limit=20&offset=${offset}${requestId ? `&request_id=${encodeURIComponent(requestId)}` : ""}`, { signal }),
   run: (id: string, runId: string, signal?: AbortSignal) => request<import("./runs").Run>(projectPath(id) + `/runs/${encodeURIComponent(runId)}`, { signal }),

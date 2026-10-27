@@ -32,6 +32,11 @@ and runtime versions are not acceptance-verified. It is not a production service
   environment inheritance, timeouts and bounded logs. It is **not sandboxed** and
   inherits the local user's filesystem and operating-system privileges. The API
   does not accept arbitrary user Python.
+- In the v0.3 Code Mode Phase 1 checkout, manual Python is accepted only as saved
+  text. It is never imported, compiled or executed, and there is no terminal or
+  filesystem API. Drafts/snapshots live in local SQLite; unsaved tab recovery uses
+  memory/sessionStorage. Code can contain secrets: treat these stores and source
+  previews accordingly. Saved code snapshots are not execution records.
 - CSV uploads default to a 50 MiB source limit. Parsing, profiling and model fitting
   can use substantially more memory than the source size; there is no hard memory
   quota or guaranteed workload isolation. Use appropriately sized trusted data.

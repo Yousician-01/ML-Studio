@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 
+from mlstudio.api.code_drafts import router as code_drafts_router
 from mlstudio.api.health import router
 from mlstudio.api.projects import router as projects_router
 from mlstudio.api.runs import router as runs_router
@@ -50,14 +51,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(runs_router, prefix=settings.api_prefix)
+    app.include_router(code_drafts_router, prefix=settings.api_prefix)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request, error):
         # Rejected numeric inputs may contain inf/NaN (including JSON 1e309).
         # Preserve validation locations/messages without making the 422 itself
         # invalid JSON. This never coerces or accepts the rejected configuration.
+        errors = error.errors()
+        if "/code-drafts" in _request.url.path:
+            errors = [
+                {key: value for key, value in item.items() if key not in ("input", "ctx")}
+                for item in errors
+            ]
         detail = jsonable_encoder(
-            error.errors(), custom_encoder={float: lambda v: v if math.isfinite(v) else None}
+            errors, custom_encoder={float: lambda v: v if math.isfinite(v) else None}
         )
         return JSONResponse({"detail": detail}, status_code=422)
 

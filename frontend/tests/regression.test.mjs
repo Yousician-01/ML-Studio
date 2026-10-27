@@ -136,6 +136,7 @@ test("Workspace passes regression task to Explore and avoids classification prof
   const react = { ...React, useEffect: () => {}, useState: initial => [index++ === 0 ? project : index === 3 ? false : initial, () => {}] };
   const { Workspace } = loadComponent("components/workspace.tsx", {
     react, "next/navigation": { useRouter: () => ({}), useSearchParams: () => new URLSearchParams("view=explore") },
+    "./code-mode-state": { CodeModeProvider: ({ children }) => children, useCodeMode: () => ({ ready: true, draft: null }) },
   });
   const html = render(Workspace, { projectId: "p" });
   assert.match(html, /Regression Explore/);
