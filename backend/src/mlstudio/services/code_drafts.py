@@ -114,9 +114,17 @@ def add_snapshot(session, draft):
 
 
 def exit_session(session, project, draft_id, body):
+    from mlstudio.models import CodeRun
+
     draft = writable(session, project.id, draft_id, body.revision)
     project.updated_at = utc_now()
     session.flush()  # Shared serialization boundary with enter and visual writes.
+    if session.scalar(
+        select(CodeRun.id)
+        .where(CodeRun.project_id == project.id, CodeRun.status.in_(("PENDING", "RUNNING")))
+        .limit(1)
+    ):
+        raise DomainError("Stop or finish the Code Run before returning to visual editing.", 409)
     if body.action == "save_snapshot":
         draft.source = body.source
         add_snapshot(session, draft)

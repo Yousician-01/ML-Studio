@@ -2,8 +2,9 @@
 
 ## Implemented workflow
 
-This checkout additionally implements [v0.3 Code Mode Phase 1](development/v0.3-phase-1-code-mode.md):
-persistent editable Python drafts and code snapshots, without manual-code execution.
+This checkout additionally implements [v0.3 Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
+and [Phase 2A execution](development/v0.3-phase-2a-execution.md): persistent Python
+drafts, snapshots and opt-in managed local execution with separate Code Runs.
 Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
 execution. Explicit snapshot-save or discard restores the preserved visual recipe;
 historical Runs and compiler/IR versions remain unchanged. Package versions remain
@@ -72,7 +73,7 @@ Initialize the database, then start the backend:
 
 The migration chain is `0001_foundation` → `0002_project_dataset` →
 `0003_working_pipeline` → `0004_runs` → `0005_tracking` →
-`0006_task_objectives` → `0007_code_drafts` (current development head).
+`0006_task_objectives` → `0007_code_drafts` → `0008_code_runs` (current development head).
 Fresh installation and upgrades are covered by the existing migration tests.
 Startup does not run migrations or call `metadata.create_all()`; Alembic owns
 schema evolution. Before upgrading an existing workspace, stop the backend and all
@@ -161,8 +162,8 @@ Runs/Evaluate and historical Code read frozen evidence; current source/Pipeline
 edits do not rewrite past facts. Comparisons require compatible task, source/target,
 split, versions, population, metric definitions and integrity; no winner is chosen.
 Source scatter is not a prediction plot. Visual Mode and editable Code Mode are
-not part of v0.2. The current Code Mode Phase 1 extension adds editable text only;
-it does not execute manual Python. See [Architecture](architecture.md) for the trust boundary.
+not part of v0.2. The current Code Mode extension adds drafts and opt-in local Python
+execution; see its Phase 2A guide and [Architecture](architecture.md) for the trust boundary.
 
 ## Central configuration and runtime workspace
 

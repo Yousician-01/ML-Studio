@@ -15,6 +15,7 @@ import { CodeView } from "./code-view";
 import { CodeModeProvider, useCodeMode } from "./code-mode-state";
 import { CodeModeEditor } from "./code-mode-editor";
 import { CodeSessions } from "./code-sessions";
+import { CodeExecution } from "./code-execution";
 import { VisualReentryWarning } from "./code-mode-actions";
 import { Evaluate } from "./evaluate";
 import { Runs } from "./runs";
@@ -174,7 +175,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
         ) : view === "runs" ? (
           <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} />
         ) : view === "code" ? (
-          <>{!mode.draft && <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />}<CodeSessions key={`${project.id}:${mode.draft?.revision}:${attempt}`} projectId={projectId} /></>
+          <>{!mode.draft && <CodeView key={`${project.id}:${attempt}`} projectId={projectId} />}<CodeExecution projectId={projectId} /><CodeSessions key={`${project.id}:${mode.draft?.revision}:${attempt}`} projectId={projectId} /></>
         ) : view === "train" ? (
           <Train key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : view === "prepare" ? (

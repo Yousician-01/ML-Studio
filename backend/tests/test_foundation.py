@@ -84,6 +84,7 @@ def test_migrations_on_fresh_database(settings: Settings):
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
                 "code_drafts",
+                "code_runs",
                 "code_snapshots",
                 "datasets",
                 "projects",

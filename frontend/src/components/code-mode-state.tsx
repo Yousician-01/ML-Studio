@@ -4,12 +4,16 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { api } from "@/lib/api/projects";
 import type { CodePreview } from "@/lib/api/code";
 import { sourceState, type CodeDraft } from "@/lib/api/code-drafts";
+import { codeRunActive, type CodeRun } from "@/lib/api/code-runs";
 import { clearCodeBuffer, readCodeBuffer, resolveCodeBuffer, writeCodeBuffer, type CodeBuffer } from "@/lib/code-draft-buffer";
 
 type Mode = {
   draft: CodeDraft | null; source: string; dirty: boolean; modified: boolean;
   ready: boolean; busy: boolean; error: string; notice: string;
   recovery: CodeBuffer | null; dropRecovery: () => void;
+  codeRun: CodeRun | null; setCodeRun: (run: CodeRun | null) => void;
+  executionEnabled: boolean; setExecutionEnabled: (enabled: boolean) => void;
+  runCode: () => Promise<void>;
   edit: (source: string) => void; reopen: () => Promise<void>;
   enter: (preview: CodePreview) => Promise<boolean>;
   save: (snapshot?: boolean) => Promise<boolean>;
@@ -30,6 +34,8 @@ export function CodeModeProvider({ projectId, children }: { projectId: string; c
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [recovery, setRecovery] = useState<CodeBuffer | null>(null);
+  const [codeRun, setCodeRun] = useState<CodeRun | null>(null);
+  const [executionEnabled, setExecutionEnabled] = useState(false);
   const sourceRef = useRef("");
   const lock = useRef(false);
   const mounted = useRef(true);
@@ -122,5 +128,18 @@ export function CodeModeProvider({ projectId, children }: { projectId: string; c
     if (!writeCodeBuffer(projectId, { draftId: draft.id, revision: draft.revision, source: next })) setNotice("Unsaved edits are retained in memory only. Save the draft before refreshing or closing this tab.");
   }
   function dropRecovery() { clearCodeBuffer(projectId); setRecovery(null); }
-  return <Context.Provider value={{ draft, source, ...flags, ready, busy, error, notice, recovery, dropRecovery, edit, reopen, enter, save, exit }}>{children}</Context.Provider>;
+  async function runCode() {
+    if (!draft || recovery || !executionEnabled || codeRunActive(codeRun)) return;
+    await mutate(async () => {
+      const started = await api.createCodeRun(projectId, { draft_id: draft.id, revision: draft.revision, source: sourceRef.current, request_id: crypto.randomUUID() });
+      if (!mounted.current) return;
+      setCodeRun(started);
+      if (!started.draft) throw new Error("The Run was recorded, but the draft changed. Keep unsaved text and reopen saved Code.");
+      setDraft(started.draft);
+      if (sourceRef.current === started.draft.source) clearCodeBuffer(projectId);
+      else writeCodeBuffer(projectId, { draftId: draft.id, revision: started.draft.revision, source: sourceRef.current });
+      setNotice("Code Run recorded. Output stays in Code Mode; future edits do not change this execution.");
+    });
+  }
+  return <Context.Provider value={{ draft, source, ...flags, ready, busy, error, notice, recovery, dropRecovery, edit, reopen, enter, save, exit, codeRun, setCodeRun, executionEnabled, setExecutionEnabled, runCode }}>{children}</Context.Provider>;
 }

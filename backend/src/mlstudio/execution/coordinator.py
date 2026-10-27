@@ -42,6 +42,7 @@ class Coordinator:
         self.workers = []
         self.blocked = False
         self.held_lease = None
+        self.code_reconcile = None
 
     def reserve(self):
         if self.shutdown.is_set() or self.blocked or not self.guard.acquire(blocking=False):
@@ -55,6 +56,8 @@ class Coordinator:
             ) from None
         try:
             self.reconcile()
+            if self.code_reconcile is not None:
+                self.code_reconcile()
         except Exception:
             self.blocked = True
             self.held_lease = lease

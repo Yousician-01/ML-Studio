@@ -79,7 +79,7 @@ def command(directory, dataset):
     ]
 
 
-def launch(arguments, directory):
+def launch(arguments, directory, *, env=None):
     return subprocess.Popen(
         arguments,
         shell=False,
@@ -87,7 +87,7 @@ def launch(arguments, directory):
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env=environment(),
+        env=environment() if env is None else env,
         start_new_session=os.name != "nt",
     )
 
@@ -140,8 +140,9 @@ def stop_tree(process, grace):
 
 
 class Capture:
-    def __init__(self, pipe, path, limit):
+    def __init__(self, pipe, path, limit, *, live=False):
         self.pipe, self.path, self.limit = pipe, path, limit
+        self.live = live
         self.truncated = False
         self.failed = threading.Event()
         self.thread = threading.Thread(target=self.drain, name="mlstudio-log", daemon=False)
@@ -161,6 +162,8 @@ class Capture:
                     try:
                         data = chunk[:remaining]
                         stream.write(data)
+                        if self.live:
+                            stream.flush()
                         written += len(data)
                     except OSError:
                         self.failed.set()

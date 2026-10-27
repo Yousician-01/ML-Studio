@@ -123,6 +123,11 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
+  createCodeRun: (id: string, body: { draft_id: string; revision: number; source: string; request_id: string }) => request<import("./code-runs").CodeRunStarted>(projectPath(id) + "/code-runs", json("POST", body)),
+  codeRuns: (id: string, offset = 0, signal?: AbortSignal) => request<import("./code-runs").CodeRunPage>(projectPath(id) + `/code-runs?offset=${offset}`, { signal }),
+  codeRun: (id: string, run: string, signal?: AbortSignal) => request<import("./code-runs").CodeRun>(projectPath(id) + `/code-runs/${encodeURIComponent(run)}`, { signal }),
+  codeRunLogs: (id: string, run: string, signal?: AbortSignal) => request<import("./code-runs").CodeLogs>(projectPath(id) + `/code-runs/${encodeURIComponent(run)}/logs`, { signal }),
+  cancelCodeRun: (id: string, run: string) => request<import("./code-runs").CodeRun>(projectPath(id) + `/code-runs/${encodeURIComponent(run)}/cancel`, json("POST", {})),
   codeSessions: (id: string, offset = 0, signal?: AbortSignal) => request<Pick<import("./code-drafts").CodeDraft, "id" | "status" | "origin_revision" | "created_at" | "updated_at">[]>(projectPath(id) + `/code-drafts?offset=${offset}`, { signal }),
   codeDraft: (id: string, draft: string, signal?: AbortSignal) => request<import("./code-drafts").CodeDraft>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}`, { signal }),
   activeCodeDraft: (id: string, signal?: AbortSignal) => request<import("./code-drafts").CodeDraft | null>(projectPath(id) + "/code-drafts/active", { signal }),

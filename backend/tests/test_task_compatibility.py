@@ -133,7 +133,10 @@ def test_released_history_is_read_only_and_current_head_upgrade_preserves_everyt
     after = snapshot(released)
     assert after["heads"] == tuple(ScriptDirectory.from_config(config).get_heads())
     assert_preserved(
-        before, after, objective_changed=True, added_tables=("code_drafts", "code_snapshots")
+        before,
+        after,
+        objective_changed=True,
+        added_tables=("code_drafts", "code_runs", "code_snapshots"),
     )
 
 
@@ -171,7 +174,7 @@ def test_upgrade_preserves_unavailable_evidence_without_repair(released, damage,
             before,
             after,
             objective_changed=True,
-            added_tables=() if rebuild else ("code_drafts", "code_snapshots"),
+            added_tables=() if rebuild else ("code_drafts", "code_runs", "code_snapshots"),
         )
         with Session(engine) as session:
             detail = response(session.get(Run, RUNS["success"]), released.home, detail=True)
