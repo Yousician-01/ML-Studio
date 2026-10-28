@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 
 from mlstudio.code_draft_schemas import DraftResponse, DraftSave
 
@@ -33,3 +33,15 @@ class CodeRunResponse(BaseModel):
 
 class CodeRunStarted(CodeRunResponse):
     draft: DraftResponse | None = None
+
+
+class CodeEvaluationResponse(BaseModel):
+    status: Literal[
+        "pending",
+        "execution_incomplete",
+        "not_reported",
+        "invalid",
+        "available",
+        "unavailable_or_corrupt",
+    ]
+    report: dict[str, JsonValue] | None

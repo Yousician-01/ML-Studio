@@ -171,7 +171,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
             onReload={reload}
           />
         ) : view === "evaluate" ? (
-          <Evaluate key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} compareId={search.get("compare")} latest={search.get("selection") === "latest"} />
+          <Evaluate key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} compareId={search.get("compare")} latest={search.get("selection") === "latest"} source={search.get("source")} codeRunId={search.get("code_run")} codeMode={Boolean(mode.draft)} />
         ) : view === "runs" ? (
           <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={search.get("run")} />
         ) : view === "code" ? (

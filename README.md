@@ -13,6 +13,8 @@ managed Python execution with Run/Stop, captured output and independent Code Run
 Execution is disabled by default and is for trusted localhost use, without a
 sandbox. See [editor behavior](docs/development/v0.3-phase-1-code-mode.md) and
 [Phase 2A execution setup](docs/development/v0.3-phase-2a-execution.md).
+[Phase 2B reporting](docs/development/v0.3-phase-2b-evaluation.md) connects Code Runs
+to Evaluate through immutable, bounded structured outputs.
 Release metadata remains 0.2.0 until release finalization.
 
 ## What is implemented

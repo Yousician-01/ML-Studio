@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from mlstudio.code_draft_schemas import DraftResponse, DraftSave
+from mlstudio.code_runtime import code_mode_source
 from mlstudio.models import CodeDraft, CodeSnapshot, Run, utc_now
 from mlstudio.services.code_preview import preview
 from mlstudio.services.source import DomainError
@@ -56,8 +57,9 @@ def create(session, project, body, settings):
             "Generated preview changed or is not ready. Refresh Code before entering Code Mode.",
             409,
         )
+    source = code_mode_source(generated.source, project.ml_objective)
     try:
-        DraftSave(revision=1, source=generated.source)
+        DraftSave(revision=1, source=source)
     except ValidationError:
         raise DomainError("Generated source exceeds the 1 MiB Code Mode text limit.", 422) from None
     # Serialize with visual writes/admission. Their existing optimistic Project
@@ -74,10 +76,10 @@ def create(session, project, body, settings):
         project_id=project.id,
         origin_revision=generated.revision,
         origin_ir=deepcopy(project.working_pipeline),
-        baseline_source=generated.source,
-        baseline_sha256=generated.source_sha256,
+        baseline_source=source,
+        baseline_sha256="sha256:" + sha256(source.encode()).hexdigest(),
         plan_sha256=generated.plan_sha256,
-        source=generated.source,
+        source=source,
     )
     session.add(draft)
     session.commit()

@@ -5,6 +5,8 @@
 This checkout additionally implements [v0.3 Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
 and [Phase 2A execution](development/v0.3-phase-2a-execution.md): persistent Python
 drafts, snapshots and opt-in managed local execution with separate Code Runs.
+The [Phase 2B evaluation bridge](development/v0.3-phase-2b-evaluation.md) adds explicit,
+bounded reporting from Code Runs to the shared Evaluate bench.
 Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
 execution. Explicit snapshot-save or discard restores the preserved visual recipe;
 historical Runs and compiler/IR versions remain unchanged. Package versions remain

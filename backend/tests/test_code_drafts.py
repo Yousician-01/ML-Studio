@@ -8,6 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from test_regression_runs import ready_regression
 
+from mlstudio.code_runtime import code_mode_source
 from mlstudio.main import create_app
 
 
@@ -27,7 +28,8 @@ def enter(client):
 
 def test_enter_reopen_save_and_original_configuration(client, settings):
     project, path, draft, preview, original = enter(client)
-    assert draft["baseline_source"] == draft["source"] == preview["source"]
+    baseline = code_mode_source(preview["source"], "regression")
+    assert draft["baseline_source"] == draft["source"] == baseline
     assert draft["origin_ir"] == original
     assert draft["origin_revision"] == preview["revision"]
     assert not draft["modified"] and draft["status"] == "active"
@@ -38,7 +40,7 @@ def test_enter_reopen_save_and_original_configuration(client, settings):
     )
     assert saved.status_code == 200, saved.text
     assert saved.json()["modified"]
-    assert saved.json()["baseline_source"] == preview["source"]
+    assert saved.json()["baseline_source"] == baseline
     with TestClient(create_app(settings)) as restarted:
         reopened = restarted.get(path + "/active").json()
         assert reopened["source"] == source

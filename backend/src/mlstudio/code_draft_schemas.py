@@ -83,3 +83,12 @@ class DraftSummary(BaseModel):
 class SnapshotSaved(BaseModel):
     draft: DraftResponse
     snapshot: SnapshotResponse
+
+
+class ReportingProposal(BaseModel):
+    status: Literal["ready", "present", "manual"]
+    revision: int
+    proposed_source: str | None
+    diff: str
+    example: str
+    message: str

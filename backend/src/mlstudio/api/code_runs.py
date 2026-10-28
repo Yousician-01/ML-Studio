@@ -7,7 +7,13 @@ from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import func, select, update
 
 from mlstudio.api.projects import CurrentProject, Database
-from mlstudio.code_run_schemas import CodeRunRequest, CodeRunResponse, CodeRunStarted
+from mlstudio.code_run_schemas import (
+    CodeEvaluationResponse,
+    CodeRunRequest,
+    CodeRunResponse,
+    CodeRunStarted,
+)
+from mlstudio.execution.code_evaluation import evaluation
 from mlstudio.execution.code_runs import ACTIVE, logs, owned, response
 from mlstudio.models import CodeRun
 from mlstudio.services.source import DomainError
@@ -84,6 +90,11 @@ def detail(run_id: str, project: CurrentProject, session: Database, request: Req
 @router.get("/{run_id}/logs")
 def output(run_id: str, project: CurrentProject, session: Database, request: Request):
     return logs(request.app.state.settings, owned(session, project.id, run_id))
+
+
+@router.get("/{run_id}/evaluation", response_model=CodeEvaluationResponse)
+def results(run_id: str, project: CurrentProject, session: Database, request: Request):
+    return evaluation(request.app.state.settings, owned(session, project.id, run_id))
 
 
 @router.post("/{run_id}/cancel", response_model=CodeRunResponse)

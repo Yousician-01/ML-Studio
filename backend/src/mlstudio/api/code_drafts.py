@@ -10,12 +10,14 @@ from mlstudio.code_draft_schemas import (
     DraftResponse,
     DraftSave,
     DraftSummary,
+    ReportingProposal,
     SnapshotResponse,
     SnapshotSaved,
     SnapshotSummary,
 )
 from mlstudio.models import CodeDraft, CodeSnapshot
 from mlstudio.services import code_drafts as service
+from mlstudio.services.code_reporting import proposal
 
 router = APIRouter(prefix="/projects/{project_id}/code-drafts", tags=["code drafts"])
 
@@ -59,6 +61,11 @@ def read(draft_id: str, project: CurrentProject, session: Database):
 @router.patch("/{draft_id}", response_model=DraftResponse)
 def save(draft_id: str, body: DraftSave, project: CurrentProject, session: Database):
     return service.save(session, project.id, draft_id, body)
+
+
+@router.post("/{draft_id}/reporting-proposal", response_model=ReportingProposal)
+def reporting_proposal(draft_id: str, body: DraftSave, project: CurrentProject, session: Database):
+    return proposal(session, project, draft_id, body)
 
 
 @router.post("/{draft_id}/exit", response_model=DraftResponse)

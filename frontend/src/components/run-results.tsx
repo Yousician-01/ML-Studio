@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
-import type { Run, RunResult } from "@/lib/api/runs";
-import { classLabel, integrityProblems, resultMetrics, metricText, metricValue, knownResult, frozenModelName, runTask, supportedPlan } from "@/lib/api/evaluation-policy";
+import type { BinaryResult, Run, RunResult } from "@/lib/api/runs";
+import { classLabel, integrityProblems, metrics as binaryMetrics, regressionMetrics, metricText, knownResult, frozenModelName, runTask, supportedPlan } from "@/lib/api/evaluation-policy";
 import { Alert, Panel } from "./ui";
 
 export function IntegrityNotice({ run }: { run: Run }) {
@@ -10,17 +10,24 @@ export function IntegrityNotice({ run }: { run: Run }) {
 
 export function RunMetrics({ result }: { result: RunResult }) {
   if (!knownResult(result)) return <Alert>Historical result protocol is unsupported.</Alert>;
-  const regression = result.schema_version === "mlstudio-result-v2";
-  return <><p className="muted">Held-out test population: {result.population.test} rows</p><dl className="run-metrics">{resultMetrics(result).map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{metricText(metricValue(result, key))}</dd></div>)}</dl>{result.schema_version === "mlstudio-result-v1" && result.metrics.roc_auc == null && <p className="muted">ROC-AUC: {result.roc_auc_unavailable_reason || "No availability reason was retained."}</p>}{regression && result.metrics.r2 === null && <p className="muted">R² unavailable: {result.r2_unavailable_reason === "constant_test_target" ? "The held-out target is constant." : result.r2_unavailable_reason === "test_population_too_small" ? "Fewer than two held-out rows." : result.r2_unavailable_reason || "No reason was retained."}</p>}{regression && <p className="muted">Lower MAE, MSE and RMSE are better; higher R² is better. {result.population.training} training rows. R² may be negative.</p>}</>;
+  return <EvaluationMetrics task={result.schema_version === "mlstudio-result-v2" ? "regression" : "binary_classification"} values={result.metrics} population={result.population} reason={result.schema_version === "mlstudio-result-v2" ? result.r2_unavailable_reason : result.roc_auc_unavailable_reason} />;
+}
+
+export function EvaluationMetrics({ task, values, population, reason }: { task: "binary_classification" | "regression"; values: Partial<Record<string, number | null>>; population: { test: number; training?: number }; reason: string | null }) {
+  const regression = task === "regression";
+  return <><p className="muted">Held-out test population: {population.test} rows</p><dl className="run-metrics">{(regression ? regressionMetrics : binaryMetrics).map(({ key, label }) => <div key={key}><dt>{label}</dt><dd>{metricText(values[key])}</dd></div>)}</dl>{!regression && values.roc_auc == null && <p className="muted">ROC-AUC: {reason || "No availability reason was retained."}</p>}{regression && values.r2 == null && <p className="muted">R² unavailable: {reason === "constant_test_target" ? "The held-out target is constant." : reason === "test_population_too_small" ? "Fewer than two held-out rows." : reason || "No reason was retained."}</p>}{regression && <p className="muted">Lower MAE, MSE and RMSE are better; higher R² is better. {population.training !== undefined && `${population.training} training rows. `}R² may be negative.</p>}</>;
 }
 
 export function ConfusionMatrix({ result }: { result: RunResult }) {
   if (!knownResult(result) || result.schema_version !== "mlstudio-result-v1") return null;
-  const matrix = result.confusion_matrix;
+  return <ConfusionMatrixView matrix={result.confusion_matrix} population={result.population} />;
+}
+
+export function ConfusionMatrixView({ matrix, population }: { matrix: BinaryResult["confusion_matrix"]; population?: BinaryResult["population"] }) {
   const maximum = Math.max(1, ...matrix.values.flat());
   return <Panel title="Held-out confusion matrix" description="Actual classes by row; predicted classes by column. Negative then positive class order.">
     <div className="table-scroll"><table className="confusion-table"><caption className="sr-only">Frozen held-out counts: actual rows, predicted columns</caption><thead><tr><th scope="col">Actual / predicted</th>{matrix.labels.map((label, i) => <th scope="col" key={i}>{i ? "Positive" : "Negative"}<small>{classLabel(label)}</small></th>)}</tr></thead><tbody>{matrix.values.map((row, i) => <tr key={i}><th scope="row">{i ? "Positive" : "Negative"}<small>{classLabel(matrix.labels[i])}</small></th>{row.map((count, j) => <td key={j} style={{ "--cell-strength": 0.04 + count / maximum * 0.16 } as CSSProperties}><span>{[["TN", "FP"], ["FN", "TP"]][i][j]}</span><strong>{count}</strong></td>)}</tr>)}</tbody></table></div>
-    <p className="muted">{result.population.source} source · {result.population.eligible} eligible · {result.population.training} training · {result.population.test} test rows</p>
+    {population && <p className="muted">{population.source} source · {population.eligible} eligible · {population.training} training · {population.test} test rows</p>}
   </Panel>;
 }
 

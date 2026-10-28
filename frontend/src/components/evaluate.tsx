@@ -9,6 +9,7 @@ import { compareContext, comparisonSelection, resultMetrics, metricValue, frozen
 import { RunStatus, useRun } from "./runs";
 import { ConfusionMatrix, FrozenRunContext, IntegrityNotice, RunMetrics } from "./run-results";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
+import { CodeEvaluate, codeEvaluationHref } from "./code-evaluate";
 
 export function evaluationHref(projectId: string, runId: string, compareId?: string, latest = false) {
   const query = new URLSearchParams({ view: "evaluate", run: runId });
@@ -48,7 +49,12 @@ function SelectedEvaluation({ projectId, runId, compareId }: { projectId: string
   return <>{compareId && secondary.run && <EvaluationComparison projectId={projectId} runs={[primary.run, secondary.run]} />}<div className={compareId ? "evaluation-columns" : ""}><RunEvaluation run={primary.run} />{secondary.run && compareId !== runId && <RunEvaluation run={secondary.run} />}</div></>;
 }
 
-export function Evaluate({ projectId, runId, compareId, latest }: { projectId: string; runId: string | null; compareId: string | null; latest: boolean }) {
+export function Evaluate({ projectId, runId, compareId, latest, source, codeRunId, codeMode }: { projectId: string; runId: string | null; compareId: string | null; latest: boolean; source?: string | null; codeRunId?: string | null; codeMode?: boolean }) {
+  const code = source === "code" || (!source && (Boolean(codeRunId) || (!runId && codeMode)));
+  return <><nav className="actions" aria-label="Evaluation source"><Link className="button button-secondary" href={`/projects/${projectId}?view=evaluate&source=visual`} aria-current={!code ? "page" : undefined}>Visual Runs</Link><Link className="button button-secondary" href={codeEvaluationHref(projectId)} aria-current={code ? "page" : undefined}>Code Runs</Link></nav>{code ? <CodeEvaluate key={projectId} projectId={projectId} runId={codeRunId ?? null} /> : <VisualEvaluate projectId={projectId} runId={runId} compareId={compareId} latest={latest} />}</>;
+}
+
+function VisualEvaluate({ projectId, runId, compareId, latest }: { projectId: string; runId: string | null; compareId: string | null; latest: boolean }) {
   const router = useRouter();
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<RunPage | null>(null);

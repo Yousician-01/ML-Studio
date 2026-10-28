@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { codeEvaluationHref } from "./code-evaluate";
 import { api } from "@/lib/api/projects";
 import { codeRunActive, type CodeLogs, type CodeRun, type CodeRunPage } from "@/lib/api/code-runs";
 import { useCodeMode } from "./code-mode-state";
@@ -71,7 +73,7 @@ export function CodeExecution({ projectId }: { projectId: string }) {
         <p role="status" aria-live="polite"><strong>{shown.status}</strong> · {elapsed.toFixed(1)} seconds{shown.exit_code !== null ? ` · exit ${shown.exit_code}` : ""}</p>
         {shown.error && <Alert>{shown.error}</Alert>}
         {shown.source_integrity !== "verified" && <Alert>Recorded source evidence is missing or changed. Retained SQLite source is shown with this integrity warning.</Alert>}
-        <div className="actions"><Button onClick={() => setShowLogs(v => !v)}>View logs</Button><Button onClick={() => setShowRun(true)}>View Run</Button></div>
+        <div className="actions"><Button onClick={() => setShowLogs(v => !v)}>View logs</Button><Button onClick={() => setShowRun(true)}>View Run</Button><Link href={codeEvaluationHref(projectId, shown.id)}>Evaluate this Code Run</Link></div>
         {showLogs && logs && <div aria-label="Captured execution output">
           {(logs.stdout_truncated || logs.stderr_truncated || logs.stdout_tail_only || logs.stderr_tail_only) && <Alert tone="info">Output is bounded. This panel shows at most the latest 64 KiB per stream; capture limits may omit further bytes.</Alert>}
           <h3>stdout</h3><pre className="code-source" tabIndex={0}>{logs.stdout || "No stdout captured yet."}</pre>

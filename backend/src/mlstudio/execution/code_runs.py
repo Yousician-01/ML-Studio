@@ -5,11 +5,13 @@ import platform
 import threading
 import time
 from importlib.metadata import version
+from pathlib import Path
 from uuid import uuid4
 
 import psutil
 from sqlalchemy import select
 
+from mlstudio import code_runtime
 from mlstudio.code_run_schemas import CodeRunResponse
 from mlstudio.execution import process
 from mlstudio.execution.artifacts import (
@@ -134,6 +136,7 @@ class CodeExecutor:
             workspace.mkdir(parents=True)
             write_new(root / "source.py", body.source.encode())
             write_new(workspace / "main.py", body.source.encode())
+            write_new(workspace / "mlstudio_runtime.py", Path(code_runtime.__file__).read_bytes())
             arguments = [
                 str(self.settings.code_python_executable),
                 "-u",
@@ -183,6 +186,7 @@ class CodeExecutor:
                 "timeout_seconds": self.settings.run_timeout_seconds,
                 "log_bytes": self.settings.run_log_bytes,
                 "saved_draft_revision": draft.revision,
+                "reporting": {"schema_version": code_runtime.SCHEMA, "task": project.ml_objective},
             }
             write_evidence(
                 root / "execution.json", {"arguments": arguments, "process": None, "children": []}
@@ -232,6 +236,9 @@ class CodeExecutor:
                 row.status, row.finished_at = status, utc_now()
                 row.exit_code, row.duration_seconds = exit_code, duration
                 row.error, row.logs = error, evidence
+                from mlstudio.execution.code_evaluation import finalize
+
+                row.logs = {**evidence, "evaluation": finalize(self.settings, row)}
                 session.commit()
 
     def execute(self, run_id, lease):
