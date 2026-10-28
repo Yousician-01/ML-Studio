@@ -2,6 +2,55 @@
 
 ## Implemented workflow
 
+### Multiclass classification (v0.4)
+
+Create a Project with the explicit **Multiclass Classification** objective. Tasks
+remain immutable; existing binary and regression Projects are not converted.
+Run `python -m alembic upgrade head` from `backend` before starting this checkout.
+Migration `0009_multiclass` widens only the Project objective constraint through the
+existing transactional, ownership-checked SQLite rebuild. Stop the backend and
+back up the whole workspace before upgrading; downgrade requires restoring a backup.
+
+Multiclass targets require 3–50 homogeneous string/integer classes and no missing
+labels. Integer targets must be explicitly marked **categorical** in Data, so
+continuous measurements are never automatically interpreted as classes. Booleans
+retain their type but can only have two values and therefore cannot satisfy a
+multiclass universe. Continuous, mixed, multilabel and sklearn-incompatible labels
+are rejected. String labels are limited to 1,024 characters; evaluation is limited
+to 100,000 test rows. These bounds are checked before execution.
+
+Prepare reuses existing feature operations. Train reuses Decision Tree, Random
+Forest and Logistic Regression; the latter requires L2/lbfgs because the existing
+L1/liblinear configuration is binary-only. Split settings and seeds keep the
+existing algorithm. Readiness checks the actual deterministic allocation so every
+class occurs in training and test, even when stratification is disabled. Minority
+classes are never silently dropped. Preprocessing still fits on training only.
+
+Multiclass IR/plan `0.3`, generator `mlstudio-python-v3` and result
+`mlstudio-result-v3` are separate from binary `0.1`/v1 and regression `0.2`/v2.
+The generated classification training pipeline is shared; historical generated
+sources, results, drafts and snapshots are not rewritten. SQLite remains the
+authority; MLflow mirrors frozen aggregate metrics with an explicit multiclass tag.
+
+Evaluate reuses the Run selector, cards and accessible matrix with actual classes
+on rows and predicted classes on columns in sorted typed class order. Accuracy is
+correct predictions / test population. Macro precision/recall/F1 are unweighted
+means across classes; weighted metrics use actual class support. The per-class
+table includes precision, recall, F1 and support. sklearn's existing zero-division
+convention is 0, explicitly noted in the table. There is no binary positive class,
+multiclass ROC-AUC, ROC curve or automatic winner. Controlled comparison still
+requires matching frozen class orientation, population, split and metric context.
+
+New Code drafts include `report_classification(..., labels=CLASSES)` automatically;
+see [reporting](development/v0.3-phase-2b-evaluation.md). Reports remain bounded to
+1 MiB and preserve SHA-256 integrity. Existing v1 Code reports remain readable.
+
+Manual acceptance: create a three-class Project, upload CSV, select target, configure
+Prepare/Train, run and inspect macro/weighted/per-class metrics and the matrix.
+Enter Code Mode, run its generated source unchanged, then select that Code Run in
+Evaluate. Also try a missing target and a singleton minority class: both must be
+rejected before training. Check an older binary/regression Run remains unchanged.
+
 This checkout additionally implements [v0.3 Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
 and [Phase 2A execution](development/v0.3-phase-2a-execution.md): persistent Python
 drafts, snapshots and opt-in managed local execution with separate Code Runs.

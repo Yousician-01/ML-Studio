@@ -13,7 +13,7 @@ export const semanticTypes = [
 export type SemanticType = (typeof semanticTypes)[number];
 export type LosslessInteger = { value_type: "integer"; value: string };
 export type Scalar = string | number | boolean | LosslessInteger | null;
-export type ProjectTask = "binary_classification" | "regression";
+export type ProjectTask = "binary_classification" | "regression" | "multiclass_classification";
 export type ProjectInput = {
   name: string;
   description: string | null;

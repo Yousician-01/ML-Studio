@@ -10,7 +10,7 @@ def objective_rebuild_pending(script, destination, current_heads):
     """Only a traversal entering the new revision needs the special connection."""
     try:
         return any(
-            r.revision == OBJECTIVE_REVISION
+            r.revision in {OBJECTIVE_REVISION, "0009_multiclass"}
             for r in script.iterate_revisions(destination, current_heads or "base")
         )
     except (CommandError, RangeNotAncestorError):

@@ -40,7 +40,8 @@ class Project(Base):
             use_alter=True,  # Break metadata sorting cycles; SQLite still emits this inline.
         ),
         CheckConstraint(
-            "ml_objective IN ('binary_classification', 'regression')", name="ck_project_objective"
+            "ml_objective IN ('binary_classification', 'regression', 'multiclass_classification')",
+            name="ck_project_objective",
         ),
         CheckConstraint(
             "active_dataset_id IS NOT NULL OR target_column IS NULL",

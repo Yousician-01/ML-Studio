@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api/projects";
 import type { CodeEvaluation, CodeLogs, CodeRun, CodeRunPage } from "@/lib/api/code-runs";
-import { ConfusionMatrixView, EvaluationMetrics } from "./run-results";
+import { ConfusionMatrixView, EvaluationMetrics, MulticlassDetails } from "./run-results";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 
 export function codeEvaluationHref(projectId: string, runId?: string) {
@@ -54,7 +54,7 @@ function SelectedCodeEvaluation({ projectId, runId }: { projectId: string; runId
       <p role="status">Execution: {run.status} · Evaluation: {evidence.status.replaceAll("_", " ")}</p>
       {run.error && <Alert>{run.error}</Alert>}
       {evidence.status !== "available" && <Alert tone={evidence.status === "not_reported" || evidence.status === "pending" ? "info" : "error"}>{unavailable[evidence.status]}</Alert>}
-      {result ? <EvaluationMetrics task={result.task} values={result.metrics} population={result.population} reason={result.task === "regression" ? result.r2_unavailable_reason : result.roc_auc_unavailable_reason} /> : report && <p>No stock evaluation was reported. Custom outputs are shown below.</p>}
+      {result ? <EvaluationMetrics task={result.task} values={result.metrics} population={result.population} reason={result.task === "regression" ? result.r2_unavailable_reason : result.task === "binary_classification" ? result.roc_auc_unavailable_reason : null} /> : report && <p>No stock evaluation was reported. Custom outputs are shown below.</p>}
       <p className="muted">Manual Python may change the model, features, data or split. The originating visual configuration does not establish how this code evaluated its data. Code Run comparisons and metric deltas are unavailable.</p>
       <p className="wrap">Source <code>{run.source_sha256}</code> · snapshot {run.snapshot_id}</p>
       <details><summary>Frozen execution context and exact source</summary><pre className="run-json">{JSON.stringify(run.configuration, null, 2)}</pre><pre className="code-source" tabIndex={0}><code>{run.source}</code></pre></details>
@@ -62,6 +62,7 @@ function SelectedCodeEvaluation({ projectId, runId }: { projectId: string; runId
       {logsError && <Alert>{logsError}</Alert>}
       {logs && <details open><summary>Captured Code Run logs</summary>{(logs.stdout_truncated || logs.stderr_truncated || logs.stdout_tail_only || logs.stderr_tail_only) && <p className="muted">Bounded output; at most the last 64 KiB per stream is shown.</p>}<h3>stdout</h3><pre className="code-source" tabIndex={0}>{logs.stdout || "No stdout captured."}</pre><h3>stderr</h3><pre className="code-source" tabIndex={0}>{logs.stderr || "No stderr captured."}</pre></details>}
     </Panel>
+    {result?.task === "multiclass_classification" && <MulticlassDetails result={result} />}
     {result?.task === "binary_classification" && <ConfusionMatrixView matrix={result.confusion_matrix} />}
     {report && (Object.keys(report.metrics).length > 0 || Object.keys(report.outputs).length > 0) && <Panel title="Custom reported outputs" description="User-defined values, not built-in evaluation metrics.">
       <dl className="run-metrics">{Object.entries(report.metrics).map(([name, value]) => <div key={name}><dt>{name}</dt><dd>{String(value)}</dd></div>)}</dl>

@@ -68,7 +68,7 @@ export function Explore({ projectId, dataset, onReload, task = "binary_classific
     if (!id || revision === undefined || task === "regression") return;
     const controller = new AbortController();
     api.profile(projectId, { id, revision }, offset, controller.signal, filters).then(value => {
-      if (!controller.signal.aborted) { if (value.task !== "binary_classification") throw new Error("Profile task changed. Reload the workspace."); setProfile(value); setLoading(false); setError(""); }
+      if (!controller.signal.aborted) { if (value.task !== task) throw new Error("Profile task changed. Reload the workspace."); setProfile(value); setLoading(false); setError(""); }
     }).catch((err: unknown) => {
       if (!controller.signal.aborted) { setError(err instanceof Error ? err.message : "Explore unavailable."); setLoading(false); }
     });
@@ -102,8 +102,8 @@ export function Explore({ projectId, dataset, onReload, task = "binary_classific
         {profile.target ? <>
           <Bars label="Class proportions" data={profile.target.classes.map(f => ({ label: displayScalar(f.value, true), count: f.count, percentage: f.percentage }))} percentScale />
           <p className="muted">{profile.target.non_missing_count.toLocaleString()} non-missing targets · {profile.target.missing_count.toLocaleString()} missing. Percentages exclude missing targets.</p>
-          <p className="positive-class">Positive class: <strong>{profile.target.positive_class ? `${String(profile.target.positive_class.value)} (${profile.target.positive_class.value_type})` : "Not configured in Prepare"}</strong></p>
-        </> : <EmptyState title="No target selected">Other source analysis remains available. Select exactly two non-missing classes in Data.</EmptyState>}
+          {task === "binary_classification" && <p className="positive-class">Positive class: <strong>{profile.target.positive_class ? `${String(profile.target.positive_class.value)} (${profile.target.positive_class.value_type})` : "Not configured in Prepare"}</strong></p>}
+        </> : <EmptyState title="No target selected">Other source analysis remains available. Select {task === "multiclass_classification" ? "3–50 classes without missing labels" : "exactly two non-missing classes"} in Data.</EmptyState>}
       </Panel>
       <Panel title="Data quality" description="Factual observations across all source columns.">
         <div id="source-quality" className="quality-indicators">{qualityFilters.map(([label, count, observation]) => <button key={label} aria-pressed={filters.observation === observation} onClick={() => { filter({ observation, kind: "all", query: "" }); setDraftQuery(""); document.getElementById("source-columns")?.scrollIntoView(); }}><strong>{count}</strong><span>{label}</span></button>)}</div>

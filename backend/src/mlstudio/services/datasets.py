@@ -63,7 +63,19 @@ def dataset_response(dataset: Dataset, project: Project, frame: pd.DataFrame) ->
         columns=columns,
         revision=project.revision,
         target_column=project.target_column,
-        target_classes=validate_target_for_task(frame, project.target_column, project.ml_objective)
+        target_classes=[
+            v if isinstance(v, dict) else json_scalar(v)
+            for v in validate_target_for_task(
+                frame,
+                project.target_column,
+                project.ml_objective,
+                semantic_type=next(
+                    c["effective_semantic_type"]
+                    for c in columns
+                    if c["name"] == project.target_column
+                ),
+            )
+        ]
         if project.target_column
         else [],
         preview=[
@@ -186,7 +198,22 @@ def configure(
         raise DomainError("Semantic overrides must refer to active Dataset columns.")
     if "target_column" in change.model_fields_set:
         if change.target_column is not None:
-            validate_target_for_task(frame, change.target_column, project.ml_objective)
+            column = (
+                next(c for c in dataset.columns if c["name"] == change.target_column)
+                if change.target_column in names
+                else None
+            )
+            semantic = (
+                (
+                    change.semantic_overrides.get(change.target_column, column["semantic_override"])
+                    or column["inferred_semantic_type"]
+                )
+                if column
+                else None
+            )
+            validate_target_for_task(
+                frame, change.target_column, project.ml_objective, semantic_type=semantic
+            )
         old_target = project.target_column
         project.target_column = change.target_column
         if old_target != change.target_column:

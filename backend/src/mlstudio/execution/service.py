@@ -110,12 +110,12 @@ def create(session, project_id, body, coordinator):
             }
         task_context = (
             {
-                "task": "regression",
+                "task": plan.task,
                 "ir_version": plan.ir_version,
                 "plan_version": plan.plan_version,
                 "result_schema": plan.runtime.result_schema,
             }
-            if plan.plan_version == "0.2"
+            if plan.plan_version in ("0.2", "0.3")
             else {}
         )
         manifest = Manifest(
@@ -254,6 +254,13 @@ def response(run, home, *, detail=False):
             (
                 generator == "mlstudio-python-v1"
                 and result.get("schema_version") == "mlstudio-result-v1"
+            )
+            or (
+                generator == "mlstudio-python-v3"
+                and result.get("schema_version") == "mlstudio-result-v3"
+                and result.get("task") == "multiclass_classification"
+                and run.summary.get("task") == "multiclass_classification"
+                and run.summary.get("result_schema") == "mlstudio-result-v3"
             )
             or (
                 generator == "mlstudio-python-v2"

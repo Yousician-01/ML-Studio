@@ -312,8 +312,11 @@ def build_profile(
     target = None
     if project.target_column:
         series = frame[project.target_column]
-        classes, _ = frequencies(series, 2, truncate=False)
-        if series.nunique() != 2:
+        multiclass = project.ml_objective == "multiclass_classification"
+        classes, _ = frequencies(series, 50 if multiclass else 2, truncate=False)
+        if (not multiclass and series.nunique() != 2) or (
+            multiclass and not 3 <= series.nunique() <= 50
+        ):
             raise DomainError(
                 "The current target no longer has exactly two classes. Reload Data.", 409
             )
@@ -324,7 +327,7 @@ def build_profile(
             and intent
             and intent["column"] == project.target_column
         ):
-            candidate = intent["positive_class"]
+            candidate = intent.get("positive_class")
             if candidate in [typed_scalar(v).model_dump() for v in series.dropna().unique()]:
                 positive = candidate
         target = TargetProfile(
@@ -336,6 +339,7 @@ def build_profile(
             positive_class=positive,
         )
     return ProfileResponse(
+        task=project.ml_objective,
         dataset_id=dataset.id,
         revision=project.revision,
         fingerprint=dataset.fingerprint,

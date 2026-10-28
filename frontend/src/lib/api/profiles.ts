@@ -51,7 +51,7 @@ export type ColumnProfile = {
   unavailable_reason: string | null;
 };
 export type Profile = {
-  task: "binary_classification";
+  task: "binary_classification" | "multiclass_classification";
   dataset_id: string;
   revision: number;
   fingerprint: string;

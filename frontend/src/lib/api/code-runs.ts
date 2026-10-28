@@ -1,9 +1,9 @@
 import type { CodeDraft } from "./code-drafts";
-import type { BinaryResult, RegressionResult } from "./runs";
-export type CodeEvaluationResult = ({ task: "binary_classification" } & Pick<BinaryResult, "metrics" | "confusion_matrix" | "roc_auc_unavailable_reason"> | { task: "regression" } & Pick<RegressionResult, "metrics" | "r2_unavailable_reason">) & { population: { test: number } };
+import type { BinaryResult, RegressionResult, MulticlassResult } from "./runs";
+export type CodeEvaluationResult = ({ task: "binary_classification" } & Pick<BinaryResult, "metrics" | "confusion_matrix" | "roc_auc_unavailable_reason"> | { task: "regression" } & Pick<RegressionResult, "metrics" | "r2_unavailable_reason"> | { task: "multiclass_classification" } & Pick<MulticlassResult, "metrics" | "confusion_matrix" | "per_class">) & { population: { test: number } };
 export type CodeEvaluation = {
   status: "pending" | "execution_incomplete" | "not_reported" | "invalid" | "available" | "unavailable_or_corrupt";
-  report: null | { schema_version: "mlstudio-code-report-v1"; evaluation: CodeEvaluationResult | null; metrics: Record<string, number>; outputs: Record<string, unknown> };
+  report: null | { schema_version: "mlstudio-code-report-v1" | "mlstudio-code-report-v2"; evaluation: CodeEvaluationResult | null; metrics: Record<string, number>; outputs: Record<string, unknown> };
 };
 export type CodeRun = {
   id: string; project_id: string; draft_id: string; snapshot_id: string;

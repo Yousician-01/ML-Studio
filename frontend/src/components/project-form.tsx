@@ -83,7 +83,7 @@ export function ProjectForm({
           What matters when evaluating a solution? This context does not choose
           a metric or model.
         </p>
-        <div>{initial ? <p>ML objective <strong className="badge">{taskLabel(initial.ml_objective)}</strong></p> : <label>ML objective<select name="ml_objective" defaultValue="binary_classification"><option value="binary_classification">Binary Classification</option><option value="regression">Regression</option></select></label>}<p className="muted">The task is immutable and cannot be changed after Project creation.</p></div>
+        <div>{initial ? <p>ML objective <strong className="badge">{taskLabel(initial.ml_objective)}</strong></p> : <label>ML objective<select name="ml_objective" defaultValue="binary_classification"><option value="binary_classification">Binary Classification</option><option value="regression">Regression</option><option value="multiclass_classification">Multiclass Classification</option></select></label>}<p className="muted">The task is immutable and cannot be changed after Project creation.</p></div>
         {error && <Alert>{error}</Alert>}
         <Button variant="primary" type="submit">
           {busy ? "Saving…" : submitLabel}

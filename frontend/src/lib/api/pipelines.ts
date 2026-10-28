@@ -12,7 +12,8 @@ export type SplitIntent = { test_size: number | null; random_seed: number | null
 type Recipe = { dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
 export type PipelineIR = Recipe & (
  { ir_version: "0.1"; target: { column: string; positive_class: TypedScalar | null; missing_value_policy: "exclude_rows" } | null }
- | { ir_version: "0.2"; task: "regression"; target: { column: string; value_type: "numeric"; missing_value_policy: "exclude_rows" } | null });
+ | { ir_version: "0.2"; task: "regression"; target: { column: string; value_type: "numeric"; missing_value_policy: "exclude_rows" } | null }
+ | { ir_version: "0.3"; task: "multiclass_classification"; target: { column: string; missing_value_policy: "reject" } | null });
 export type PipelineIssue = { severity: "blocking" | "non_blocking"; scope: "pipeline" | "target" | "feature" | "train"; code: string; message: string; column: string | null; field: string | null };
 export type ParameterSchema = { type?: string; default?: unknown; title?: string; minimum?: number; exclusiveMinimum?: number; anyOf?: ParameterSchema[]; enum?: (string | null)[] };
 export type ModelDescriptor = { catalogue_version: string; id: ModelIntent["type"]; task: ProjectTask; name: string; parameter_schema: { properties: Record<string, ParameterSchema> }; defaults: Record<string, string | number | boolean | null>; contextual_constraints: Record<string, { minimum?: number | null; exclusive_minimum?: number | null; choices?: string[] | null; allow_none?: boolean; message: string }>; feature_requirements: { supported_semantics: string[]; supports_sparse: boolean }; compiler_adapter: string };

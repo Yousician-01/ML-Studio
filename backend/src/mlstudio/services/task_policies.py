@@ -7,9 +7,47 @@ from pandas.api.types import is_bool_dtype, is_complex_dtype, is_numeric_dtype
 from mlstudio.services.source import DomainError, target_classes
 
 
-def validate_target_for_task(frame, column, task):
+def validate_target_for_task(frame, column, task, *, semantic_type=None):
     if task == "binary_classification":
         return target_classes(frame, column)
+    if task == "multiclass_classification":
+        if column not in frame:
+            raise DomainError("Target must belong to the active Dataset.")
+        series = frame[column]
+        if series.isna().any():
+            raise DomainError(
+                "Multiclass target labels cannot be missing. Correct the source and upload again."
+            )
+        values = [v.item() if hasattr(v, "item") else v for v in series.unique()]
+        kinds = {type(v) for v in values}
+        if len(kinds) != 1 or not kinds.issubset({str, int, bool}):
+            raise DomainError(
+                "Multiclass labels must be uniformly string, integer or Boolean; "
+                "continuous/mixed targets are unsupported."
+            )
+        if kinds == {int} and semantic_type != "categorical":
+            raise DomainError(
+                "Review integer target meaning and explicitly mark it categorical in Data; "
+                "continuous targets are not classes."
+            )
+        if not 3 <= len(values) <= 50:
+            raise DomainError(
+                "Multiclass requires 3–50 distinct classes; multilabel targets are unsupported."
+            )
+        if any(isinstance(value, str) and len(value) > 1024 for value in values):
+            raise DomainError("Multiclass labels must be at most 1,024 characters.")
+        from sklearn.utils.multiclass import type_of_target
+
+        try:
+            compatible = type_of_target(series) == "multiclass"
+        except (TypeError, ValueError, OverflowError):
+            compatible = False
+        if not compatible:
+            raise DomainError(
+                "sklearn cannot preserve this multiclass label representation. "
+                "Correct the source; labels are never coerced or rounded."
+            )
+        return sorted(values)
     if task != "regression":
         raise DomainError("Unsupported Project objective.")
     if column not in frame:

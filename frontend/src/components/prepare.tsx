@@ -80,7 +80,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
       </details>
     </Panel>
     {!state.stale && <>
-      <Panel title="Target" description={ir.ir_version === "0.2" ? "Numeric target selected in Data. Missing target rows are excluded; the target is never imputed." : "Choose the positive class for the target selected in Data."}>
+      <Panel title="Target" description={ir.ir_version === "0.3" ? "Multiclass target: sorted classes, no positive class, no missing labels." : ir.ir_version === "0.2" ? "Numeric target selected in Data. Missing target rows are excluded; the target is never imputed." : "Choose the positive class for the target selected in Data."}>
         <p><strong>{ir.target?.column ?? "No target selected"}</strong>{targetColumn ? ` · ${targetColumn.effective_semantic_type}` : ""} · <Link href={`/projects/${projectId}?view=data`}>Change target in Data</Link></p>
         <Issues issues={state.issues.filter(i => i.scope === "target")} />
         {localError("target")}
@@ -90,7 +90,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
             {state.target_classes.map((c, index) => <option value={index} key={index}>{String(c.value)} ({c.value_type})</option>)}
           </select>
         </label>}
-        <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. {ir.ir_version === "0.1" ? "Choosing a positive class confirms this policy." : "Constant or two-valued numeric targets are permitted; R² availability is determined by the held-out population."}</p>
+        {ir.ir_version === "0.3" ? <p className="muted">{state.target_classes.length} classes; missing labels are rejected. {state.target_classes.map(c => `${String(c.value)} (${c.value_type})`).join(", ")}</p> : <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. {ir.ir_version === "0.1" ? "Choosing a positive class confirms this policy." : "Constant or two-valued numeric targets are permitted; R² availability is determined by the held-out population."}</p>}
       </Panel>
       <Panel title="Features" description="Operations are ordered: imputation first, then scaling or encoding. None means no operation. Excluded features retain dormant choices.">
         <div className="table-scroll"><table className="prepare-table"><thead><tr><th>Feature / effective type</th><th>Participation</th><th>Missing values</th><th>Scaling / encoding</th><th>Validation / intent</th></tr></thead><tbody>

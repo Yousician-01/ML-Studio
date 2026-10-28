@@ -114,6 +114,18 @@ test("visual confusion matrix retains typed orientation and accessible row/colum
   for (const [label,count] of [["TN",11],["FP",2],["FN",3],["TP",7]]) assert.match(html,new RegExp(`<span>${label}</span><strong>${count}</strong>`));
 });
 
+test("multiclass shared presentation uses class axes and per-class metrics without binary orientation", () => {
+  const labels = ["amber", "blue", "cyan"].map(value => ({value_type:"string", value}));
+  const result = {schema_version:"mlstudio-result-v3", task:"multiclass_classification", population:{test:6}, metrics:{accuracy:1,precision_macro:1,recall_macro:1,f1_macro:1,precision_weighted:1,recall_weighted:1,f1_weighted:1}, confusion_matrix:{labels,values:[[2,0,0],[0,2,0],[0,0,2]]}, per_class:labels.map(label=>({label,precision:1,recall:1,f1:1,support:2}))};
+  const html = renderToStaticMarkup(React.createElement(React.Fragment,null,React.createElement(RunMetrics,{result}),React.createElement(ConfusionMatrix,{result})));
+  assert.match(html,/Macro precision/);
+  assert.match(html,/Weighted F1/);
+  assert.match(html,/Per-class metrics/);
+  assert.match(html,/scope="row"/);
+  for (const label of labels) assert.match(html,new RegExp(label.value));
+  assert.doesNotMatch(html,/Positive|Negative|ROC-AUC|<span>TN<\/span>|Unsupported/);
+});
+
 test("shared metrics show real zero and the reason for unavailable AUC", () => {
   const html = renderToStaticMarkup(React.createElement(RunMetrics,{result:evaluationRun().result}));
   assert.match(html,/0.0000/);

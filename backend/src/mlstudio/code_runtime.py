@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 SCHEMA = "mlstudio-code-report-v1"
+MULTICLASS_SCHEMA = "mlstudio-code-report-v2"
 MAX_BYTES = 1024 * 1024
 MAX_SAMPLES = 100_000
 _report = {"schema_version": SCHEMA, "evaluation": None, "metrics": {}, "outputs": {}}
@@ -64,7 +65,7 @@ def _scalar(value):
 def validate_report(report, task):
     """Strict structural/aggregate checks for untrusted subprocess JSON."""
     _fields(report, "schema_version evaluation metrics outputs")
-    if report["schema_version"] != SCHEMA:
+    if report["schema_version"] not in (SCHEMA, MULTICLASS_SCHEMA):
         raise ValueError("Unsupported Code reporting version.")
     for key in ("metrics", "outputs"):
         if type(report[key]) is not dict or len(report[key]) > 64:
@@ -75,6 +76,11 @@ def validate_report(report, task):
                 raise ValueError("Custom metrics must be finite numbers.")
             _json_value(value)
     result = report["evaluation"]
+    if report["schema_version"] == MULTICLASS_SCHEMA:
+        if task != "multiclass_classification" or result is None:
+            raise ValueError("Multiclass reporting requires the originating multiclass task.")
+        validate_multiclass_evaluation(result)
+        return report
     if result is None:
         return report
     if task not in ("binary_classification", "regression") or result.get("task") != task:
@@ -164,6 +170,11 @@ def _publish(**changes):
     global _report
     report = {**_report, **changes}
     evaluation = report["evaluation"]
+    report["schema_version"] = (
+        MULTICLASS_SCHEMA
+        if evaluation and evaluation["task"] == "multiclass_classification"
+        else SCHEMA
+    )
     validate_report(report, evaluation["task"] if evaluation else None)
     data = json.dumps(report, allow_nan=False, ensure_ascii=True, sort_keys=True).encode()
     if len(data) > MAX_BYTES:
@@ -212,6 +223,11 @@ def report_classification(*, y_true, y_pred, labels, scores=None):
     import numpy as np
     from sklearn.metrics import roc_auc_score
 
+    if len(labels) >= 3:
+        if scores is not None:
+            raise ValueError("Multiclass ROC-AUC and scores are not supported.")
+        _publish(evaluation=multiclass_evaluation(y_true, y_pred, labels))
+        return
     actual, predicted = _arrays(y_true, y_pred)
     if len(labels) != 2:
         raise ValueError("Exactly two labels in negative/positive order are required.")
@@ -303,6 +319,11 @@ def reporting_block(task):
             "        from mlstudio_runtime import report_regression\n"
             "        report_regression(y_true=y_test, y_pred=predictions)\n"
         )
+    elif task == "multiclass_classification":
+        reporting = (
+            "        from mlstudio_runtime import report_classification\n"
+            "        report_classification(y_true=y_test, y_pred=predictions, labels=CLASSES)\n"
+        )
     else:
         reporting = (
             "        from mlstudio_runtime import report_classification, classification_scores\n"
@@ -326,3 +347,145 @@ def code_mode_source(source, task):
     if source.count(marker) != 1:
         raise ValueError("Generated Code Mode integration point is unavailable.")
     return source.replace(marker, reporting + marker)
+
+
+def multiclass_labels(labels):
+    """Homogeneous typed labels, explicit deterministic order and a bounded universe."""
+    values = [v.item() if hasattr(v, "item") else v for v in labels]
+    if (
+        not 3 <= len(values) <= 50
+        or len({type(v) for v in values}) != 1
+        or type(values[0]) not in (str, int, bool)
+        or len(set(values)) != len(values)
+        or values != sorted(values)
+    ):
+        raise ValueError(
+            "Use 3–50 distinct homogeneous string/integer/Boolean labels in sorted order."
+        )
+    return [_scalar(v) for v in values]
+
+
+def multiclass_evaluation(y_true, y_pred, labels):
+    from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support
+
+    typed = multiclass_labels(labels)
+    actual, predicted = _arrays(y_true, y_pred)
+    encoded = []
+    for values in (actual, predicted):
+        indices = []
+        for value in values:
+            record = _scalar(value)
+            if record not in typed:
+                raise ValueError("Observed class is outside the declared typed label universe.")
+            indices.append(typed.index(record))
+        encoded.append(indices)
+    order = list(range(len(labels)))
+    precision, recall, f1, support = precision_recall_fscore_support(
+        *encoded, labels=order, zero_division=0
+    )
+    metrics = {"accuracy": float(accuracy_score(*encoded))}
+    for average in ("macro", "weighted"):
+        p, r, f, _ = precision_recall_fscore_support(
+            *encoded, labels=order, average=average, zero_division=0
+        )
+        metrics.update(
+            {
+                f"precision_{average}": float(p),
+                f"recall_{average}": float(r),
+                f"f1_{average}": float(f),
+            }
+        )
+    return {
+        "task": "multiclass_classification",
+        "metrics": metrics,
+        "population": {"test": len(actual)},
+        "confusion_matrix": {
+            "labels": typed,
+            "values": confusion_matrix(*encoded, labels=order).tolist(),
+        },
+        "per_class": [
+            {
+                "label": label,
+                "precision": float(precision[i]),
+                "recall": float(recall[i]),
+                "f1": float(f1[i]),
+                "support": int(support[i]),
+            }
+            for i, label in enumerate(typed)
+        ],
+    }
+
+
+def validate_multiclass_evaluation(result):
+    _fields(result, "task metrics population confusion_matrix per_class")
+    if result["task"] != "multiclass_classification":
+        raise ValueError("Incompatible multiclass task.")
+    _fields(result["population"], "test")
+    count = result["population"]["test"]
+    if type(count) is not int or not 1 <= count <= MAX_SAMPLES:
+        raise ValueError("Invalid multiclass evaluation population.")
+    matrix = result["confusion_matrix"]
+    _fields(matrix, "labels values")
+    labels = matrix["labels"]
+    if type(labels) is not list or not 3 <= len(labels) <= 50:
+        raise ValueError("Invalid class universe.")
+    values = []
+    for label in labels:
+        _fields(label, "value_type value")
+        value = label["value"]
+        if label["value_type"] == "integer" and type(value) is str:
+            value = int(value)
+        if _scalar(value) != label:
+            raise ValueError("Invalid typed class.")
+        values.append(value)
+    if multiclass_labels(values) != labels:
+        raise ValueError("Class ordering is inconsistent.")
+    n, cells = len(labels), matrix["values"]
+    if (
+        type(cells) is not list
+        or len(cells) != n
+        or any(type(row) is not list or len(row) != n for row in cells)
+        or any(type(v) is not int or v < 0 for row in cells for v in row)
+        or sum(map(sum, cells)) != count
+    ):
+        raise ValueError("Invalid multiclass confusion counts.")
+    per_class = result["per_class"]
+    if type(per_class) is not list or len(per_class) != n:
+        raise ValueError("Invalid per-class metrics.")
+    expected = {
+        "accuracy": sum(cells[i][i] for i in range(n)) / count,
+        **{
+            f"{metric}_{average}": 0.0
+            for metric in ("precision", "recall", "f1")
+            for average in ("macro", "weighted")
+        },
+    }
+    for i, record in enumerate(per_class):
+        _fields(record, "label precision recall f1 support")
+        support = sum(cells[i])
+        predicted = sum(row[i] for row in cells)
+        tp = cells[i][i]
+        scores = {
+            "precision": tp / predicted if predicted else 0,
+            "recall": tp / support if support else 0,
+            "f1": 2 * tp / (support + predicted) if support + predicted else 0,
+        }
+        if (
+            json.dumps(record["label"], sort_keys=True, allow_nan=False)
+            != json.dumps(labels[i], sort_keys=True, allow_nan=False)
+            or type(record["support"]) is not int
+            or record["support"] != support
+        ):
+            raise ValueError("Per-class support or orientation differs.")
+        for key, value in scores.items():
+            if not _number(record[key]) or not math.isclose(record[key], value, abs_tol=1e-12):
+                raise ValueError("Per-class metrics do not match counts.")
+            expected[f"{key}_macro"] += value / n
+            expected[f"{key}_weighted"] += value * support / count
+    _fields(result["metrics"], " ".join(expected))
+    for key, value in expected.items():
+        if not _number(result["metrics"][key]) or not math.isclose(
+            result["metrics"][key], value, abs_tol=1e-12
+        ):
+            raise ValueError("Aggregate multiclass metrics do not match counts.")
+    return result

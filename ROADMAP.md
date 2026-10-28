@@ -33,6 +33,19 @@ direction and is not required before the deterministic workflow works.
 - [ ] Hyperparameter optimization, considering Optuna
 - [ ] Evaluate explicit Python extension points
 
+## v0.4 — Multiclass classification
+
+- [x] Explicit multiclass Project objective, without converting binary Projects
+- [x] Deterministic split checks, existing classifier/preparation reuse
+- [x] Versioned generated Python and immutable visual/Code Run results
+- [x] Shared Evaluate: macro/weighted metrics, per-class table, N×N matrix
+- [x] Existing reporting API accepts a sorted multiclass label universe
+
+This slice excludes multilabel classification, multiclass ROC-AUC/curves, new
+estimators, arbitrary charts and unrelated v0.4 features. Earlier roadmap sections
+retain their original planning context; current supported behavior is documented
+in README and development instructions.
+
 ## Future / exploration
 
 Broader task types and model families, AI assistance, MLOps (including possible

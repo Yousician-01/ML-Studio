@@ -219,14 +219,14 @@ export function DataView({
                     <option key={column.name} value={column.name}>
                       {column.name} · {column.effective_semantic_type} ·{" "}
                       {column.unique_count} distinct values
-                      {project.ml_objective === "regression" ? (numericTargetCandidate(column) ? " · numeric candidate" : " · not numeric") : column.unique_count === 2
+                      {project.ml_objective === "regression" ? (numericTargetCandidate(column) ? " · numeric candidate" : " · not numeric") : project.ml_objective === "multiclass_classification" ? (column.unique_count >= 3 && column.unique_count <= 50 && column.missing_count === 0 ? " - multiclass candidate" : " - not a multiclass target") : column.unique_count === 2
                         ? " · binary candidate"
                         : " · not a binary target"}
                     </option>
                   ))}
                 </select>
                 <p id="target-help" className="muted">
-                  {project.ml_objective === "regression" ? "Regression requires finite numeric, non-Boolean targets. Constant and two-valued numeric targets are allowed. Missing target rows are excluded; the backend validates numeric precision." : "Binary classification requires exactly two distinct non-missing values. Missing values do not create a class."}
+                  {project.ml_objective === "regression" ? "Regression requires finite numeric, non-Boolean targets. Constant and two-valued numeric targets are allowed. Missing target rows are excluded; the backend validates numeric precision." : project.ml_objective === "multiclass_classification" ? "Multiclass requires 3-50 uniformly typed classes without missing labels. Integer labels must be explicitly marked categorical. Continuous targets and multilabel data are unsupported." : "Binary classification requires exactly two distinct non-missing values. Missing values do not create a class."}
                 </p>
                 <div id="target-feedback">
                   {errors.target && (
@@ -255,7 +255,7 @@ export function DataView({
                   </div>
                 )}
                 <p className="muted">
-                  {project.ml_objective === "regression" ? "No positive class is required. Missing target rows are excluded during execution." : "Choose the positive class in Prepare. Missing target rows are eligible for exclusion during execution."}
+                  {project.ml_objective === "regression" ? "No positive class is required. Missing target rows are excluded during execution." : project.ml_objective === "multiclass_classification" ? "Class order is deterministic. No positive class is used; missing target labels are rejected." : "Choose the positive class in Prepare. Missing target rows are eligible for exclusion during execution."}
                   {dataset.target_column && (() => { const c = dataset.columns.find(c => c.name === dataset.target_column); return c ? <span> {dataset.row_count - c.missing_count} observed · {c.missing_count} missing.</span> : null; })()}
                 </p>
               </div>

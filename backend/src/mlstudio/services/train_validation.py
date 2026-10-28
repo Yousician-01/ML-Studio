@@ -112,6 +112,60 @@ def regression_train_issues(ir, target):
 def train_issues(ir, target):
     if ir.ir_version == "0.2":
         return regression_train_issues(ir, target)
+    if ir.ir_version == "0.3":
+        from sklearn.model_selection import train_test_split
+
+        issues = model_parameter_issues(ir.model, "multiclass_classification") + split_issues(
+            ir.split
+        )
+        if ir.split is None or target is None or issues:
+            return issues
+        from mlstudio.code_runtime import MAX_SAMPLES
+
+        if math.ceil(len(target) * ir.split.test_size) > MAX_SAMPLES:
+            return [
+                *issues,
+                PipelineIssue(
+                    scope="train",
+                    code="multiclass_evaluation_limit",
+                    field="split.test_size",
+                    message="Multiclass evaluation supports at most 100,000 test rows. "
+                    "Reduce the Dataset or test fraction.",
+                ),
+            ]
+        if ir.split.stratify is None:
+            return [
+                *issues,
+                PipelineIssue(
+                    scope="train",
+                    code="stratify_missing",
+                    field="split.stratify",
+                    message="Choose whether to stratify by target.",
+                ),
+            ]
+        try:
+            if target.isna().any() or not 3 <= target.nunique() <= 50:
+                raise ValueError()
+            train, test = train_test_split(
+                target,
+                test_size=ir.split.test_size,
+                random_state=ir.split.random_seed,
+                stratify=target if ir.split.stratify else None,
+            )
+            if train.nunique() != target.nunique() or test.nunique() != target.nunique():
+                raise ValueError()
+        except (ValueError, TypeError):
+            issues.append(
+                PipelineIssue(
+                    scope="train",
+                    code="multiclass_split",
+                    field="split.test_size",
+                    message="Every class must occur in both deterministic partitions. "
+                    "Supply at least two rows per class and adjust test size, seed "
+                    "or stratification; minority classes are never dropped.",
+                )
+            )
+        return issues
     issues = model_parameter_issues(ir.model, "binary_classification") + split_issues(ir.split)
 
     def issue(code, message, field):

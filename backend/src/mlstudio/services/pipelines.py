@@ -33,6 +33,14 @@ def typed_scalar(value) -> TypedScalar:
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
     regression = ir.ir_version == "0.2"
+    multiclass = ir.ir_version == "0.3"
+    task = (
+        "multiclass_classification"
+        if multiclass
+        else "regression"
+        if regression
+        else "binary_classification"
+    )
 
     def issue(code, message, scope="pipeline", column=None, dormant=False):
         field = None
@@ -80,17 +88,17 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         issue("dataset_missing", "Initialize preparation for the current Dataset.")
     if regression:
         issues.extend(train_issues(ir, target_series))
-    descriptor = (
-        descriptor_for(ir.model, "regression" if regression else "binary_classification")
-        if ir.model
-        else None
-    )
+    descriptor = descriptor_for(ir.model, task) if ir.model else None
     columns = {c["name"]: c for c in dataset.columns}
     classes, missing = [], 0
     if ir.target is None:
         issue(
             "target_missing",
-            "Select a numeric target in Data." if regression else "Select a binary target in Data.",
+            "Select a numeric target in Data."
+            if regression
+            else "Select a multiclass target in Data."
+            if multiclass
+            else "Select a binary target in Data.",
             "target",
         )
     else:
@@ -106,7 +114,22 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         else:
             series = frame[name]
             missing = int(series.isna().sum())
-            if regression:
+            if multiclass:
+                try:
+                    column = columns[name]
+                    classes = [
+                        typed_scalar(v)
+                        for v in validate_target_for_task(
+                            frame,
+                            name,
+                            task,
+                            semantic_type=column["semantic_override"]
+                            or column["inferred_semantic_type"],
+                        )
+                    ]
+                except DomainError as error:
+                    issue("target_not_multiclass", error.message, "target")
+            elif regression:
                 try:
                     validate_target_for_task(frame, name, "regression")
                 except DomainError as error:
@@ -119,7 +142,7 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 )
             else:
                 classes = [typed_scalar(v) for v in series.dropna().unique()]
-            if regression:
+            if regression or multiclass:
                 pass  # Numeric targets have no class orientation.
             elif ir.target.positive_class is None:
                 issue("positive_class_missing", "Choose the positive class explicitly.", "target")
