@@ -1,6 +1,7 @@
 """Production task migration and application readiness, on disposable databases."""
 
 import pytest
+from alembic.script import ScriptDirectory
 from alembic.util import CommandError
 from fastapi.testclient import TestClient
 from released_v01 import PROJECTS, build_released_workspace, migration_config, snapshot
@@ -15,7 +16,7 @@ def test_released_upgrade_widens_objective_and_restores_normal_foreign_keys(sett
     build_released_workspace(settings)
     config = migration_config(settings)
     command.upgrade(config, "head")
-    assert snapshot(settings)["heads"] == ("0006_task_objectives",)
+    assert snapshot(settings)["heads"] == (ScriptDirectory.from_config(config).get_current_head(),)
     engine = create_database_engine(settings)
     try:
         with engine.begin() as connection:
@@ -37,7 +38,10 @@ def test_application_requires_new_head_then_accepts_upgrade(settings):
     with TestClient(create_app(settings)) as client:
         response = client.get("/api/v1/projects")
         assert response.status_code == 503
-        assert "0006_task_objectives" in response.json()["detail"]
+        assert (
+            ScriptDirectory.from_config(migration_config(settings)).get_current_head()
+            in response.json()["detail"]
+        )
     command.upgrade(migration_config(settings), "head")
     with TestClient(create_app(settings)) as client:
         assert client.get("/api/v1/projects").status_code == 200
@@ -47,7 +51,12 @@ def test_application_requires_new_head_then_accepts_upgrade(settings):
 def test_revision_traversal_selects_rebuild_for_actual_pending_upgrade(settings, destination):
     build_released_workspace(settings)
     command.upgrade(migration_config(settings), destination)
-    assert snapshot(settings)["heads"] == ("0006_task_objectives",)
+    expected = (
+        ScriptDirectory.from_config(migration_config(settings)).get_current_head()
+        if destination == "head"
+        else "0006_task_objectives"
+    )
+    assert snapshot(settings)["heads"] == (expected,)
 
 
 def test_special_handling_is_absent_for_old_and_already_applied_upgrades(settings):
@@ -83,4 +92,4 @@ def test_released_migration_chain_retains_its_existing_downgrade_path(settings):
     command.upgrade(config, "0005_tracking")
     command.downgrade(config, "base")
     command.upgrade(config, "head")
-    assert snapshot(settings)["heads"] == ("0006_task_objectives",)
+    assert snapshot(settings)["heads"] == (ScriptDirectory.from_config(config).get_current_head(),)

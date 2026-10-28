@@ -83,6 +83,9 @@ def test_migrations_on_fresh_database(settings: Settings):
             assert revision == ScriptDirectory.from_config(config).get_current_head()
             assert inspect(connection).get_table_names() == [
                 "alembic_version",
+                "code_drafts",
+                "code_runs",
+                "code_snapshots",
                 "datasets",
                 "projects",
                 "runs",

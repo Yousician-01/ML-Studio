@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -25,6 +27,18 @@ class Settings(BaseSettings):
     run_model_bytes: int = Field(default=1024 * 1024 * 1024, gt=0)
     run_disk_reserve_bytes: int = Field(default=64 * 1024 * 1024, ge=0)
     run_termination_grace_seconds: float = Field(default=5, gt=0)
+    code_execution_enabled: bool = False
+    code_python_executable: Path = Field(
+        default_factory=lambda: Path(os.path.abspath(sys.executable))
+    )
+
+    @field_validator("code_python_executable")
+    @classmethod
+    def absolute_interpreter(cls, value: Path) -> Path:
+        if not value.is_absolute():
+            raise ValueError("Code Python interpreter must be an absolute path")
+        return value  # Do not resolve venv symlinks to a different interpreter.
+
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     @field_validator("home")

@@ -46,6 +46,9 @@ def existing(session, project_id, body):
 def create(session, project_id, body, coordinator):
     if run := existing(session, project_id, body):
         return run
+    from mlstudio.services.code_drafts import require_visual_mode
+
+    require_visual_mode(session, project_id)
     lease = coordinator.reserve()
     staged = None
     committed = False

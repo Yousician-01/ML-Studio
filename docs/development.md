@@ -2,6 +2,16 @@
 
 ## Implemented workflow
 
+This checkout additionally implements [v0.3 Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
+and [Phase 2A execution](development/v0.3-phase-2a-execution.md): persistent Python
+drafts, snapshots and opt-in managed local execution with separate Code Runs.
+The [Phase 2B evaluation bridge](development/v0.3-phase-2b-evaluation.md) adds explicit,
+bounded reporting from Code Runs to the shared Evaluate bench.
+Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
+execution. Explicit snapshot-save or discard restores the preserved visual recipe;
+historical Runs and compiler/IR versions remain unchanged. Package versions remain
+0.2.0 until release finalization. See the linked guide for setup and limitations.
+
 ML Studio 0.2.0 supports binary classification and regression from Project creation
 through managed CSV ingestion, task-aware Explore, explicit Prepare/Train,
 deterministic read-only Python, local execution, immutable Runs and Evaluate.
@@ -65,13 +75,14 @@ Initialize the database, then start the backend:
 
 The migration chain is `0001_foundation` → `0002_project_dataset` →
 `0003_working_pipeline` → `0004_runs` → `0005_tracking` →
-`0006_task_objectives` (current head).
+`0006_task_objectives` → `0007_code_drafts` → `0008_code_runs` (current development head).
 Fresh installation and upgrades are covered by the existing migration tests.
 Startup does not run migrations or call `metadata.create_all()`; Alembic owns
 schema evolution. Before upgrading an existing workspace, stop the backend and all
 workers and back up SQLite and managed files together. Then run `alembic upgrade head`.
 Revision 0006 rebuilds the Project objective constraint within the checked offline
-SQLite boundary. Downgrade across it is refused; restore a consistent pre-upgrade
+SQLite boundary. Revision 0007 adds Code Draft/Snapshot tables, without rebuilding
+existing tables. Downgrade across either is refused; restore a consistent pre-upgrade
 backup instead. See the Phase 1/2 records for failure/crash coverage and platform
 limitations. Restart with the updated editable installation.
 
@@ -153,7 +164,8 @@ Runs/Evaluate and historical Code read frozen evidence; current source/Pipeline
 edits do not rewrite past facts. Comparisons require compatible task, source/target,
 split, versions, population, metric definitions and integrity; no winner is chosen.
 Source scatter is not a prediction plot. Visual Mode and editable Code Mode are
-not implemented. See [Architecture](architecture.md) for the trust boundary.
+not part of v0.2. The current Code Mode extension adds drafts and opt-in local Python
+execution; see its Phase 2A guide and [Architecture](architecture.md) for the trust boundary.
 
 ## Central configuration and runtime workspace
 

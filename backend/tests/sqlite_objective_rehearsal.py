@@ -80,7 +80,7 @@ def rehearse_objective_upgrade(settings, directory, *, after_statement=None, res
                 event.listen(connection, "after_cursor_execute", after_statement)
             config.attributes["connection"] = connection
             try:
-                command.upgrade(config, "head")
+                command.upgrade(config, REHEARSAL_HEAD)
             finally:
                 if after_statement is not None:
                     event.remove(connection, "after_cursor_execute", after_statement)

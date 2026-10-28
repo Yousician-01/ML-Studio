@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from mlstudio.core.config import Settings
-from mlstudio.models import Dataset, Project, Run, utc_now
+from mlstudio.models import CodeRun, Dataset, Project, Run, utc_now
 from mlstudio.services.source import DomainError
 
 
@@ -62,6 +62,12 @@ def delete_project(session: Session, project_id: str, revision: int, settings: S
         # staging. Otherwise another live deletion's rename looks like a crash.
         project.updated_at = utc_now()
         session.flush()
+        if session.scalar(
+            select(CodeRun.id)
+            .where(CodeRun.project_id == project.id, CodeRun.status.in_(("PENDING", "RUNNING")))
+            .limit(1)
+        ):
+            raise DomainError("Project has an active Code Run; deletion was not performed.", 409)
         if session.scalar(
             select(Run.id)
             .where(Run.project_id == project.id, Run.state.in_(("CREATED", "RUNNING")))

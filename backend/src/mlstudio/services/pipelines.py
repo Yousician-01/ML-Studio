@@ -317,6 +317,9 @@ def read(session, project, settings):
 
 
 def save(session, project, body, settings, reset=False):
+    from mlstudio.services.code_drafts import require_visual_mode
+
+    require_visual_mode(session, project.id)
     project, dataset = snapshot(session, project.id)
     if body.revision != project.revision:
         raise DomainError("Project changed. Reload the workspace before saving again.", 409)

@@ -12,12 +12,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.exc import StaleDataError
 
+from mlstudio.api.code_drafts import router as code_drafts_router
+from mlstudio.api.code_runs import router as code_runs_router
 from mlstudio.api.health import router
 from mlstudio.api.projects import router as projects_router
 from mlstudio.api.runs import router as runs_router
 from mlstudio.api.upload_limit import UploadLimitMiddleware
 from mlstudio.core.config import Settings
 from mlstudio.db.session import create_database_engine
+from mlstudio.execution.code_runs import CodeExecutor
 from mlstudio.execution.coordinator import Coordinator
 from mlstudio.services.source import DomainError
 
@@ -30,10 +33,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = create_database_engine(settings)
         app.state.session_factory = sessionmaker(bind=engine, expire_on_commit=False)
         app.state.execution = Coordinator(settings, app.state.session_factory)
+        app.state.code_execution = CodeExecutor(
+            settings, app.state.session_factory, app.state.execution
+        )
         app.state.execution.startup()
         try:
             yield
         finally:
+            app.state.code_execution.close()
             app.state.execution.close()
             engine.dispose()
 
@@ -50,14 +57,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(runs_router, prefix=settings.api_prefix)
+    app.include_router(code_drafts_router, prefix=settings.api_prefix)
+    app.include_router(code_runs_router, prefix=settings.api_prefix)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(_request, error):
         # Rejected numeric inputs may contain inf/NaN (including JSON 1e309).
         # Preserve validation locations/messages without making the 422 itself
         # invalid JSON. This never coerces or accepts the rejected configuration.
+        errors = error.errors()
+        if "/code-drafts" in _request.url.path or "/code-runs" in _request.url.path:
+            errors = [
+                {key: value for key, value in item.items() if key not in ("input", "ctx")}
+                for item in errors
+            ]
         detail = jsonable_encoder(
-            error.errors(), custom_encoder={float: lambda v: v if math.isfinite(v) else None}
+            errors, custom_encoder={float: lambda v: v if math.isfinite(v) else None}
         )
         return JSONResponse({"detail": detail}, status_code=422)
 

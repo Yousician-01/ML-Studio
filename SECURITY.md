@@ -31,7 +31,16 @@ and runtime versions are not acceptance-verified. It is not a production service
 - The exact generated Python runs in a separate subprocess with restricted
   environment inheritance, timeouts and bounded logs. It is **not sandboxed** and
   inherits the local user's filesystem and operating-system privileges. The API
-  does not accept arbitrary user Python.
+  accepts only generated source for visual Runs.
+- In the v0.3 checkout, Code drafts are stored text; saving never executes them.
+  Separate Code Run execution requires `MLSTUDIO_CODE_EXECUTION_ENABLED=true` and
+  loopback peer/Host plus approved local Origin checks. Bind the backend to
+  `127.0.0.1`. Trusted Python can access anything allowed to the local user; isolated
+  working copies and path restrictions are not a sandbox. Process-tree cleanup is
+  best effort, not containment of deliberately detached children. There is no
+  interactive shell or filesystem-browsing API. Drafts/snapshots live in SQLite; recovery uses
+  memory/sessionStorage. Code can contain secrets: treat these stores and source
+  previews accordingly. Saved code snapshots are not execution records.
 - CSV uploads default to a 50 MiB source limit. Parsing, profiling and model fitting
   can use substantially more memory than the source size; there is no hard memory
   quota or guaranteed workload isolation. Use appropriately sized trusted data.

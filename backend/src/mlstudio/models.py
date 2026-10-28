@@ -8,10 +8,13 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     ForeignKeyConstraint,
+    Index,
     String,
+    Text,
     UniqueConstraint,
     event,
     inspect,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -92,6 +95,124 @@ class Dataset(Base):
     parsing_version: Mapped[str] = mapped_column(String(32), default="csv-utf8-v1")
     pandas_version: Mapped[str] = mapped_column(String(32))
     columns: Mapped[list[dict]] = mapped_column(JSON)
+
+
+class CodeDraft(Base):
+    """Editable text bound to preserved visual intent, never an execution."""
+
+    __tablename__ = "code_drafts"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','archived','discarded')", name="ck_code_draft_status"),
+        CheckConstraint("revision > 0 AND origin_revision > 0", name="ck_code_draft_revision"),
+        Index(
+            "uq_code_draft_active_project",
+            "project_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    origin_revision: Mapped[int]
+    origin_ir: Mapped[dict] = mapped_column(JSON)
+    baseline_source: Mapped[str] = mapped_column(Text)
+    baseline_sha256: Mapped[str] = mapped_column(String(71))
+    plan_sha256: Mapped[str] = mapped_column(String(71))
+    source: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    created_at: Mapped[str] = mapped_column(String(32), default=utc_now)
+    updated_at: Mapped[str] = mapped_column(String(32), default=utc_now)
+    revision: Mapped[int] = mapped_column(default=1)
+    __mapper_args__ = {"version_id_col": revision}
+
+
+class CodeSnapshot(Base):
+    __tablename__ = "code_snapshots"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    draft_id: Mapped[str] = mapped_column(
+        ForeignKey("code_drafts.id", ondelete="CASCADE"), index=True
+    )
+    source: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(String(71))
+    created_at: Mapped[str] = mapped_column(String(32), default=utc_now)
+
+
+class CodeRun(Base):
+    """Manual execution evidence; deliberately separate from visual Run protocols."""
+
+    __tablename__ = "code_runs"
+    __table_args__ = (
+        UniqueConstraint("project_id", "request_id", name="uq_code_run_request"),
+        CheckConstraint(
+            "status IN ('PENDING','RUNNING','COMPLETED','FAILED','CANCELLED')",
+            name="ck_code_run_status",
+        ),
+        Index(
+            "uq_code_run_active_project",
+            "project_id",
+            unique=True,
+            sqlite_where=text("status IN ('PENDING','RUNNING')"),
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    draft_id: Mapped[str] = mapped_column(ForeignKey("code_drafts.id", ondelete="CASCADE"))
+    snapshot_id: Mapped[str] = mapped_column(ForeignKey("code_snapshots.id", ondelete="CASCADE"))
+    request_id: Mapped[str] = mapped_column(String(36))
+    submitted_revision: Mapped[int]
+    source: Mapped[str] = mapped_column(Text)
+    source_sha256: Mapped[str] = mapped_column(String(71))
+    entrypoint: Mapped[str] = mapped_column(default="main.py")
+    artifact_directory: Mapped[str]
+    configuration: Mapped[dict] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    created_at: Mapped[str] = mapped_column(String(32), default=utc_now)
+    started_at: Mapped[str | None] = mapped_column(String(32))
+    finished_at: Mapped[str | None] = mapped_column(String(32))
+    duration_seconds: Mapped[float | None]
+    exit_code: Mapped[int | None]
+    error: Mapped[str | None]
+    cancel_requested: Mapped[bool] = mapped_column(default=False)
+    logs: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+@event.listens_for(CodeRun, "before_update")
+def protect_code_run(_mapper, _connection, run):
+    state = inspect(run)
+    changed = {attribute.key for attribute in state.attrs if attribute.history.has_changes()}
+    previous = state.attrs.status.history.deleted
+    old = previous[0] if previous else run.status
+    if old not in ("PENDING", "RUNNING") or changed - {
+        "status",
+        "started_at",
+        "finished_at",
+        "duration_seconds",
+        "exit_code",
+        "error",
+        "logs",
+        "cancel_requested",
+    }:
+        raise ValueError("Historical Code Run evidence is immutable.")
+
+
+@event.listens_for(CodeDraft, "before_update")
+def protect_code_origin(_mapper, _connection, draft):
+    state = inspect(draft)
+    changed = {attr.key for attr in state.attrs if attr.history.has_changes()}
+    old = state.attrs.status.history.deleted
+    if changed - {"source", "status", "updated_at", "revision"} or (
+        (old[0] if old else draft.status) != "active"
+    ):
+        raise ValueError("Code origin and ended sessions are immutable.")
+
+
+@event.listens_for(CodeSnapshot, "before_update")
+def protect_code_snapshot(_mapper, _connection, _snapshot):
+    raise ValueError("Code snapshots are immutable and are not Runs.")
 
 
 class Run(Base):

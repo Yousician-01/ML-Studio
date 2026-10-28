@@ -2,7 +2,10 @@
 
 **Status:** local binary-classification and regression workflows, including
 Explore, Prepare, Train, immutable Runs, Evaluate, read-only Code and local MLflow
-tracking. AI and editable Python are not implemented.
+tracking. The current v0.3 development checkout also adds editable Code Mode
+drafts, snapshots and opt-in managed Python execution with independent Code Runs.
+AI remains unimplemented. See [Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
+and [Phase 2A](development/v0.3-phase-2a-execution.md).
 [ADR 0001](decisions/0001-use-pipeline-ir.md) establishes Pipeline IR. The
 [frozen v0.1 specifications](specifications/project-v0.1.md) retain the legacy
 binary contract; the linked v0.2 phase documents describe the regression extension.
@@ -105,6 +108,10 @@ not authoritative domain state. See [frontend integration](development/v0.2-phas
 Local workloads inherit the current user's operating-system privileges. A separate
 subprocess, bounded logs, timeouts and restricted environment inheritance are
 **not a secure sandbox**. There is no authentication, multi-user isolation, cloud
-execution or arbitrary Python input. Models are trusted local joblib artifacts.
+execution service. Manual Python execution is a default-off, localhost-only Code
+Run boundary, not the visual Run API or a sandbox. Code drafts are stored text, with their
+own baseline, originating visual snapshot and optimistic revision; they never
+replace Working Pipeline IR or historical Run evidence. Active sessions guard
+visual writes until explicit snapshot-save/reentry or discard. Models remain trusted local joblib artifacts.
 No PostgreSQL, Docker, distributed queue or new service is needed. See
 [Security](../SECURITY.md) and [Development](development.md) for operational limits.

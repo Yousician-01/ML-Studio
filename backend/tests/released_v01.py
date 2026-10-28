@@ -482,11 +482,11 @@ def snapshot(settings):
         engine.dispose()
 
 
-def assert_preserved(before, after, *, objective_changed=False):
+def assert_preserved(before, after, *, objective_changed=False, added_tables=()):
     assert after["rows"] == before["rows"]
     assert after["files"] == before["files"]
     assert after["foreign_key_errors"] == before["foreign_key_errors"] == []
-    assert after["tables"] == before["tables"]
+    assert set(after["tables"]) == set(before["tables"]) | set(added_tables)
     old_schema, new_schema = deepcopy(before["schema"]), deepcopy(after["schema"])
     if objective_changed:
         del old_schema["projects"]["checks"]["ck_project_objective"]

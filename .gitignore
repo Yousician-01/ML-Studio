@@ -40,3 +40,4 @@ out/
 /workspace/
 /.mlstudio/
 /backend/dist/
+/frontend/public/monaco/
