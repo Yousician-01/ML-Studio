@@ -33,4 +33,6 @@ def upgrade():
 
 
 def downgrade():
-    raise CommandError("Restore a consistent backup; multiclass Projects cannot be downgraded.")
+    raise CommandError(
+        "Downgrade from multiclass Projects is refused. Restore a consistent backup."
+    )
