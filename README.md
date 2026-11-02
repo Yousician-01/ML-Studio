@@ -49,6 +49,25 @@ without rewriting retained SQLite metrics.
 
 ## Supported installation: source checkout only
 
+### Beta CLI installer and launcher
+
+The repository-based Rust CLI prepares and manages the existing FastAPI backend
+and production Next.js frontend as two independent loopback servers:
+
+```text
+mls install
+mls start
+```
+
+First bootstrap `mls` using the [CLI guide](docs/cli.md). Python/Node remain
+prerequisites; a source build also needs Rust. Prebuilt release assets are not
+published by this change. The guide covers storage compatibility, workspace
+backups, status/logs/abort/doctor, Code Mode opt-in and platform validation limits.
+Windows has local runtime acceptance; Linux/macOS lifecycle smoke is configured in
+CI and awaits platform results. Source/local-artifact bootstrap does not download
+release binaries or change PATH automatically.
+The manual developer setup below remains available.
+
 Verified environment: **Windows, Python 3.14.2, Node.js 24.13.0**, npm 11.6.2.
 Broader manifest ranges are compatibility declarations, not verified platforms.
 macOS/Linux and other runtime versions are not acceptance-verified. No Docker,
@@ -79,7 +98,7 @@ do not start a separate tracking service.
 
 **Existing workspace:** stop the backend and all workers, and back up SQLite and
 managed files together before running migrations. The new head is
-`0008_code_runs` (including the previous Code Draft/objective migrations).
+`0009_multiclass` (including the previous Code Draft/objective migrations).
 Downgrade across these revisions is refused; restore a
 consistent pre-upgrade backup for rollback. Keep the source checkout: migration
 discovery depends on it. The backend wheel is a packaging check, not a supported
