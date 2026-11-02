@@ -16,6 +16,10 @@ def validate_result_for_version(path, limit, plan, population, *, expected_sourc
     if not isinstance(runtime, dict):
         raise ExecutionFailure("result_invalid", "result")
     protocol = runtime.get("result_schema")
+    if version == "0.3" and protocol == "mlstudio-result-v3":
+        from mlstudio.execution.multiclass_results import validate_result
+
+        return validate_result(path, limit, plan, population)
     if version == "0.1" and protocol == "mlstudio-result-v1":
         try:
             EffectiveExecutionPlan.model_validate(plan)
@@ -31,7 +35,31 @@ def validate_result_for_version(path, limit, plan, population, *, expected_sourc
 
 def failure_stage_for_version(path, limit, plan):
     """Read only fixed structural stages, never child exception messages."""
-    if plan.get("plan_version") == "0.1":
+    if plan.get("plan_version") in ("0.1", "0.3"):
+        if plan.get("plan_version") == "0.3":
+            try:
+                result = strict_json(bounded_read(path, limit))
+                if (
+                    isinstance(result, dict)
+                    and result.get("schema_version") == "mlstudio-result-v3"
+                    and result.get("status") == "failed"
+                    and result.get("stage")
+                    in {
+                        "runtime_inputs",
+                        "data_loading",
+                        "target",
+                        "split",
+                        "training_partition_validation",
+                        "preprocessing",
+                        "training",
+                        "evaluation",
+                        "artifact_output",
+                    }
+                ):
+                    return result["stage"]
+            except (OSError, ValueError, TypeError, RecursionError):
+                pass
+            return "execution"
         return results.failure_stage(path, limit)
     try:
         result = strict_json(bounded_read(path, limit))

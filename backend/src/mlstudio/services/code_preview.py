@@ -26,6 +26,8 @@ def preview(session, project, settings):
     )
     if project.ml_objective == "regression":
         identity["generator"] = "mlstudio-python-v2"
+    elif project.ml_objective == "multiclass_classification":
+        identity["generator"] = "mlstudio-python-v3"
     try:
         ir = load_ir(project.working_pipeline, project.ml_objective)
     except ValueError:

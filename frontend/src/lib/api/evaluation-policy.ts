@@ -8,24 +8,29 @@ export const regressionMetrics: { key: Metric; label: string; direction: string 
  { key: "mae", label: "MAE", direction: "Lower is better" }, { key: "mse", label: "MSE", direction: "Lower is better" },
  { key: "rmse", label: "RMSE", direction: "Lower is better" }, { key: "r2", label: "R²", direction: "Higher is better" },
 ];
+export const multiclassMetrics: { key: Metric; label: string }[] = [
+ { key: "accuracy", label: "Accuracy" }, { key: "precision_macro", label: "Macro precision" }, { key: "recall_macro", label: "Macro recall" }, { key: "f1_macro", label: "Macro F1" }, { key: "precision_weighted", label: "Weighted precision" }, { key: "recall_weighted", label: "Weighted recall" }, { key: "f1_weighted", label: "Weighted F1" },
+];
 export const knownResult = (result: unknown): result is RunResult => {
  if (!result || typeof result !== "object") return false;
  const r = result as Partial<RunResult>;
- return Boolean(r.metrics && r.population && (r.schema_version === "mlstudio-result-v1" || (r.schema_version === "mlstudio-result-v2" && r.task === "regression")));
+ return Boolean(r.metrics && r.population && (r.schema_version === "mlstudio-result-v1" || (r.schema_version === "mlstudio-result-v2" && r.task === "regression") || (r.schema_version === "mlstudio-result-v3" && r.task === "multiclass_classification")));
 };
-export const resultMetrics = (result: RunResult) => result.schema_version === "mlstudio-result-v2" ? regressionMetrics : metrics;
+export const resultMetrics = (result: RunResult) => result.schema_version === "mlstudio-result-v3" ? multiclassMetrics : result.schema_version === "mlstudio-result-v2" ? regressionMetrics : metrics;
 export const metricValue = (result: RunResult | null | undefined, key: Metric) => knownResult(result) ? (result.metrics as Partial<Record<Metric, number | null>>)[key] : null;
 export const frozenModelName = (run: Run) => run.summary.model.estimator ?? run.summary.model.name ?? run.summary.model.type ?? "Unsupported model";
-export const runTask = (run: Run) => run.summary.task ?? (run.result?.schema_version === "mlstudio-result-v2" ? "regression" : "binary_classification");
+export const runTask = (run: Run) => run.summary.task ?? (run.result?.schema_version === "mlstudio-result-v3" ? "multiclass_classification" : run.result?.schema_version === "mlstudio-result-v2" ? "regression" : "binary_classification");
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
 // UI shape/version boundary only; never reconstruct or upgrade old evidence.
 export function supportedPlan(value: unknown): value is FrozenPlan {
-  if (!record(value) || !["0.1", "0.2"].includes(String(value.plan_version))) return false;
+  if (!record(value) || !["0.1", "0.2", "0.3"].includes(String(value.plan_version))) return false;
   const regression = value.plan_version === "0.2";
+  const multiclass = value.plan_version === "0.3";
   return value.ir_version === value.plan_version
-    && value.generator === (regression ? "mlstudio-python-v2" : "mlstudio-python-v1")
+    && value.generator === (multiclass ? "mlstudio-python-v3" : regression ? "mlstudio-python-v2" : "mlstudio-python-v1")
     && (!regression || value.task === "regression")
-    && record(value.runtime) && value.runtime.result_schema === (regression ? "mlstudio-result-v2" : "mlstudio-result-v1")
+    && (!multiclass || value.task === "multiclass_classification")
+    && record(value.runtime) && value.runtime.result_schema === (multiclass ? "mlstudio-result-v3" : regression ? "mlstudio-result-v2" : "mlstudio-result-v1")
     && record(value.source) && record(value.target) && record(value.split)
     && record(value.implementation) && record(value.implementation.libraries) && record(value.evaluation)
     && Array.isArray(value.features) && value.features.every(feature => record(feature)
@@ -74,17 +79,19 @@ export function compareContext(projectId: string, runs: Run[]) {
     const plan = run.execution_plan;
     if (!knownResult(run.result) || !supportedPlan(plan)) return false;
     const regression = run.result.schema_version === "mlstudio-result-v2";
-    return plan.plan_version === (regression ? "0.2" : "0.1")
-      && plan.ir_version === (regression ? "0.2" : "0.1")
-      && plan.generator === (regression ? "mlstudio-python-v2" : "mlstudio-python-v1")
+    const multiclass = run.result.schema_version === "mlstudio-result-v3";
+    return plan.plan_version === (multiclass ? "0.3" : regression ? "0.2" : "0.1")
+      && plan.ir_version === plan.plan_version
+      && plan.generator === (multiclass ? "mlstudio-python-v3" : regression ? "mlstudio-python-v2" : "mlstudio-python-v1")
       && plan.runtime.result_schema === run.result.schema_version
-      && (!regression || (plan.task === "regression" && run.summary.task === "regression"));
+      && (!regression || (plan.task === "regression" && run.summary.task === "regression"))
+      && (!multiclass || (plan.task === "multiclass_classification" && run.summary.task === "multiclass_classification"));
   };
   check(runs.every(coherent), "Frozen task, plan, generator or result protocol is unsupported or inconsistent.");
   check(!integrityProblems(a).length && !integrityProblems(b).length, "Artifact integrity is compromised or unavailable; metric deltas are excluded.");
   check(runTask(a) === runTask(b), "Tasks differ; classification and regression cannot be compared.");
   check(same(a.summary.dataset_fingerprint, b.summary.dataset_fingerprint), "Dataset fingerprints differ or are unavailable.");
-  check(same(a.summary.target, b.summary.target) && (runTask(a) === "regression" && runTask(b) === "regression" || (a.result?.schema_version === "mlstudio-result-v1" && b.result?.schema_version === "mlstudio-result-v1" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels))), "Target or typed positive/negative class orientation differs.");
+  check(same(a.summary.target, b.summary.target) && ((runTask(a) === "regression" && runTask(b) === "regression") || (a.result?.schema_version === "mlstudio-result-v3" && b.result?.schema_version === "mlstudio-result-v3" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels)) || (a.result?.schema_version === "mlstudio-result-v1" && b.result?.schema_version === "mlstudio-result-v1" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels))), "Target or typed positive/negative class orientation differs.");
   const pa = a.execution_plan, pb = b.execution_plan;
   check(same(pa?.source, pb?.source) && same(pa?.target, pb?.target), "Frozen source/target interpretation differs or is unavailable.");
   check(same(pa?.split, pb?.split), "Frozen test size, seed or stratification differs or is unavailable.");
@@ -96,7 +103,7 @@ export function compareContext(projectId: string, runs: Run[]) {
     return { mlstudio: run.provenance.mlstudio, plan: plan.plan_version, ir: plan.ir_version, runtime: plan.runtime.version, generator: plan.generator, executor: run.provenance.executor, implementation: plan.implementation.version, python: plan.implementation.python, libraries };
   };
   check(same(versions(a), versions(b)), "Relevant generation, parsing, splitting or metric implementation versions differ or are unavailable.");
-  const support = (run: Run) => run.result?.schema_version === "mlstudio-result-v1" ? run.result.confusion_matrix.values.map(row => row[0] + row[1]) : "numeric target";
+  const support = (run: Run) => run.result && run.result.schema_version !== "mlstudio-result-v2" ? run.result.confusion_matrix.values.map(row => row.reduce((sum, value) => sum + value, 0)) : "numeric target";
   check(same(a.result?.population, b.result?.population) && same(support(a), support(b)), "Held-out population counts or class support differ or are unavailable.");
   check(same(pa?.evaluation, pb?.evaluation) && same(pa?.runtime?.result_schema, pb?.runtime?.result_schema) && same(a.result?.schema_version, b.result?.schema_version), "Metric definitions or result protocols differ or are unavailable.");
   const notes = ["Matching context supports the deterministic split contract; it does not independently prove identical held-out row membership."];

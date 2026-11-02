@@ -102,7 +102,7 @@ class CorrelationProfile(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    task: Literal["binary_classification"] = "binary_classification"
+    task: Literal["binary_classification", "multiclass_classification"] = "binary_classification"
     dataset_id: str
     revision: int
     fingerprint: str

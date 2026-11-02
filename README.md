@@ -2,7 +2,7 @@
 
 **Visual ML. Real code. Reproducible experiments.**
 
-ML Studio **0.2.0** is an open-source, local-first workspace for binary
+ML Studio is an open-source, local-first workspace for binary/multiclass
 classification and regression. Inspect a CSV, configure explicit preparation and
 a model, review generated Python, and run a reproducible local experiment.
 The generated preview is read-only; its source is the actual visual-workflow
@@ -16,6 +16,11 @@ sandbox. See [editor behavior](docs/development/v0.3-phase-1-code-mode.md) and
 [Phase 2B reporting](docs/development/v0.3-phase-2b-evaluation.md) connects Code Runs
 to Evaluate through immutable, bounded structured outputs.
 Release metadata remains 0.2.0 until release finalization.
+
+**v0.4 development:** explicit multiclass Projects reuse the visual and Code Mode
+workflows, existing classifiers, and shared Evaluate bench. Results include macro/
+weighted metrics, per-class metrics and a typed N×N confusion matrix. See
+[multiclass setup and limits](docs/development.md#multiclass-classification-v04).
 
 ## What is implemented
 

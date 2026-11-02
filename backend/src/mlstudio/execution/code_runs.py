@@ -186,7 +186,12 @@ class CodeExecutor:
                 "timeout_seconds": self.settings.run_timeout_seconds,
                 "log_bytes": self.settings.run_log_bytes,
                 "saved_draft_revision": draft.revision,
-                "reporting": {"schema_version": code_runtime.SCHEMA, "task": project.ml_objective},
+                "reporting": {
+                    "schema_version": code_runtime.MULTICLASS_SCHEMA
+                    if project.ml_objective == "multiclass_classification"
+                    else code_runtime.SCHEMA,
+                    "task": project.ml_objective,
+                },
             }
             write_evidence(
                 root / "execution.json", {"arguments": arguments, "process": None, "children": []}

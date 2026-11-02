@@ -68,7 +68,7 @@ export function Explore({ projectId, dataset, onReload, task = "binary_classific
     if (!id || revision === undefined || task === "regression") return;
     const controller = new AbortController();
     api.profile(projectId, { id, revision }, offset, controller.signal, filters).then(value => {
-      if (!controller.signal.aborted) { if (value.task !== "binary_classification") throw new Error("Profile task changed. Reload the workspace."); setProfile(value); setLoading(false); setError(""); }
+      if (!controller.signal.aborted) { if (value.task !== task) throw new Error("Profile task changed. Reload the workspace."); setProfile(value); setLoading(false); setError(""); }
     }).catch((err: unknown) => {
       if (!controller.signal.aborted) { setError(err instanceof Error ? err.message : "Explore unavailable."); setLoading(false); }
     });
@@ -102,8 +102,8 @@ export function Explore({ projectId, dataset, onReload, task = "binary_classific
         {profile.target ? <>
           <Bars label="Class proportions" data={profile.target.classes.map(f => ({ label: displayScalar(f.value, true), count: f.count, percentage: f.percentage }))} percentScale />
           <p className="muted">{profile.target.non_missing_count.toLocaleString()} non-missing targets · {profile.target.missing_count.toLocaleString()} missing. Percentages exclude missing targets.</p>
-          <p className="positive-class">Positive class: <strong>{profile.target.positive_class ? `${String(profile.target.positive_class.value)} (${profile.target.positive_class.value_type})` : "Not configured in Prepare"}</strong></p>
-        </> : <EmptyState title="No target selected">Other source analysis remains available. Select exactly two non-missing classes in Data.</EmptyState>}
+          {task === "binary_classification" && <p className="positive-class">Positive class: <strong>{profile.target.positive_class ? `${String(profile.target.positive_class.value)} (${profile.target.positive_class.value_type})` : "Not configured in Prepare"}</strong></p>}
+        </> : <EmptyState title="No target selected">Other source analysis remains available. Select {task === "multiclass_classification" ? "3–50 classes without missing labels" : "exactly two non-missing classes"} in Data.</EmptyState>}
       </Panel>
       <Panel title="Data quality" description="Factual observations across all source columns.">
         <div id="source-quality" className="quality-indicators">{qualityFilters.map(([label, count, observation]) => <button key={label} aria-pressed={filters.observation === observation} onClick={() => { filter({ observation, kind: "all", query: "" }); setDraftQuery(""); document.getElementById("source-columns")?.scrollIntoView(); }}><strong>{count}</strong><span>{label}</span></button>)}</div>
@@ -133,7 +133,7 @@ export function Explore({ projectId, dataset, onReload, task = "binary_classific
           {column ? <ColumnDetail key={column.name} column={column} /> : <EmptyState title="No matching columns">Change the search or filters to inspect other columns.</EmptyState>}
         </div>
         <div className="actions eda-pagination"><Button disabled={offset === 0} onClick={() => { setOffset(Math.max(0, offset - 20)); setSelected(0); setLoading(true); }}>Previous columns</Button><Button disabled={offset + profile.column_limit >= profile.filtered_column_count} onClick={() => { setOffset(offset + 20); setSelected(0); setLoading(true); }}>Next columns</Button></div>
-        <details><summary>Schema table for this page</summary><div className="table-scroll"><table><thead><tr>{["Column", "Physical", "Detected", "Override", "Effective", "Role", "Distinct", "Missing %"].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{profile.columns.map(c => <tr key={c.name}><th>{c.name}</th><td>{c.physical_dtype}</td><td>{c.inferred_semantic_type}</td><td>{c.semantic_override ?? "None"}</td><td>{c.semantic_type}</td><td>{c.role}</td><td>{c.distinct_count}</td><td>{percentage(c.missing_percentage)}</td></tr>)}</tbody></table></div></details>
+        <details><summary>Schema table for this page</summary><div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table><thead><tr>{["Column", "Physical", "Detected", "Override", "Effective", "Role", "Distinct", "Missing %"].map(t => <th key={t}>{t}</th>)}</tr></thead><tbody>{profile.columns.map(c => <tr key={c.name}><th>{c.name}</th><td>{c.physical_dtype}</td><td>{c.inferred_semantic_type}</td><td>{c.semantic_override ?? "None"}</td><td>{c.semantic_type}</td><td>{c.role}</td><td>{c.distinct_count}</td><td>{percentage(c.missing_percentage)}</td></tr>)}</tbody></table></div></details>
       </>}
     </section>
     <section id="source-relationships" className="panel"><h2>Relationships</h2><p className="muted">Pearson correlation · first {profile.correlation.columns.length} of {profile.correlation.eligible_count} continuous numeric feature candidates (maximum {profile.correlation.column_limit}). Target and excluded features are omitted. Each pair uses its non-missing observations.</p><Heatmap correlation={profile.correlation} /></section>

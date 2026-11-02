@@ -114,8 +114,8 @@ def synchronize(settings, sessions, run_id):
         plan = strict_json(bounded_read(verify(settings.home, plan_ref), plan_ref["size_bytes"]))
         resolved = load_plan(plan)
         regression = resolved.plan_version == "0.2"
-        if regression:
-            tags["mlstudio.task"] = "regression"
+        if resolved.plan_version in ("0.2", "0.3"):
+            tags["mlstudio.task"] = resolved.task
             tags["mlstudio.result_schema"] = resolved.runtime.result_schema
         external_id = run.mlflow_run_id
         if external_id:
@@ -154,8 +154,10 @@ def synchronize(settings, sessions, run_id):
             **{f"split.{k}": canonical(v).decode() for k, v in plan["split"].items()},
             "target": plan["target"]["column"],
         }
-        if not regression:
+        if resolved.plan_version == "0.1":
             params["positive_class"] = canonical(plan["target"]["positive_class"]).decode()
+        elif resolved.plan_version == "0.3":
+            params["class_count"] = str(len(plan["target"]["classes"]))
         params["preprocessing"] = canonical(
             [
                 {"name": feature["name"], "operations": feature["operations"]}

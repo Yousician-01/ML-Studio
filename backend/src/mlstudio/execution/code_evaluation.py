@@ -1,6 +1,6 @@
 """Freeze bounded Code reporting after process cleanup; read historical bytes only."""
 
-from mlstudio.code_runtime import MAX_BYTES, SCHEMA, validate_report
+from mlstudio.code_runtime import MAX_BYTES, MULTICLASS_SCHEMA, SCHEMA, validate_report
 from mlstudio.execution.artifacts import (
     bounded_read,
     reference,
@@ -29,7 +29,7 @@ def finalize(settings, run):
         write_new(path, data)
         return {
             "status": "available",
-            "schema_version": SCHEMA,
+            "schema_version": report["schema_version"],
             "artifact": reference(settings.home, path, MAX_BYTES),
         }
     except (
@@ -56,13 +56,18 @@ def evaluation(settings, run):
     try:
         path = verify(settings.home, evidence["artifact"])
         expected = f"{run.artifact_directory}/evaluation.json"
-        if evidence["artifact"]["path"] != expected or evidence["schema_version"] != SCHEMA:
+        if evidence["artifact"]["path"] != expected or evidence["schema_version"] not in (
+            SCHEMA,
+            MULTICLASS_SCHEMA,
+        ):
             raise ValueError("Unexpected reporting artifact.")
         from mlstudio.execution.code_runs import response
 
         if response(settings, run, include_source=False).source_integrity != "verified":
             raise ValueError("Source integrity failed.")
         report = strict_json(bounded_read(path, MAX_BYTES))
+        if report["schema_version"] != evidence["schema_version"]:
+            raise ValueError("Reporting schema changed.")
         validate_report(report, run.configuration.get("reporting", {}).get("task"))
         return {"status": "available", "report": report}
     except (

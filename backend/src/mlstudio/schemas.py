@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 SemanticType = Literal[
     "continuous", "categorical", "binary", "datetime", "identifier", "text", "unknown"
 ]
-ProjectTask = Literal["binary_classification", "regression"]
+ProjectTask = Literal["binary_classification", "regression", "multiclass_classification"]
 
 
 class LosslessInteger(BaseModel):

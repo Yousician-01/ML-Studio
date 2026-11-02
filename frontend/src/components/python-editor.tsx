@@ -15,5 +15,5 @@ export default function PythonEditor({ value, readOnly, onChange }: { value: str
   return <Editor height="65vh" language="python" value={value}
     loading={<p role="status">Loading local Python editor…</p>}
     onChange={next => onChange(next ?? "")}
-    options={{ readOnly, automaticLayout: true, lineNumbers: "on", minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, ariaLabel: "Editable Python source", tabSize: 4 }} />;
+    options={{ readOnly, automaticLayout: true, lineNumbers: "on", minimap: { enabled: false }, fontSize: 13, lineHeight: 23, padding: { top: 16, bottom: 16 }, fontFamily: "Cascadia Code, Consolas, monospace", scrollBeyondLastLine: false, ariaLabel: "Editable Python source", tabSize: 4 }} />;
 }

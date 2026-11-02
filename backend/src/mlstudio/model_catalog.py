@@ -102,13 +102,15 @@ BUILTINS = (
 
 
 def entries(task):
+    if task == "multiclass_classification":
+        return entries("binary_classification")
     if task not in {"binary_classification", "regression"}:
         raise ValueError("Unsupported model catalogue task.")
     return tuple(entry for entry in BUILTINS if entry.task == task)
 
 
 def model_catalogue(task):
-    return [entry.descriptor() for entry in entries(task)]
+    return [entry.descriptor().model_copy(update={"task": task}) for entry in entries(task)]
 
 
 def model_defaults(task):
@@ -159,4 +161,18 @@ def model_parameter_issues(model, task):
                     field=f"model.parameters.{name}",
                 )
             )
+    if (
+        task == "multiclass_classification"
+        and model.type == "logistic_regression"
+        and model.parameters.penalty == "l1"
+    ):
+        issues.append(
+            PipelineIssue(
+                scope="train",
+                code="model_multiclass_penalty",
+                field="model.parameters.penalty",
+                message="Multiclass Logistic Regression requires l2; "
+                "the existing l1/liblinear configuration is binary-only.",
+            )
+        )
     return issues

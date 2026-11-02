@@ -1,6 +1,6 @@
 import type { Column, ProjectTask } from "./projects";
 import type { ParameterSchema, SplitIntent, PipelineIssue } from "./pipelines";
-export const taskLabel = (task?: ProjectTask) => task === "regression" ? "Regression" : "Binary Classification";
+export const taskLabel = (task?: ProjectTask) => task === "regression" ? "Regression" : task === "multiclass_classification" ? "Multiclass Classification" : "Binary Classification";
 // A hint only: the backend validates finite observed values and lossless conversion.
 export const numericTargetCandidate = (column: Pick<Column, "physical_dtype">) => /^(u?int|float)\d+$/i.test(column.physical_dtype);
 export function editedSplit(source: SplitIntent, parsed: Record<string, number | string | boolean | null>): SplitIntent {
@@ -10,10 +10,10 @@ export function editedSplit(source: SplitIntent, parsed: Record<string, number |
     ...(Object.hasOwn(source, "stratify") ? { stratify: parsed.stratify as boolean | null } : {}),
   };
 }
-export function readinessGroups(issues: PipelineIssue[], regression: boolean): [string, PipelineIssue[]][] {
+export function readinessGroups(issues: PipelineIssue[], regression: boolean, multiclass = false): [string, PipelineIssue[]][] {
   const groups: [string, PipelineIssue[]][] = [
     ["Dataset binding", issues.filter(i => i.scope === "pipeline" && i.code.startsWith("dataset"))],
-    [regression ? "Numeric target" : "Target & positive class", issues.filter(i => i.scope === "target" || i.field?.startsWith("target."))],
+    [regression ? "Numeric target" : multiclass ? "Target & class universe" : "Target & positive class", issues.filter(i => i.scope === "target" || i.field?.startsWith("target."))],
     ["Features & preparation", issues.filter(i => i.scope === "feature" || i.column !== null || i.code === "features_empty")],
     ["Data split", issues.filter(i => i.field?.startsWith("split"))],
     ["Model", issues.filter(i => i.field?.startsWith("model"))],

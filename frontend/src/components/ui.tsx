@@ -7,6 +7,7 @@ import {
   type ButtonHTMLAttributes,
   type ReactNode,
 } from "react";
+import { Icon } from "./icons";
 
 export function Button({
   variant = "secondary",
@@ -64,7 +65,8 @@ export function Alert({
       className={`alert alert-${tone}`}
       role={tone === "error" ? "alert" : "status"}
     >
-      {children}
+      <Icon name={tone === "error" ? "warning" : tone === "success" ? "check" : "info"} />
+      <div className="alert-content">{children}</div>
     </div>
   );
 }
@@ -77,6 +79,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
+      <span className="empty-state-icon"><Icon name="projects" width="24" height="24" /></span>
       <h3>{title}</h3>
       <div className="muted">{children}</div>
     </div>
@@ -140,8 +143,8 @@ export function Dialog({
     >
       <div className="dialog-heading">
         <h2 id={titleId}>{title}</h2>
-        <Button autoFocus disabled={busy} onClick={onClose}>
-          Close
+        <Button autoFocus disabled={busy} onClick={onClose} aria-label={`Close ${title}`}>
+          <Icon name="close" />
         </Button>
       </div>
       {children}

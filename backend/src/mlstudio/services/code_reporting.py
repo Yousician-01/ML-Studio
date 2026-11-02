@@ -10,7 +10,7 @@ from mlstudio.services.code_drafts import writable
 
 def proposal(session, project, draft_id, body):
     draft = writable(session, project.id, draft_id, body.revision)
-    task = "regression" if draft.origin_ir.get("task") == "regression" else "binary_classification"
+    task = draft.origin_ir.get("task", "binary_classification")
     example = (
         "from mlstudio_runtime import report_regression\n"
         "report_regression(y_true=your_test_targets, y_pred=your_predictions)"
@@ -29,6 +29,12 @@ def proposal(session, project, draft_id, body):
         "No automatic change is proposed. Add the example after producing "
         "test predictions, using your own variables and typed class order.",
     }
+    if task == "multiclass_classification":
+        result["example"] = (
+            "from mlstudio_runtime import report_classification\n"
+            "report_classification(y_true=your_test_targets, y_pred=your_predictions, "
+            "labels=your_sorted_classes)"
+        )
     try:
         tree = ast.parse(body.source)
         calls = {"report_classification", "report_regression"}

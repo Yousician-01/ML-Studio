@@ -8,6 +8,8 @@ import { taskLabel } from "@/lib/api/task-policy";
 import { ProjectForm } from "./project-form";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, EmptyState, Loading } from "./ui";
+import { AppShell } from "./app-shell";
+import { Icon } from "./icons";
 
 export function Projects() {
   const router = useRouter();
@@ -29,19 +31,20 @@ export function Projects() {
     return () => controller.abort();
   }, [attempt]);
   return (
-    <main>
+    <AppShell><main id="main-content" tabIndex={-1}>
       <div className="page-heading">
         <div>
           <p className="eyebrow">Workspace</p>
           <h1>Projects</h1>
           <p className="muted">
-            Your prediction problems, source data, and working context.
+            A home for your data, pipelines and reproducible experiments.
           </p>
         </div>
         <Button variant="primary" onClick={() => setCreating(true)}>
-          New Project
+          <Icon name="plus" />New Project
         </Button>
       </div>
+      <section className="projects-intro" aria-label="Getting started"><Icon name="prepare" /><div><h2>From a dataset to a reproducible experiment</h2><p>Start with a prediction problem. Keep the data, decisions and exact code together.</p></div><div className="intro-flow" aria-hidden="true"><span>Data</span><Icon name="arrow" /><span>Prepare</span><Icon name="arrow" /><span>Train</span><Icon name="arrow" /><span>Evaluate</span></div></section>
       {error && (
         <Alert>
           {error}
@@ -62,19 +65,18 @@ export function Projects() {
           <EmptyState title="Start with a prediction problem">
             <p>Create a Project, bring a CSV, and explore the source.</p>
             <Button variant="primary" onClick={() => setCreating(true)}>
-              Create your first Project
+              <Icon name="plus" />Create your first Project
             </Button>
+            <ol className="onboarding-steps"><li><span>01</span>Upload CSV</li><li><span>02</span>Set your target</li><li><span>03</span>Build & train</li><li><span>04</span>Evaluate & inspect code</li></ol>
           </EmptyState>
         </section>
       ) : (
-        <section className="panel project-surface" aria-label="Projects">
-          <div className="list-heading">
-            <span>Project / prediction problem</span>
-            <span>Last updated</span>
-          </div>
+        <section className="project-surface" aria-label="Projects">
+          <div className="collection-heading"><h2>Your projects</h2><span>{projects.length}</span></div>
           <ul className="project-list">
             {projects.map((project) => (
               <li key={project.id}>
+                <div className="project-card-top"><span className="project-monogram" aria-hidden="true">{project.name.slice(0, 1).toUpperCase()}</span><span className="badge">{taskLabel(project.ml_objective)}</span></div>
                 <div className="project-context">
                   <Link
                     className="project-name"
@@ -87,7 +89,6 @@ export function Projects() {
                     <small className="muted">{project.description}</small>
                   )}
                   <div>
-                    <span className="badge">{taskLabel(project.ml_objective)}</span>
                     <span className="badge subtle">
                       {project.active_dataset_id
                         ? "Dataset attached"
@@ -97,14 +98,14 @@ export function Projects() {
                 </div>
                 <div className="project-actions">
                   <time dateTime={project.updated_at}>
-                    {new Date(project.updated_at).toLocaleDateString()}
+                    Updated {new Date(project.updated_at).toLocaleDateString()}
                   </time>
                   <div className="actions">
                     <Link
                       className="button button-secondary"
                       href={`/projects/${project.id}`}
                     >
-                      Open
+                      Open Project<Icon name="arrow" width="14" height="14" />
                     </Link>
                     <Button
                       variant="danger"
@@ -144,6 +145,6 @@ export function Projects() {
           }}
         />
       )}
-    </main>
+    </main></AppShell>
   );
 }

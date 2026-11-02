@@ -82,7 +82,13 @@ def constructor(spec, indent=8):
 
 def generate(plan: EffectiveExecutionPlan) -> str:
     # Revalidate serialized input; no database, source loading, or default resolution here.
-    plan = EffectiveExecutionPlan.model_validate(plan.model_dump())
+    multiclass = plan.plan_version == "0.3"
+    if multiclass:
+        from mlstudio.codegen.multiclass import MulticlassPlan
+
+        plan = MulticlassPlan.model_validate(plan.model_dump())
+    else:
+        plan = EffectiveExecutionPlan.model_validate(plan.model_dump())
     names = sorted({plan.model.name} | {op.name for f in plan.features for op in f.operations})
     imports = sorted(
         set(
@@ -113,8 +119,14 @@ def generate(plan: EffectiveExecutionPlan) -> str:
         f"LIBRARIES = {literal(plan.implementation.libraries)}",
         f"PYTHON_VERSION = {literal(plan.implementation.python)}",
         f"TARGET = {literal(plan.target.column)}",
-        f"POSITIVE_CLASS = {literal(scalar_value(plan.target.positive_class))}",
-        f"NEGATIVE_CLASS = {literal(scalar_value(plan.target.negative_class))}",
+        *(
+            [f"CLASSES = {literal([scalar_value(c) for c in plan.target.classes])}"]
+            if multiclass
+            else [
+                f"POSITIVE_CLASS = {literal(scalar_value(plan.target.positive_class))}",
+                f"NEGATIVE_CLASS = {literal(scalar_value(plan.target.negative_class))}",
+            ]
+        ),
         f"FEATURES = {literal([f.name for f in plan.features])}",
         f"PHYSICAL_DTYPES = {literal(physical)}",
         "",
@@ -139,12 +151,19 @@ def generate(plan: EffectiveExecutionPlan) -> str:
         "               for name, dtype in PHYSICAL_DTYPES.items()):",
         "            raise ValueError('Source interpretation differs from the resolved plan.')",
         "        stage = 'target'",
-        "        eligible = frame.loc[frame[TARGET].notna()]",
+        "        eligible = frame"
+        if multiclass
+        else "        eligible = frame.loc[frame[TARGET].notna()]",
         "        y = eligible[TARGET]",
         "        if lossy_nullable_integers(y):",
         "            raise WorkloadValidationError(",
         "                'Unsupported nullable integer target precision.')",
-        "        validate_target(y, scalar_record(POSITIVE_CLASS), scalar_record(NEGATIVE_CLASS))",
+        "        validate_multiclass_target(y, CLASSES)"
+        if multiclass
+        else (
+            "        validate_target(y, scalar_record(POSITIVE_CLASS), "
+            "scalar_record(NEGATIVE_CLASS))"
+        ),
         "        X = eligible[FEATURES]",
         "",
         "        # Split before fitting any imputation, scaling, or category vocabulary.",
@@ -157,7 +176,9 @@ def generate(plan: EffectiveExecutionPlan) -> str:
         "            shuffle=True,",
         "        )",
         "        stage = 'training_partition_validation'",
-        "        validate_training_partition(X_train, y_train)",
+        "        validate_multiclass_partition(X_train, y_train, y_test, CLASSES)"
+        if multiclass
+        else "        validate_training_partition(X_train, y_train)",
         "",
         "        # One branch per included feature, in immutable source-column order.",
         "        stage = 'preprocessing'",
@@ -239,4 +260,56 @@ def generate(plan: EffectiveExecutionPlan) -> str:
             "",
         ]
     )
+    if multiclass:
+        # Only the new generator's helper/result portions differ. The training
+        # pipeline, constructors and split remain the shared classification path.
+        from mlstudio import code_runtime
+        from mlstudio.codegen.multiclass_runtime import HELPERS
+
+        source = files("mlstudio").joinpath("code_runtime.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+        selected = {
+            "_number",
+            "_fields",
+            "_scalar",
+            "_arrays",
+            "multiclass_labels",
+            "multiclass_evaluation",
+        }
+        helpers = "\n\n".join(
+            ast.get_source_segment(source, node)
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name in selected
+        )
+        insertion = lines.index("def main():")
+        lines[insertion:insertion] = [
+            f"MAX_SAMPLES = {code_runtime.MAX_SAMPLES}",
+            helpers,
+            HELPERS,
+            "",
+        ]
+        start = lines.index("        metrics, matrix, auc_reason = evaluate_predictions(")
+        end = lines.index("        json.dumps(result, allow_nan=False)", start)
+        lines[start:end] = [
+            "        evaluation = multiclass_evaluation(y_test, predictions, CLASSES)",
+            "        result = {",
+            "            **evaluation, 'schema_version': 'mlstudio-result-v3', "
+            "'status': 'success',",
+            "            'dataset': {'dataset_id': DATASET_ID, "
+            "'fingerprint': DATASET_FINGERPRINT},",
+            "            'generator': 'mlstudio-python-v3',",
+            "            'population': {'source': len(frame), 'eligible': len(y), "
+            "'training': len(y_train), 'test': len(y_test)},",
+            "            'artifacts': {'model': {'kind': 'complete_pipeline', "
+            "'filename': model_path.name}},",
+            "            'versions': {'python': PYTHON_VERSION, **LIBRARIES},",
+            "        }",
+        ]
+        lines = [
+            line.replace(
+                "failure = {'schema_version': 'mlstudio-result-v1',",
+                "failure = {'schema_version': 'mlstudio-result-v3',",
+            )
+            for line in lines
+        ]
     return "\n".join(lines).replace("\r\n", "\n")

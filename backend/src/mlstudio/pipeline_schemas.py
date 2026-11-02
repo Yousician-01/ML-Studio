@@ -169,8 +169,23 @@ class RegressionPipelineIR(InputModel):
     split: RegressionSplitIntent | None = None
 
 
+class MulticlassTargetIntent(InputModel):
+    column: str
+    missing_value_policy: Literal["reject"] = "reject"
+
+
+class MulticlassPipelineIR(InputModel):
+    ir_version: Literal["0.3"] = "0.3"
+    task: Literal["multiclass_classification"] = "multiclass_classification"
+    dataset: DatasetBinding | None = None
+    target: MulticlassTargetIntent | None = None
+    features: dict[str, FeatureIntent] = Field(default_factory=dict)
+    model: ModelIntent | None = None
+    split: SplitIntent | None = None
+
+
 VersionedPipelineIR = Annotated[
-    PipelineIR | RegressionPipelineIR, Field(discriminator="ir_version")
+    PipelineIR | RegressionPipelineIR | MulticlassPipelineIR, Field(discriminator="ir_version")
 ]
 
 
@@ -182,6 +197,8 @@ def load_ir(payload: dict, objective: ProjectTask) -> PipelineIR | RegressionPip
         return PipelineIR.model_validate(payload)
     if objective == "regression" and payload.get("ir_version") == "0.2":
         return RegressionPipelineIR.model_validate(payload)
+    if objective == "multiclass_classification" and payload.get("ir_version") == "0.3":
+        return MulticlassPipelineIR.model_validate(payload)
     raise ValueError("Pipeline version/task does not match the Project objective.")
 
 

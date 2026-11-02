@@ -5,15 +5,17 @@ from copy import deepcopy
 
 def empty_pipeline(objective="binary_classification") -> dict:
     ir = {
-        "ir_version": "0.2" if objective == "regression" else "0.1",
+        "ir_version": {"regression": "0.2", "multiclass_classification": "0.3"}.get(
+            objective, "0.1"
+        ),
         "dataset": None,
         "target": None,
         "features": {},
         "model": None,
         "split": None,
     }
-    if objective == "regression":
-        ir["task"] = "regression"
+    if objective != "binary_classification":
+        ir["task"] = objective
     return ir
 
 
@@ -34,10 +36,15 @@ def initialize(dataset, target: str | None, excluded=(), objective="binary_class
 def target_intent(column, objective="binary_classification"):
     if column is None:
         return None
-    intent = {"column": column, "missing_value_policy": "exclude_rows"}
+    intent = {
+        "column": column,
+        "missing_value_policy": "reject"
+        if objective == "multiclass_classification"
+        else "exclude_rows",
+    }
     if objective == "regression":
         intent["value_type"] = "numeric"
-    else:
+    elif objective == "binary_classification":
         intent["positive_class"] = None
     return intent
 

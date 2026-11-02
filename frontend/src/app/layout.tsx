@@ -12,20 +12,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div className="shell">
-          <header>
-            <span className="mark" aria-hidden="true">
-              M
-            </span>
-            <span>ML Studio</span>
-            <span className="local">Local workspace</span>
-          </header>
-          {children}
-          <footer>
-            ML Studio{" "}
-            <span>Visual ML. Real code. Reproducible experiments.</span>
-          </footer>
-        </div>
+        {children}
       </body>
     </html>
   );
