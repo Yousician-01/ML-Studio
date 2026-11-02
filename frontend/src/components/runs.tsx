@@ -1,4 +1,5 @@
 "use client";
+import { OpenCodeButton } from "./open-code-button";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -62,7 +63,7 @@ function RunList({ projectId }: { projectId: string }) {
   }, [projectId, offset, attempt]);
   function refresh() { setError(""); setPage(null); setAttempt(value => value + 1); }
   return <Panel title="Runs" description="Immutable experiment history · newest first" action={<Button onClick={refresh}>Refresh history</Button>}>
-    <div className="source-context"><span className="badge subtle">Visual Runs</span><Link href={`/projects/${projectId}?view=code`}>Open Code Run history</Link></div>
+    <div className="source-context"><span className="badge subtle">Visual Runs</span><OpenCodeButton history>Open Code Run history</OpenCodeButton></div>
     {error ? <Alert>{error}<Button onClick={refresh}>Retry</Button></Alert> : !page || page.offset !== offset ? <Loading>Loading experiment history…</Loading> : page.items.length === 0 ? <EmptyState title="No Runs yet">Configure a saved experiment in <Link href={`/projects/${projectId}?view=train`}>Train</Link> to create your first historical Run.</EmptyState> : <>
       <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="run-ledger"><caption className="sr-only">Historical Runs</caption><thead><tr><th>Run</th><th>Status</th><th>Experiment</th><th>Created</th><th>Held-out metric</th><th>Tracking</th></tr></thead><tbody>{page.items.map(run => <tr key={run.id}><th scope="row"><Link href={runHref(projectId, run.id)}>#{run.sequence}</Link></th><td><RunStatus run={run} /></td><td><strong>{frozenModelName(run)}</strong><small>{taskLabel(runTask(run))}</small><small>Target: {run.summary.target.column}</small><small title={run.dataset_id}>Dataset {run.dataset_id.slice(0, 8)}</small></td><td>{date(run.created_at)}</td><td>{run.result_error ? "Unsupported protocol" : run.state === "SUCCEEDED" && run.result ? knownResult(run.result) ? (run.result.schema_version === "mlstudio-result-v2" ? `RMSE ${metricText(run.result.metrics.rmse)}` : `Accuracy ${metricText(run.result.metrics.accuracy)}`) : "Unsupported protocol" : "—"}</td><td>{run.tracking_status === "SYNCHRONIZED" ? "Synchronized" : run.tracking_status === "FAILED" ? "Tracking failed" : "Not yet synchronized"}</td></tr>)}</tbody></table></div>
       <div className="actions run-pagination"><Button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 20))}>Previous</Button><span>{offset + 1}–{Math.min(offset + page.items.length, page.total)} of {page.total}</span><Button disabled={offset + page.items.length >= page.total} onClick={() => setOffset(offset + 20)}>Next</Button></div>
@@ -102,6 +103,6 @@ function HistoricalCode({ run }: { run: Run }) {
   return <Panel title={`Run #${run.sequence} · generated_run.py`} description="Historical Code · immutable · read-only">
     <p>{run.started_at ? "Exact Python source executed for this Run." : "Exact Python source prepared for this attempt; the workload did not start."}</p><p className="muted wrap">{run.provenance.generator} · Run {run.id}</p>
     {error ? <Alert>{error}</Alert> : !code ? <Loading>Reading original source…</Loading> : <><Button onClick={copy}>Copy historical code</Button><p role="status">{copied}</p><p className="wrap"><code>{code.source_sha256}</code></p><pre className="code-source" tabIndex={0} aria-label="Read-only historical Python"><code>{code.source.trimEnd().split("\n").map((line, index) => <span className="code-line" key={index}><span className="code-line-number" aria-hidden="true">{index + 1}</span>{line || " "}{"\n"}</span>)}</code></pre></>}
-    <Link href={`/projects/${run.project_id}?view=code`}>Open current Working Pipeline Code</Link>
+    <OpenCodeButton>Open current Working Pipeline Code</OpenCodeButton>
   </Panel>;
 }

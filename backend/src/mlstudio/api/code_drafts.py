@@ -8,6 +8,7 @@ from mlstudio.code_draft_schemas import (
     DraftCreate,
     DraftExit,
     DraftResponse,
+    DraftResume,
     DraftSave,
     DraftSummary,
     ReportingProposal,
@@ -61,6 +62,11 @@ def read(draft_id: str, project: CurrentProject, session: Database):
 @router.patch("/{draft_id}", response_model=DraftResponse)
 def save(draft_id: str, body: DraftSave, project: CurrentProject, session: Database):
     return service.save(session, project.id, draft_id, body)
+
+
+@router.post("/{draft_id}/resume", response_model=DraftResponse, status_code=201)
+def resume(draft_id: str, body: DraftResume, project: CurrentProject, session: Database):
+    return service.resume(session, project, draft_id, body)
 
 
 @router.post("/{draft_id}/reporting-proposal", response_model=ReportingProposal)

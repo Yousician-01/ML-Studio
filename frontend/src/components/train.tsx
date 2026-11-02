@@ -9,6 +9,8 @@ import { readDraft, writeDraft, clearDraft } from "@/lib/train-drafts";
 import { parameterType, parseParameters, editedSplit, readinessGroups } from "@/lib/api/task-policy";
 import { TrainDraftGuard } from "./train-draft-guard";
 import { RunExperiment } from "./run-experiment";
+import { useLivePipeline } from "./live-pipeline";
+import { previewConfiguration } from "@/lib/live-code";
 
 function Issues({ issues }: { issues: PipelineIssue[] }) {
   return <>{issues.map((i, n) => <p className={i.severity === "blocking" ? "prepare-error" : "muted"} key={n}>
@@ -17,9 +19,10 @@ function Issues({ issues }: { issues: PipelineIssue[] }) {
 }
 
 // Raw editor strings are temporary UI state; only parsed explicit intent is saved.
-export function ConfigurationForm({ state, kind, disabled, onSave, onDirty, projectId, onReset }: {
+export function ConfigurationForm({ state, kind, disabled, onSave, onDirty, projectId, onReset, onPreview }: {
   projectId: string; onReset: () => void; state: WorkingPipeline; kind: "model" | "split"; disabled: boolean;
   onSave: (ir: PipelineIR) => Promise<void>; onDirty: () => void;
+  onPreview?: (input: { revision: number; ir: PipelineIR } | null) => void;
 }) {
   const source = kind === "model" ? state.ir.model!.parameters : state.ir.split!;
   const keyValue = (k: string, v: string | number | boolean) => k === "test_size" ? String(Number((Number(v) * 100).toFixed(10))) : String(v);
@@ -28,8 +31,13 @@ export function ConfigurationForm({ state, kind, disabled, onSave, onDirty, proj
   const [values, setValues] = useState<Record<string, string>>(recovered ?? Object.fromEntries(Object.entries(source).map(([k, v]) => [k, v === null ? "" : keyValue(k, v)])));
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(Boolean(recovered));
+  useEffect(() => {
+    if (!dirty || !onPreview) return;
+    const ir = previewConfiguration(state, kind, values);
+    onPreview(ir ? { revision: state.revision, ir } : null);
+  }, [dirty, values, state, kind, onPreview]);
   function change(key: string, value: string) {
-    const next = { ...values, [key]: value }; setValues(next); writeDraft(projectId, { revision: state.revision, section: kind, values: next }); setDirty(true); setError(""); onDirty();
+    const next = { ...values, [key]: value }; onPreview?.(null); setValues(next); writeDraft(projectId, { revision: state.revision, section: kind, values: next }); setDirty(true); setError(""); onDirty();
   }
   const descriptor = state.model_catalogue.find(d => d.id === state.ir.model?.type);
   const schemas: Record<string, ParameterSchema> = kind === "model" ? descriptor?.parameter_schema.properties ?? {} : Object.fromEntries(Object.keys(source).map(k => [k, { anyOf: [{ type: k === "stratify" ? "boolean" : k === "random_seed" ? "integer" : "number" }, { type: "null" }] }]));
@@ -73,6 +81,8 @@ export function ConfigurationForm({ state, kind, disabled, onSave, onDirty, proj
 export function Train({ projectId, datasetId, onReload }: {
   projectId: string; datasetId: string | null; onReload: () => void;
 }) {
+  const live = useLivePipeline();
+  const stateRef = useRef<WorkingPipeline | null>(null);
   const [state, setState] = useState<WorkingPipeline | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -82,18 +92,19 @@ export function Train({ projectId, datasetId, onReload }: {
   const [scope, setScope] = useState("pipeline");
   useEffect(() => {
     const controller = new AbortController();
-    api.pipeline(projectId, controller.signal).then(value => {
-      if (!controller.signal.aborted) { setState(value); const draft = readDraft(projectId); if (draft) { setDirty(draft.section); if (draft.revision !== value.revision) { setConflict(true); setError("Saved configuration changed. Your old draft is retained; reset it before editing the newer revision."); } } }
+    function load() { void api.pipeline(projectId, controller.signal).then(value => {
+      if (!controller.signal.aborted) { const draft = readDraft(projectId); if (draft && stateRef.current && JSON.stringify(stateRef.current.ir) === JSON.stringify(value.ir)) writeDraft(projectId, { ...draft, revision: value.revision }); stateRef.current = value; setState(value); const current = readDraft(projectId); if (current) { setDirty(current.section); if (current.revision !== value.revision) { setConflict(true); setError("Saved configuration changed. Your old draft is retained; reset it before editing the newer revision."); } } }
     }).catch((err: unknown) => {
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Train configuration unavailable.");
-    });
-    return () => controller.abort();
+    }); }
+    load(); window.addEventListener("mlstudio:visual-refresh", load);
+    return () => { controller.abort(); window.removeEventListener("mlstudio:visual-refresh", load); };
   }, [projectId]);
   async function save(ir: PipelineIR, section: string) {
     if (!state || saving.current || conflict) return;
     saving.current = true;
     setBusy(true); setError(""); setScope(section);
-    try { setState(await api.savePipeline(projectId, state.revision, ir)); setDirty(null); clearDraft(projectId); }
+    try { const next = await api.savePipeline(projectId, state.revision, ir); stateRef.current = next; setState(next); setDirty(null); clearDraft(projectId); live?.refresh(); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not save configuration."); setConflict(err instanceof ApiError && err.status === 409); }
     finally { saving.current = false; setBusy(false); }
   }
@@ -128,14 +139,14 @@ export function Train({ projectId, datasetId, onReload }: {
     <Panel title="Data split" description="Keep a held-out test partition separate from training. Preprocessing will learn only from training data.">
       {validProportion && <div className="split-visual" aria-label={`Training ${100 - testPercent!}%, testing ${testPercent}%`}><div className="split-labels"><strong>Training · {100 - testPercent!}%</strong><span>Testing · {testPercent}%</span></div><div className="split-track"><span style={{ width: `${100 - testPercent!}%` }} /><span style={{ width: `${testPercent}%` }} /></div><p className="muted">{state.train_rows} training / {state.test_rows} test rows · {ir.split?.stratify ? "Stratified" : "Not stratified"} · seed {ir.split?.random_seed ?? "not configured"}</p></div>}
       {feedback("split")}
-      {ir.split ? <ConfigurationForm projectId={projectId} onReset={resetDraft} key={`split:${state.revision}`} kind="split" state={state} disabled={disabled || (dirty !== null && dirty !== "split")} onDirty={() => setDirty("split")} onSave={value => save(value, "split")} /> : <Button disabled={disabled || Boolean(dirty)} onClick={() => void save({ ...ir, split: state.split_defaults }, "split")}>Configure 80 / 20 split</Button>}
+      {ir.split ? <ConfigurationForm onPreview={live?.publish} projectId={projectId} onReset={resetDraft} key={`split:${state.revision}`} kind="split" state={state} disabled={disabled || (dirty !== null && dirty !== "split")} onDirty={() => setDirty("split")} onSave={value => save(value, "split")} /> : <Button disabled={disabled || Boolean(dirty)} onClick={() => void save({ ...ir, split: state.split_defaults }, "split")}>Configure 80 / 20 split</Button>}
       <Issues issues={state.issues.filter(i => i.scope === "train" && i.field === "split")} />
     </Panel>
     <Panel title="Model" description="Choose one supported model. Selection uses the backend catalogue and its explicit defaults.">
       <div className="model-selector">{state.model_catalogue.map(descriptor => <button key={descriptor.id} aria-pressed={ir.model?.type === descriptor.id} disabled={disabled || Boolean(dirty) || ir.model?.type === descriptor.id} onClick={() => void save({ ...ir, model: { type: descriptor.id, parameters: descriptor.defaults } as ModelIntent }, "model")}><strong>{descriptor.name}</strong><span>{descriptor.task === "regression" ? "Numeric target regression" : descriptor.task === "multiclass_classification" ? "Multiclass classifier" : "Binary classifier"}</span></button>)}</div>
       {dirty && <p className="muted">Save current edits before switching models. Navigation asks for confirmation; drafts are retained in this tab.</p>}
       {feedback("model")}
-      {ir.model && <ConfigurationForm projectId={projectId} onReset={resetDraft} key={`model:${state.revision}`} kind="model" state={state} disabled={disabled || (dirty !== null && dirty !== "model")} onDirty={() => setDirty("model")} onSave={value => save(value, "model")} />}
+      {ir.model && <ConfigurationForm onPreview={live?.publish} projectId={projectId} onReset={resetDraft} key={`model:${state.revision}`} kind="model" state={state} disabled={disabled || (dirty !== null && dirty !== "model")} onDirty={() => setDirty("model")} onSave={value => save(value, "model")} />}
     </Panel>
     <Panel title="Pipeline readiness" description="Validation of saved intent against the current source and effective semantics.">
       <p className={`readiness-status ${state.code_generation_ready && !dirty ? "complete" : ""}`} role="status">{dirty ? "Save edits to update readiness" : state.code_generation_ready ? "Saved configuration valid · ready for Code review" : "Pipeline needs attention"}</p>

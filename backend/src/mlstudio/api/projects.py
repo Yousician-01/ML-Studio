@@ -42,6 +42,18 @@ def current_code(project: CurrentProject, session: Database, request: Request):
     return preview(session, project, request.app.state.settings)
 
 
+@router.post("/{project_id}/code/preview", response_model=CodePreview)
+def live_code(body: PipelineUpdate, project: CurrentProject, session: Database, request: Request):
+    if body.revision != project.revision:
+        raise DomainError("Project changed. Reload before previewing unsaved configuration.", 409)
+    generated = preview(
+        session, project, request.app.state.settings, body.ir.model_dump(mode="json")
+    )
+    if generated.revision != body.revision:
+        raise DomainError("Project changed during preview. Reload configuration.", 409)
+    return generated
+
+
 @router.get("/{project_id}/pipeline", response_model=PipelineResponse)
 def retrieve_pipeline(project: CurrentProject, session: Database, request: Request):
     return pipelines.read(session, project, request.app.state.settings)

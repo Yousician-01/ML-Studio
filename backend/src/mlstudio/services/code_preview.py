@@ -19,7 +19,7 @@ from mlstudio.services.pipelines import snapshot
 from mlstudio.services.source import DomainError
 
 
-def preview(session, project, settings):
+def preview(session, project, settings, proposed=None):
     project, dataset = snapshot(session, project.id)
     identity = dict(
         project_id=project.id, revision=project.revision, dataset_id=dataset.id if dataset else None
@@ -29,7 +29,9 @@ def preview(session, project, settings):
     elif project.ml_objective == "multiclass_classification":
         identity["generator"] = "mlstudio-python-v3"
     try:
-        ir = load_ir(project.working_pipeline, project.ml_objective)
+        ir = load_ir(
+            project.working_pipeline if proposed is None else proposed, project.ml_objective
+        )
     except ValueError:
         return CodePreview(
             **identity,

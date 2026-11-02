@@ -46,7 +46,8 @@ def response(draft):
 
 def create(session, project, body, settings):
     require_visual_mode(session, project.id)
-    generated = preview(session, project, settings)
+    proposed = body.ir.model_dump(mode="json") if body.ir is not None else None
+    generated = preview(session, project, settings, proposed)
     if (
         not generated.ready
         or generated.revision != body.revision
@@ -75,7 +76,7 @@ def create(session, project, body, settings):
     draft = CodeDraft(
         project_id=project.id,
         origin_revision=generated.revision,
-        origin_ir=deepcopy(project.working_pipeline),
+        origin_ir=deepcopy(project.working_pipeline if proposed is None else proposed),
         baseline_source=source,
         baseline_sha256="sha256:" + sha256(source.encode()).hexdigest(),
         plan_sha256=generated.plan_sha256,
@@ -95,6 +96,37 @@ def writable(session, project_id, draft_id, revision):
             409,
         )
     return draft
+
+
+def resume(session, project, draft_id, body):
+    require_visual_mode(session, project.id)
+    draft = owned(session, project.id, draft_id)
+    if draft.status != "archived" or draft.revision != body.revision:
+        raise DomainError(
+            "Saved Code session changed or cannot be resumed. Reload saved Code.", 409
+        )
+    project.updated_at = utc_now()
+    session.flush()  # Same optimistic serialization boundary as fresh draft admission.
+    if session.scalar(
+        select(Run.id)
+        .where(Run.project_id == project.id, Run.state.in_(("CREATED", "RUNNING")))
+        .limit(1)
+    ):
+        raise DomainError("Wait for the active Run before resuming Code Mode.", 409)
+    # Ended sessions are immutable evidence. Continue in a new active session,
+    # copying exact text/origin while preserving the archived row and snapshots.
+    resumed = CodeDraft(
+        project_id=project.id,
+        origin_revision=draft.origin_revision,
+        origin_ir=deepcopy(draft.origin_ir),
+        baseline_source=draft.baseline_source,
+        baseline_sha256=draft.baseline_sha256,
+        plan_sha256=draft.plan_sha256,
+        source=draft.source,
+    )
+    session.add(resumed)
+    session.commit()
+    return response(resumed)
 
 
 def save(session, project_id, draft_id, body, snapshot=False):

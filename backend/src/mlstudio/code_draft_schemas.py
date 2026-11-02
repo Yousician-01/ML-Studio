@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from mlstudio.pipeline_schemas import VersionedPipelineIR
 from mlstudio.schemas import InputModel
 
 Digest = Annotated[str, Field(pattern=r"^sha256:[a-f0-9]{64}$")]
@@ -14,6 +15,11 @@ class DraftCreate(InputModel):
     revision: int = Field(strict=True, ge=1)
     source_sha256: Digest
     plan_sha256: Digest
+    ir: VersionedPipelineIR | None = None
+
+
+class DraftResume(InputModel):
+    revision: int = Field(strict=True, ge=1)
 
 
 class DraftSave(InputModel):

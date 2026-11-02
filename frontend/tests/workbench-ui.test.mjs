@@ -9,7 +9,8 @@ test("workbench navigation keeps canonical destinations, active state and a skip
   const html = renderToStaticMarkup(React.createElement(AppShell, { project: { id: "p", name: "Customer outcomes" }, view: "train" }, React.createElement("main", {id:"main-content"}, "Workspace")));
   assert.match(html, /href="#main-content"/);
   assert.match(html, /aria-label="Project workflow"/);
-  for (const view of ["data", "explore", "prepare", "train", "evaluate", "runs", "code"]) assert.match(html, new RegExp(`href="/projects/p\\?view=${view}"`));
+  for (const view of ["data", "explore", "prepare", "train", "evaluate", "runs"]) assert.match(html, new RegExp(`href="/projects/p\\?view=${view}"`));
+  assert.doesNotMatch(html, /href="\/projects\/p\?view=code"/);
   assert.match(html, /aria-current="page"[^>]*>.*?Train/s);
   assert.doesNotMatch(html, /Billing|Cloud deployment|Teams|AI Advisor/);
 });

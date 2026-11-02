@@ -131,17 +131,58 @@ test("editing binary stratification persists false; regression never gains strat
   assert.deepEqual(editedSplit({ stratify: true }, { test_size: 20, random_seed: 42, stratify: false }), { test_size: .2, random_seed: 42, stratify: false });
   assert.deepEqual(editedSplit({}, { test_size: 20, random_seed: 42 }), { test_size: .2, random_seed: 42 });
 });
-test("Workspace passes regression task to Explore and avoids classification profiling", () => {
-  let index = 0;
+test("Workspace passes regression task to Explore and avoids classification profiling", async () => {
+  let index = 0, classificationProfiles = 0, regressionProfiles = 0;
+  const states = [], effects = [];
   const project = { id: "p", name: "Regression", ml_objective: "regression", active_dataset_id: "d", revision: 1 };
-  const react = { ...React, useEffect: () => {}, useState: initial => [index++ === 0 ? project : index === 3 ? false : initial, () => {}] };
+  let resolveProject;
+  const loadedProject = new Promise(resolve => { resolveProject = resolve; });
+  // Retain hook state across renders without assuming where Project/loading
+  // state occurs relative to the workspace's presentation hooks.
+  const react = { ...React, useEffect: effect => { effects.push(effect); }, useState: initial => {
+    const slot = index++;
+    if (!(slot in states)) states[slot] = typeof initial === "function" ? initial() : initial;
+    return [states[slot], value => { states[slot] = typeof value === "function" ? value(states[slot]) : value; }];
+  } };
   const { Workspace } = loadComponent("components/workspace.tsx", {
     react, "next/navigation": { useRouter: () => ({}), useSearchParams: () => new URLSearchParams("view=explore") },
     "./code-mode-state": { CodeModeProvider: ({ children }) => children, useCodeMode: () => ({ ready: true, draft: null }) },
+    "./live-pipeline": { LivePipelineProvider: ({ children }) => children, useLivePipeline: () => ({ refresh() {} }) },
+    "./live-code-viewer": { LiveCodeViewer: () => null },
+    "@/lib/api/projects": { api: {
+      project: () => loadedProject,
+      profile: (_projectId, _dataset, _offset, _signal, filters) => {
+        if (filters === undefined) regressionProfiles++; else classificationProfiles++;
+        return new Promise(() => {}); // Keep the real Explore view in its profiling state.
+      },
+    } },
   });
-  const html = render(Workspace, { projectId: "p" });
-  assert.match(html, /Regression Explore/);
-  assert.doesNotMatch(html, /Profiling source observations/);
+  const previousWindow = globalThis.window;
+  const cleanups = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  function flushEffects() {
+    for (const effect of effects.splice(0)) {
+      const cleanup = effect();
+      if (typeof cleanup === "function") cleanups.push(cleanup);
+    }
+  }
+  try {
+    assert.match(render(Workspace, { projectId: "p" }), /Loading current Project and Dataset/);
+    flushEffects();
+    resolveProject(project);
+    await loadedProject;
+    index = 0;
+    const html = render(Workspace, { projectId: "p" });
+    flushEffects();
+    assert.match(html, /Regression Explore/);
+    assert.match(html, /Profiling verified regression source/);
+    assert.doesNotMatch(html, /Profiling source observations/);
+    assert.equal(regressionProfiles, 1);
+    assert.equal(classificationProfiles, 0);
+  } finally {
+    for (const cleanup of cleanups.reverse()) cleanup();
+    globalThis.window = previousWindow;
+  }
 });
 test("Train readiness displays target-scoped training blockers and constant R2 warnings", () => {
   const { readinessGroups } = loadComponent("lib/api/task-policy.ts");

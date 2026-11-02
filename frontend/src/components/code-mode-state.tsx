@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "@/lib/api/projects";
 import type { CodePreview } from "@/lib/api/code";
+import type { PipelineIR } from "@/lib/api/pipelines";
 import { sourceState, type CodeDraft } from "@/lib/api/code-drafts";
 import { codeRunActive, type CodeRun } from "@/lib/api/code-runs";
 import { clearCodeBuffer, readCodeBuffer, resolveCodeBuffer, writeCodeBuffer, type CodeBuffer } from "@/lib/code-draft-buffer";
@@ -15,7 +16,8 @@ type Mode = {
   executionEnabled: boolean; setExecutionEnabled: (enabled: boolean) => void;
   runCode: () => Promise<void>;
   edit: (source: string) => void; reopen: () => Promise<void>;
-  enter: (preview: CodePreview) => Promise<boolean>;
+  enter: (preview: CodePreview, ir?: PipelineIR) => Promise<boolean>;
+  resume: (id: string) => Promise<boolean>;
   save: (snapshot?: boolean) => Promise<boolean>;
   exit: (action: "discard" | "save_snapshot") => Promise<boolean>;
 };
@@ -80,7 +82,7 @@ export function CodeModeProvider({ projectId, children }: { projectId: string; c
   async function mutate(action: () => Promise<void>) {
     if (lock.current) return false;
     lock.current = true; setBusy(true); setError(""); setNotice("");
-    try { await action(); return true; }
+    try { await action(); return mounted.current; }
     catch (caught) { setError(caught instanceof Error ? caught.message : "Code save failed. Keep a copy of unsaved text."); return false; }
     finally { lock.current = false; setBusy(false); }
   }
@@ -88,12 +90,22 @@ export function CodeModeProvider({ projectId, children }: { projectId: string; c
     if ((flags.dirty || error || recovery) && !window.confirm("Reopen saved Code? Unsaved editor and recovered text will be replaced. Copy it before continuing.")) return;
     await mutate(async () => { const next = await api.activeCodeDraft(projectId); if (!mounted.current) return; clearCodeBuffer(projectId); setRecovery(null); setDraft(next); setSource(next?.source ?? ""); sourceRef.current = next?.source ?? ""; setReady(true); });
   }
-  async function enter(preview: CodePreview) {
+  async function enter(preview: CodePreview, ir?: PipelineIR) {
     if (!ready || draft || recovery || !preview.ready || !preview.source_sha256 || !preview.plan_sha256) return false;
     return mutate(async () => {
-      const next = await api.createCodeDraft(projectId, { revision: preview.revision, source_sha256: preview.source_sha256!, plan_sha256: preview.plan_sha256! });
+      const next = await api.createCodeDraft(projectId, { revision: preview.revision, source_sha256: preview.source_sha256!, plan_sha256: preview.plan_sha256!, ...(ir ? { ir } : {}) });
       if (!mounted.current) return;
       setDraft(next); setSource(next.source); sourceRef.current = next.source; setNotice("Code Mode entered. No execution has been created.");
+    });
+  }
+  async function resume(id: string) {
+    if (!ready || draft || recovery) return false;
+    return mutate(async () => {
+      const previous = await api.codeDraft(projectId, id);
+      const next = await api.resumeCodeDraft(projectId, id, previous.revision);
+      if (!mounted.current) return;
+      setDraft(next); setSource(next.source); sourceRef.current = next.source;
+      setNotice("Saved Code draft resumed. Visual configuration is unchanged.");
     });
   }
   async function save(snapshot = false) {
@@ -141,5 +153,5 @@ export function CodeModeProvider({ projectId, children }: { projectId: string; c
       setNotice("Code Run recorded. Output stays in Code Mode; future edits do not change this execution.");
     });
   }
-  return <Context.Provider value={{ draft, source, ...flags, ready, busy, error, notice, recovery, dropRecovery, edit, reopen, enter, save, exit, codeRun, setCodeRun, executionEnabled, setExecutionEnabled, runCode }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ draft, source, ...flags, ready, busy, error, notice, recovery, dropRecovery, edit, reopen, enter, resume, save, exit, codeRun, setCodeRun, executionEnabled, setExecutionEnabled, runCode }}>{children}</Context.Provider>;
 }
