@@ -25,7 +25,7 @@ export function TargetScatter({ relationship: r }: { relationship: TargetRelatio
       <text x="309" y="240" textAnchor="middle">Feature source value (x)</text><text x="60" y="22">Target source value (y)</text>
     </svg>
     <p className="muted">At most {r.point_limit} complete pairs, evenly spaced in source order. This deterministic preview is not a random sample or evidence of causation. Correlation uses all complete pairs, not just plotted points.</p>
-    <details><summary>Source pair values</summary><div className="table-scroll"><table><caption className="sr-only">Bounded source pairs: {r.feature} and {r.target}</caption><thead><tr><th scope="col">{r.feature}</th><th scope="col">{r.target}</th></tr></thead><tbody>{r.points.map((p, i) => <tr key={i}><td>{String(p.x)}</td><td>{String(p.y)}</td></tr>)}</tbody></table></div></details>
+    <details><summary>Source pair values</summary><div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table><caption className="sr-only">Bounded source pairs: {r.feature} and {r.target}</caption><thead><tr><th scope="col">{r.feature}</th><th scope="col">{r.target}</th></tr></thead><tbody>{r.points.map((p, i) => <tr key={i}><td>{String(p.x)}</td><td>{String(p.y)}</td></tr>)}</tbody></table></div></details>
   </figure>;
 }
 

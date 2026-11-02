@@ -97,7 +97,8 @@ test("Data and regression Explore empty state show numeric target policy", () =>
   assert.doesNotMatch(html, /Choose the positive class|not a binary target/);
   const { Explore } = loadComponent("components/explore.tsx");
   const limited = render(Explore, { projectId: "p", task: "regression", dataset: null, onReload: () => {} });
-  assert.match(limited, /No Dataset/); assert.doesNotMatch(limited, /<svg|<table/);
+  // Decorative aria-hidden icons are allowed; empty states must not invent plots/data.
+  assert.match(limited, /No Dataset/); assert.doesNotMatch(limited, /role="img"|<table/);
 });
 test("each regression context mismatch suppresses deltas; unavailable R2 has no delta", () => {
   const mutations = [

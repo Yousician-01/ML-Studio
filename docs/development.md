@@ -2,6 +2,23 @@
 
 ## Implemented workflow
 
+### Frontend workbench design
+
+The shared `AppShell` supplies the desktop sidebar, compact header and an inline
+navigation disclosure on smaller screens. Existing Project query routes and Code
+Mode mounting/recovery remain the navigation and persistence boundaries.
+
+`frontend/src/app/globals.css` imports the single token source (`tokens.css`),
+feature/chart layouts (`workbench.css`) and shared surfaces/layout (`interface.css`).
+Keep colors and typography in tokens; use the existing `ui.tsx` primitives and
+small `Icon` component. Fonts are local system fallbacks, with no CDN or UI package.
+Code output uses a dark reading surface; the application and Monaco remain light.
+
+Before public beta acceptance, check all three Project objectives, CSV replacement,
+Prepare/Train validation, visual/Code Run selection, 50-class matrix scrolling,
+Monaco unsaved recovery, dialogs, mobile navigation and reduced-motion behavior.
+Visual acceptance is separate from the focused frontend tests and production build.
+
 ### Multiclass classification (v0.4)
 
 Create a Project with the explicit **Multiclass Classification** objective. Tasks

@@ -58,7 +58,7 @@ export function Histogram({ stats, name }: { stats: NumericProfile; name: string
     <div className="chart-readout" role="status">{bin && selected !== null ? binText(selected) : "Hover or focus a bin for its exact range and count."}</div>
     <details><summary>Histogram values and definition</summary>
       <p className="muted">At most 10 equal-width bins. Repeated floating-point edges collapse; constant values use one bin. Missing values are excluded. Only the last bin includes its upper edge.</p>
-      <div className="table-scroll"><table><thead><tr><th>Lower</th><th>Upper</th><th>Count</th></tr></thead><tbody>
+      <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table><thead><tr><th>Lower</th><th>Upper</th><th>Count</th></tr></thead><tbody>
         {bins.map((b, i) => <tr key={i}><td>{String(b.lower)}</td><td>{String(b.upper)}</td><td>{b.count}</td></tr>)}
       </tbody></table></div>
     </details>
@@ -100,7 +100,7 @@ export function Heatmap({ correlation }: { correlation: Profile["correlation"] }
   if (correlation.unavailable_reason) return <p className="muted">{correlation.unavailable_reason}</p>;
   return <div className="eda-heatmap">
     <div className="correlation-scale" aria-label="Correlation scale"><span>−1 · negative</span><span>0 · no linear association</span><span>+1 · positive</span></div>
-    <div className="table-scroll"><div className="heatmap-grid" style={{ gridTemplateColumns: `180px repeat(${columns.length}, minmax(48px, 1fr))` }} role="group" aria-label="Pearson correlation heatmap">
+    <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><div className="heatmap-grid" style={{ gridTemplateColumns: `180px repeat(${columns.length}, minmax(48px, 1fr))` }} role="group" aria-label="Pearson correlation heatmap">
       <span />{columns.map((name, i) => <span className="heatmap-heading" title={name} key={name}>{i + 1}</span>)}
       {columns.map((name, i) => <div className="heatmap-row" key={name}>
         <span className="heatmap-name" title={name}>{i + 1}. {name}</span>
@@ -113,7 +113,7 @@ export function Heatmap({ correlation }: { correlation: Profile["correlation"] }
     </div></div>
     <div className="chart-readout" role="status">{selected ? describe(...selected) : "Select or focus a cell for its exact coefficient and paired count."}</div>
     <p className="muted">Diagonal cells compare a feature with itself. Correlation describes linear association, not causation.</p>
-    <details><summary>Correlation values as a table</summary><div className="table-scroll"><table><thead><tr><th>Feature</th>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>
+    <details><summary>Correlation values as a table</summary><div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table><thead><tr><th>Feature</th>{columns.map(c => <th key={c}>{c}</th>)}</tr></thead><tbody>
       {columns.map((c, i) => <tr key={c}><th>{c}</th>{values[i].map((v, j) => <td key={j}>{v === null ? "Unavailable" : String(v)}<small>n={counts[i][j]}</small></td>)}</tr>)}
     </tbody></table></div></details>
   </div>;

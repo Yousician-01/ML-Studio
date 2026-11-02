@@ -93,7 +93,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
         {ir.ir_version === "0.3" ? <p className="muted">{state.target_classes.length} classes; missing labels are rejected. {state.target_classes.map(c => `${String(c.value)} (${c.value_type})`).join(", ")}</p> : <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. {ir.ir_version === "0.1" ? "Choosing a positive class confirms this policy." : "Constant or two-valued numeric targets are permitted; R² availability is determined by the held-out population."}</p>}
       </Panel>
       <Panel title="Features" description="Operations are ordered: imputation first, then scaling or encoding. None means no operation. Excluded features retain dormant choices.">
-        <div className="table-scroll"><table className="prepare-table"><thead><tr><th>Feature / effective type</th><th>Participation</th><th>Missing values</th><th>Scaling / encoding</th><th>Validation / intent</th></tr></thead><tbody>
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="prepare-table"><thead><tr><th>Feature / effective type</th><th>Participation</th><th>Missing values</th><th>Scaling / encoding</th><th>Validation / intent</th></tr></thead><tbody>
           {names.slice(offset, offset + 20).map(name => {
             const feature = Object.hasOwn(ir.features, name) ? ir.features[name] : undefined;
             const column = state.columns.find(c => c.name === name);

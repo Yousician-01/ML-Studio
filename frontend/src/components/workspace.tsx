@@ -21,6 +21,8 @@ import { Evaluate } from "./evaluate";
 import { Runs } from "./runs";
 import { DeleteProject } from "./delete-project";
 import { Alert, Button, Dialog, Loading } from "./ui";
+import { AppShell, WorkflowRail } from "./app-shell";
+import { Icon } from "./icons";
 
 export function Workspace({ projectId }: { projectId: string }) {
   return <CodeModeProvider key={projectId} projectId={projectId}><WorkspaceContent projectId={projectId} /></CodeModeProvider>;
@@ -99,7 +101,8 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
     );
   }
   return (
-    <main className="workspace">
+    <AppShell project={project ?? { id: projectId, name: "Project workspace" }} view={view} onNavigate={name => { if (view !== name) setLoading(true); }}>
+    <main className={`workspace${view === "code" ? " workspace-code" : ""}`} id="main-content" tabIndex={-1}>
       <div className="breadcrumb">
         <Link href="/">Projects</Link>
         <span aria-hidden="true">/</span>
@@ -114,32 +117,15 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
         {project && (
           <div className="actions">
             <Button disabled={loading} onClick={reload}>
-              Refresh
+              <Icon name="runs" />Refresh
             </Button>
             <Button onClick={() => { if (confirmTrainLeave()) setSettingsOpen(true); }}>
-              Project settings
+              <Icon name="settings" />Project settings
             </Button>
           </div>
         )}
       </div>
-      <nav className="benches" aria-label="Project workspace">
-        {["data", "explore", "prepare", "train"].map((name) => (
-          <Link
-            key={name}
-            href={`/projects/${projectId}?view=${name}`}
-            aria-current={view === name ? "page" : undefined}
-            onNavigate={() => {
-              if (view !== name) setLoading(true);
-            }}
-          >
-            {name === "data" ? "Data" : name === "explore" ? "Explore" : name === "prepare" ? "Prepare" : "Train"}
-          </Link>
-        ))}
-        <Link href={`/projects/${projectId}?view=evaluate`} aria-current={view === "evaluate" ? "page" : undefined} onNavigate={() => { if (view !== "evaluate") setLoading(true); }}>Evaluate</Link>
-        <Link href={`/projects/${projectId}?view=runs`} aria-current={view === "runs" ? "page" : undefined} onNavigate={() => { if (view !== "runs") setLoading(true); }}>Runs</Link>
-        <Link href={`/projects/${projectId}?view=code`} aria-current={view === "code" ? "page" : undefined}
-          onNavigate={() => { if (view !== "code") setLoading(true); }}>Code</Link>
-      </nav>
+      <WorkflowRail view={view} hasDataset={Boolean(project?.active_dataset_id)} codeMode={Boolean(mode.draft)} />
       {mode.error && <Alert>{mode.error}<Button disabled={mode.busy} onClick={() => void mode.reopen()}>Reopen saved Code</Button></Alert>}
       {mode.notice && <Alert tone="info">{mode.notice}</Alert>}
       {mode.recovery && <Alert tone="info">Unsaved text from an earlier Code revision is retained below. It has not been rebased onto the saved draft. Copy it before explicitly discarding this recovery buffer to continue.
@@ -229,6 +215,6 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
           onDeleted={() => router.push("/")}
         />
       )}
-    </main>
+    </main></AppShell>
   );
 }

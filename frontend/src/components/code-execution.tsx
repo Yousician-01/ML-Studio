@@ -7,6 +7,7 @@ import { api } from "@/lib/api/projects";
 import { codeRunActive, type CodeLogs, type CodeRun, type CodeRunPage } from "@/lib/api/code-runs";
 import { useCodeMode } from "./code-mode-state";
 import { Alert, Button, Dialog, Loading, Panel } from "./ui";
+import { Icon } from "./icons";
 
 export function CodeRunControls() {
   const mode = useCodeMode();
@@ -20,8 +21,8 @@ export function CodeRunControls() {
     catch (caught) { setError(caught instanceof Error ? caught.message : "Cancellation failed; refresh output before retrying."); }
     finally { setStopping(false); }
   }
-  return <><Button variant="primary" disabled={!mode.executionEnabled || mode.busy || Boolean(mode.recovery) || active} onClick={() => void mode.runCode()}>Run</Button>
-    <Button disabled={!active || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</Button>
+  return <><Button variant="primary" disabled={!mode.executionEnabled || mode.busy || Boolean(mode.recovery) || active} onClick={() => void mode.runCode()}><Icon name="train" width="14" height="14" />Run</Button>
+    <Button variant={active ? "danger" : "secondary"} disabled={!active || stopping} onClick={() => void stop()}>{stopping ? "Stopping…" : "Stop"}</Button>
     {error && <Alert>{error}</Alert>}</>;
 }
 
@@ -65,12 +66,12 @@ export function CodeExecution({ projectId }: { projectId: string }) {
   const shown = detail && (!(selected ?? liveId) || detail.id === (selected ?? liveId)) ? detail : null;
   const logs = shown && output?.id === shown.id ? output.logs : null;
   const elapsed = shown ? shown.duration_seconds ?? Math.max(0, (now - Date.parse(shown.started_at ?? shown.created_at)) / 1000) : 0;
-  return <Panel title="Python execution" description="Managed Code Runs · captured output, not an interactive shell" action={<Button onClick={() => setAttempt(v => v + 1)}>Refresh output</Button>}>
+  return <Panel className="code-output-panel" title="Python execution" description="Managed Code Runs · captured output, not an interactive shell" action={<Button onClick={() => setAttempt(v => v + 1)}>Refresh output</Button>}>
     {error && <Alert>{error}</Alert>}
     {!page ? <Loading>Loading Code execution history…</Loading> : <>
       {!page.enabled && <Alert tone="info">Execution is disabled. For trusted local Python, set MLSTUDIO_CODE_EXECUTION_ENABLED=true and restart the loopback-bound backend. This is not a security sandbox.</Alert>}
       {!shown ? <p>No Code Run selected. Run the active Python draft or select a recorded execution.</p> : <>
-        <p role="status" aria-live="polite"><strong>{shown.status}</strong> · {elapsed.toFixed(1)} seconds{shown.exit_code !== null ? ` · exit ${shown.exit_code}` : ""}</p>
+        <p role="status" aria-live="polite"><span className={`run-status run-${shown.status === "COMPLETED" ? "succeeded" : shown.status === "FAILED" ? "failed" : shown.status === "RUNNING" ? "running" : "created"}`}>{shown.status}</span> · {elapsed.toFixed(1)} seconds{shown.exit_code !== null ? ` · exit ${shown.exit_code}` : ""}</p>
         {shown.error && <Alert>{shown.error}</Alert>}
         {shown.source_integrity !== "verified" && <Alert>Recorded source evidence is missing or changed. Retained SQLite source is shown with this integrity warning.</Alert>}
         <div className="actions"><Button onClick={() => setShowLogs(v => !v)}>View logs</Button><Button onClick={() => setShowRun(true)}>View Run</Button><Link href={codeEvaluationHref(projectId, shown.id)}>Evaluate this Code Run</Link></div>
@@ -81,7 +82,7 @@ export function CodeExecution({ projectId }: { projectId: string }) {
         </div>}
       </>}
       <details><summary>Recorded Code Runs ({page.total})</summary>
-        <ul>{page.items.map(run => <li key={run.id}><Button onClick={() => { setSelection({ id: run.id, liveId }); setDetail(null); setOutput(null); }}>{run.status} · {run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</Button></li>)}</ul>
+        <ul>{page.items.map(run => <li key={run.id}><Button aria-pressed={shown?.id === run.id} onClick={() => { setSelection({ id: run.id, liveId }); setDetail(null); setOutput(null); }}>{run.status} · {run.id.slice(0, 8)} · {new Date(run.created_at).toLocaleString()}</Button></li>)}</ul>
         <div className="actions"><Button disabled={offset === 0} onClick={() => setOffset(v => v - 20)}>Newer Runs</Button><Button disabled={offset + page.items.length >= page.total} onClick={() => setOffset(v => v + 20)}>Older Runs</Button></div>
       </details>
     </>}

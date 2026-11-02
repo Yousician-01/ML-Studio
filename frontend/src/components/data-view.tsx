@@ -13,6 +13,7 @@ import {
 } from "@/lib/api/projects";
 import { displayScalar } from "@/lib/api/scalars";
 import { Alert, Button, EmptyState, Loading, Panel, Stats } from "./ui";
+import { Icon } from "./icons";
 
 export function DataView({
   project,
@@ -156,7 +157,8 @@ export function DataView({
               overrides. Previous managed sources are retained.
             </p>
           )}
-          <fieldset disabled={busy}>
+          <fieldset disabled={busy} className="upload-area">
+            <div className="upload-heading"><Icon name="upload" /><div><h3>{dataset ? "Bring in a new source" : "Bring your data into the workspace"}</h3><p>Choose a UTF-8 CSV. Your upload becomes a managed source copy.</p></div></div>
             <label>
               CSV file
               <input
@@ -277,7 +279,7 @@ export function DataView({
               </Alert>
             )}
             {busy && <Loading>Saving…</Loading>}
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table">
               <table>
                 <thead>
                   <tr>
@@ -358,7 +360,7 @@ export function DataView({
             title="Source preview"
             description={`First ${Math.min(dataset.row_count, dataset.preview_limit)} parsed source rows. No transformations applied. — denotes a missing value.`}
           >
-            <div className="table-scroll">
+            <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table">
               <table>
                 <thead>
                   <tr>
