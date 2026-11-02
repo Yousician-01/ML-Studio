@@ -1,16 +1,12 @@
 # Contributing to ML Studio
 
-ML Studio 0.2.0 is a source-installed binary-classification and regression workspace.
-Read the current [architecture](docs/architecture.md) and
-[development guide](docs/development.md), including its v0.2 phase references,
-before proposing behavior changes. Preserve the historical binary contracts in
-the [frozen v0.1 specifications](docs/specifications/project-v0.1.md), source goldens
-and immutable Run evidence. Project task and version boundaries must stay explicit.
-ML Studio 0.1.0 is a source-installed binary-classification prototype. Its frozen
-v0.1 contracts govern maintenance and contributor changes. Read the [prototype](docs/prototype.md), current
-[architecture](docs/architecture.md), and authoritative
-[v0.1 specifications](docs/specifications/project-v0.1.md) before proposing
-behavior changes. Keep work focused on the frozen binary-classification scope.
+ML Studio's v0.4.0-beta.1 checkout supports binary classification, multiclass
+classification, regression, and explicit Code Mode. Read the current
+[architecture](docs/architecture.md), [development guide](docs/development.md) and
+[public guides](docs/README.md) before proposing behavior changes. Preserve
+historical [v0.1 specifications](docs/specifications/project-v0.1.md), versioned
+contracts, source goldens and immutable Run evidence. Later task extensions do
+not silently change the legacy protocols.
 
 ## Discuss a problem first
 
@@ -67,7 +63,8 @@ The backend job installs development dependencies, runs pytest and Ruff lint/for
 checks, checks dependency consistency, and builds a wheel with Hatchling via pip.
 CI uses GitHub-hosted runners, read-only permissions, no repository secrets, and
 no persisted checkout credentials. See the [development guide](docs/development.md#contributor-ci)
-for runtime versions and maintainer setup. Local Git hooks are not required. The supported acceptance environment is Windows,
+for runtime versions and maintainer setup. Local Git hooks are not required.
+The local acceptance reference is Windows,
 Python 3.14.2 and Node.js 24.13.0. The backend wheel is a packaging check, not a
 supported standalone application. Use the source/editable setup in the guide.
 

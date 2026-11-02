@@ -1,5 +1,8 @@
 # ML Studio local CLI (beta)
 
+For OS-specific setup, use [Installation](installation.md). Current local validation
+and remote/platform limits are in [beta readiness](development/beta-release-readiness.md).
+
 `mls` installs this checkout and supervises **two independent real servers**:
 Python FastAPI and production Node.js Next.js. Rust does not serve the application,
 replace APIs, run ML workloads, or store arbitrary Python in the visual Pipeline.
@@ -163,7 +166,7 @@ The CLI does not copy Dataset rows into metadata or change backend privacy polic
 head, workspace existence, ports and session. It does not migrate, repair or create
 databases. Failures are actionable; invalid backend configuration is sanitized.
 
-Code Mode remains **opt-in**, defaults false, and is **not sandboxed**. Configure
+Manual Code Run execution remains **opt-in**, defaults false, and is **not sandboxed**. Configure
 MLSTUDIO_CODE_EXECUTION_ENABLED deliberately in backend/.env or the environment only
 for trusted Python. install/start never enable it. The application remains local
 single-user software; do not expose its ports through public proxies/tunnels.

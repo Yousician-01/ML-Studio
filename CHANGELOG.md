@@ -6,6 +6,42 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - Prepared, not published
+
+### Added
+
+- Multiclass Projects using the existing classifiers, explicit IR 0.3 and typed
+  macro/weighted/per-class results with an NxN confusion matrix.
+- Persistent Code Drafts/snapshots, guarded visual reentry, default-off local
+  Python Code Runs and an explicit evaluation reporting bridge.
+- Workspace-wide read-only Live Code Companion with docked/floating layouts,
+  proposed unsaved Train previews, full-screen editing and archived-session resume.
+- Repository-based Rust CLI for install/start/status/logs/doctor/abort of the real
+  FastAPI and production Next.js servers; source/local-artifact bootstrap,
+  checked process ownership, bounded logs and pre-migration workspace backups.
+- Public installation, tutorial, user guides, troubleshooting and release evidence.
+
+### Compatibility and fixes
+
+- Preserve binary/regression protocol identities and immutable historical source.
+  Code drafts never replace visual Pipeline IR. MLflow remains secondary.
+- Migrations 0007-0009 add Code Drafts/Code Runs and multiclass support. Stop all
+  writers and back up complete workspaces before upgrade; use a consistent backup
+  for rollback where downgrade is refused. Current head: `0009_multiclass`.
+- Regression workspace rendering test now waits for resolved Project/Dataset state
+  while retaining task-propagation and no-classification-profiling assertions.
+- CLI input/build validation and lifecycle hardening; local Monaco asset handling.
+
+### Release boundaries
+
+- Public/CLI identity is 0.4.0-beta.1; frontend/backend package metadata remains
+  independently versioned at 0.2.0. This entry does not publish anything.
+- Trusted local single-user execution, not a sandbox, cloud/deployment service or
+  authentication boundary. Code execution remains disabled by default.
+- No ROC curves, per-sample prediction evidence, AutoML or extra model families.
+- Windows validation and unverified macOS/Linux acceptance are recorded separately
+  in [beta readiness](docs/development/beta-release-readiness.md).
+
 ## [0.2.0] — Prepared for release
 
 ### Added

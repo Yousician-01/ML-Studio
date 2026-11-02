@@ -1,117 +1,109 @@
-# Architecture — ML Studio v0.2
+# Architecture - ML Studio beta
 
-**Status:** local binary-classification and regression workflows, including
-Explore, Prepare, Train, immutable Runs, Evaluate, read-only Code and local MLflow
-tracking. The current v0.3 development checkout also adds editable Code Mode
-drafts, snapshots and opt-in managed Python execution with independent Code Runs.
-AI remains unimplemented. See [Code Mode Phase 1](development/v0.3-phase-1-code-mode.md)
-and [Phase 2A](development/v0.3-phase-2a-execution.md).
-[ADR 0001](decisions/0001-use-pipeline-ir.md) establishes Pipeline IR. The
-[frozen v0.1 specifications](specifications/project-v0.1.md) retain the legacy
-binary contract; the linked v0.2 phase documents describe the regression extension.
+Current implementation: binary classification, multiclass classification and
+regression; visual preparation/training; deterministic Python; immutable Runs,
+Evaluate and secondary local MLflow; explicit Code Mode and a shared live viewer.
+The [ADRs](decisions/README.md) and versioned phase contracts preserve decisions;
+[current user guides](README.md) describe the public workflow.
 
-## Domain and execution flow
+## Processes and trust boundary
 
-A Project is a mutable local workspace with one immutable task selected at creation,
-one active Dataset, current Working Pipeline intent and historical Runs. Task is
-stored in the existing `ml_objective` field; omission at creation remains binary
-classification. Metadata PATCH cannot change it.
+```mermaid
+flowchart LR
+    CLI[Rust mls supervisor] --> FE[Node.js Next.js server]
+    CLI --> BE[Python FastAPI server]
+    Browser[Local browser] --> FE
+    Browser --> BE
+    BE --> DB[(SQLite metadata)]
+    BE --> Files[Managed source and Run artifacts]
+    BE --> Worker[Python workload subprocess]
+    BE --> Tracking[Local MLflow database and artifacts]
+```
 
-~~~text
-Managed Dataset + Working Pipeline IR
-    → validation → resolved Effective Execution Plan
-    → deterministic generated Python → frozen Run package
-    → exact persisted source in local subprocess
-    → validated results + complete fitted model + bounded logs
-    → local Run finalization → separate MLflow synchronization
-~~~
+FastAPI and Next.js remain independent loopback servers. Rust installs, launches,
+supervises and diagnoses them; it does not implement APIs, ML or rendering.
+The source checkout remains required for editable installation and migrations.
+Manual developer servers and CLI production servers are separate launch paths.
 
-The Working Pipeline can be incomplete, invalid or stale after replacement.
-Validation reports issues without silently rewriting intent. A reviewed preview
-binds revision, plan hash and source hash. Admission revalidates these before
-publishing an immutable package. Execution launches its persisted source file,
-not a separately rebuilt sklearn workload. The script verifies the exact bounded
-CSV buffer it parses, excludes missing targets, splits before fitting preparation,
-and writes the complete fitted pipeline and structured held-out results.
+## Domain and exact-source execution
 
-## Version boundaries
+A Project is mutable workspace intent with a fixed task (`ml_objective`), one
+active managed Dataset and immutable history. Dataset bytes are immutable and
+SHA-256-bound. Replacement creates a new identity while retaining past sources.
+IDs are domain identity; paths locate storage.
 
-| Contract | Binary classification | Regression |
-| --- | --- | --- |
-| Pipeline IR / effective plan | `0.1` | `0.2`, explicit `task="regression"` |
-| Generator | `mlstudio-python-v1` | `mlstudio-python-v2` |
-| Implementation | `sklearn-local-v1` | `sklearn-local-v2` |
-| Result | `mlstudio-result-v1` | `mlstudio-result-v2`, explicit regression task |
-| Workload CLI | `cli-v1` | `cli-v1` |
+Working Pipeline IR may be incomplete, invalid or stale. Validation resolves a
+versioned Effective Execution Plan without silently rewriting user intent. Code
+preview binds Project revision, Dataset, plan hash and source hash. Admission
+revalidates those identities before freezing a Run package. The executor launches
+its exact persisted Python file, not another hidden sklearn implementation.
+The generated workload verifies source bytes, splits before fitting preparation,
+and emits bounded validated results and the complete fitted pipeline.
 
-The binary reader, renderer, embedded source helpers and six source goldens remain
-unchanged. Two separate regression goldens pin the new compiler. Dispatch is
-explicit; unknown/cross-task versions fail instead of upgrading historical intent.
-Linear Regression and Ridge have explicit resolved parameters; binary estimators
-remain Logistic Regression, Decision Tree and Random Forest.
+| Task | IR / plan | Compiler / implementation | Result |
+| --- | --- | --- | --- |
+| Binary | 0.1 | mlstudio-python-v1 / sklearn-local-v1 | mlstudio-result-v1 |
+| Regression | 0.2 | mlstudio-python-v2 / sklearn-local-v2 | mlstudio-result-v2 |
+| Multiclass | 0.3 | mlstudio-python-v3 / sklearn-local-v1 | mlstudio-result-v3 |
 
-Regression accepts finite numeric non-Boolean targets with lossless integer-to-
-float64 conversion. Constant and two-valued numeric targets are valid. There is
-no positive class, target imputation or stratification. Its result validates
-MAE/MSE/RMSE and conditional R², population, plan/source binding and relevant
-versions. Negative R² is valid; unavailable R² carries a reason. Binary class
-orientation and conditional AUC retain their original protocol.
+Multiclass explicitly versions its compiler/result while reusing the v1
+implementation contract with captured Python/library versions.
 
-See [task contracts](development/v0.2-phase-2-contracts.md),
-[model configuration](development/v0.2-phase-3-configuration.md),
-[compiler/result protocol](development/v0.2-phase-4-compiler.md) and
-[shared execution/tracking](development/v0.2-phase-5-execution.md).
+Historical dispatch is explicit: unknown/cross-task versions fail rather than
+upgrading old intent. Public release/CLI version 0.4.0-beta.1 and frontend/backend
+package versions 0.2.0 are independent of these protocol identities.
+See [binary IR](specifications/pipeline-ir-v0.1.md),
+[regression contracts](development/v0.2-phase-2-contracts.md),
+[compiler](development/v0.2-phase-4-compiler.md), and current implementation.
 
 ## Persistence, history and tracking
 
-SQLite through SQLAlchemy owns metadata; Alembic owns schema evolution. Managed
-filesystem artifacts hold source Datasets and immutable Run evidence. IDs identify
-objects; paths locate bytes. Replacement creates a new Dataset and retains old
-sources. A Run freezes IR, resolved plan, source, semantic context and provenance.
-Validated result/model artifacts and hashes are finalized before success.
+SQLAlchemy/SQLite owns metadata; Alembic owns schema, currently `0009_multiclass`.
+No application `metadata.create_all()` replaces migration management. Task-constraint
+rebuilds use checked offline SQLite transactions and foreign-key validation. Stop
+all writers and back up SQLite plus managed files before upgrading. Downgrade
+across recent boundaries is refused; restore a consistent backup for rollback.
 
-Historical Code reads its original artifact. Runs/Evaluate use frozen evidence,
-never the active Dataset, current Pipeline or MLflow as authority. Compromised
-artifacts produce warnings; retained SQLite metrics remain visible but cannot
-participate in delta comparison. Exactly-two comparison checks task, source/target
-interpretation, split, relevant versions, metric definitions and population.
-Matching context does not independently prove identical held-out row membership.
-No automatic ranking or winner is produced.
+Runs freeze IR, plan, source, interpretation and provenance. Result/model integrity
+is checked before success. Historical Code reads original artifacts; Evaluate
+reads frozen Run responses, never current Dataset/Pipeline or MLflow. Integrity
+warnings retain SQLite metrics visibly but suppress comparison deltas. Exactly-two
+comparison checks task, fingerprint, typed target orientation, interpretation,
+split, versions, metric definitions and population. Compatible context does not
+independently prove identical held-out row membership; no winner is declared.
 
-MLflow has its own local SQLite database and managed artifacts. Task-aware metrics
-and configuration are synchronized after core terminal finalization. Null metrics
-are skipped; zero and negative R² are retained. Tracking failure is secondary and
-does not change the execution outcome. No remote MLflow service is required.
+MLflow has a separate local database/artifacts and synchronizes after core terminal
+finalization. Null metrics are skipped; valid zero/negative values are preserved.
+Tracking failure does not change the execution outcome. No tracking server needed.
+See [execution/tracking](development/v0.2-phase-5-execution.md).
 
-Migration `0006_task_objectives` widens only the Project objective constraint. Its
-SQLite rebuild uses a dedicated offline connection, explicit transaction, checked
-foreign-key boundary, pre/post ownership checks and integrity validation. Stop
-workers and back up the complete workspace first. Downgrade is deliberately refused.
-See [migration proof](development/v0.2-phase-1-compatibility.md).
+## Frontend and Code Mode
 
-## Source exploration and frontend
+The App Router Project workspace keeps typed API calls at the existing API
+boundary. Browser state/recovery buffers are not authoritative domain persistence.
+Explore shows bounded source profiles, not held-out predictions. Regression source
+scatter is capped at 200 pairs; correlation uses full complete source pairs.
 
-Explore computes source facts, not fitted or held-out results. Regression verifies
-identity, size and fingerprint before parsing the same bounded buffer, and checks
-revision before/after computation. Target statistics and Pearson relationships
-use full eligible observations; source scatter is capped at 200 pairs. Raw pairs
-are transient explicit local-UI evidence, never metadata or ordinary logs.
-Categorical grouped regression summaries and prediction-level plots are deferred.
-See [regression Explore](development/v0.2-phase-6.1-regression-explore.md).
+The shared Live Code Companion previews saved visual intent or proposed unsaved
+Train input through the same compiler without persisting a recipe or draft.
+Debounce, abort/sequence and Project/revision/Dataset guards prevent stale display.
+Edit Code is an explicit fork into a persisted baseline/current-source draft with
+origin snapshot. Active sessions guard visual writes. Snapshots and independent
+Code Runs are separate records; Python never mutates visual IR. Archived resume
+copies into an active session rather than overwriting archived evidence.
+See [unified workspace](development/unified-code-workspace.md),
+[Code drafts](development/v0.3-phase-1-code-mode.md),
+[execution](development/v0.3-phase-2a-execution.md) and
+[reporting](development/v0.3-phase-2b-evaluation.md).
 
-The frontend discriminates task/protocol, obtains model descriptors from the
-backend and protects unsaved Train drafts. Browser draft/submission recovery is
-not authoritative domain state. See [frontend integration](development/v0.2-phase-6-frontend.md).
+## Operational limits
 
-## Trust and product boundary
-
-Local workloads inherit the current user's operating-system privileges. A separate
-subprocess, bounded logs, timeouts and restricted environment inheritance are
-**not a secure sandbox**. There is no authentication, multi-user isolation, cloud
-execution service. Manual Python execution is a default-off, localhost-only Code
-Run boundary, not the visual Run API or a sandbox. Code drafts are stored text, with their
-own baseline, originating visual snapshot and optimistic revision; they never
-replace Working Pipeline IR or historical Run evidence. Active sessions guard
-visual writes until explicit snapshot-save/reentry or discard. Models remain trusted local joblib artifacts.
-No PostgreSQL, Docker, distributed queue or new service is needed. See
-[Security](../SECURITY.md) and [Development](development.md) for operational limits.
+Single trusted local user; no authentication, remote execution service or secure
+sandbox. Workloads inherit user privileges despite timeouts, bounded logs and
+restricted environment inheritance. Manual code execution is default-off with
+local peer/Host/Origin checks. Process cleanup is not hostile-code containment.
+Raw source rows belong in managed CSV/explicit local previews, not ordinary
+metadata/logs; code and class labels may still be sensitive. Models are trusted
+local joblib files. No cloud, PostgreSQL, Docker, queue, automatic GC or continuous
+backup service is required. See [Security](../SECURITY.md), [CLI](cli.md) and
+[Development](development.md) for configuration/recovery and concrete module paths.

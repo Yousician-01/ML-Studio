@@ -17,8 +17,8 @@ classical tabular baselines. It is not initially a shared production platform.
 **Visual-first, never visual-only.** Every meaningful visual operation should have
 an understandable representation in a Pipeline. The intended progression is
 Visual → Inspect → Extend: configure visually, learn from generated code, and
-eventually use explicit code extension points. The prototype targets one-way
-generation of managed Python, not arbitrary Python round trips.
+use explicit Code Mode. The beta implements one-way generation and an explicit
+manual-code fork, never arbitrary Python round trips.
 
 **Reproducibility over convenience.** Dataset identity, Pipeline configuration,
 seed, and environment should explain a Run. Identical inputs should reproduce
@@ -36,19 +36,18 @@ It should explain reasons, evidence, confidence, and alternatives. It must not
 silently modify a Pipeline. An experimental Experimenter role is a later idea.
 
 **Local-first.** Users should be able to keep datasets on their own infrastructure.
-An eventual clone-and-start local environment is an aspiration, not an available
-installation path. Any external AI provider would require explicit data-sharing
+The source-based CLI now installs and launches the local application. Any external AI provider would require explicit data-sharing
 choices; local-first does not imply that remote requests remain local.
 
-**Integrate mature OSS.** Prefer dataframe tooling, scikit-learn, XGBoost, and
-MLflow over custom equivalents. Optuna and Evidently are possible later
+**Integrate mature OSS.** The beta uses dataframe tooling, scikit-learn and MLflow rather than custom
+equivalents. XGBoost, Optuna and Evidently are possible later
 integrations, subject to actual needs.
 
 ## Direction, not a delivery commitment
 
 Tabular ML → experimentation → MLOps → NLP/deep learning → LLM experimentation
 is a possible evolution. None of the later domains justifies extra prototype
-infrastructure today. The [prototype](docs/prototype.md) defines the boundary;
+infrastructure today. The [current guides](docs/README.md) define implemented beta behavior;
 the [roadmap](ROADMAP.md) records intended sequencing.
 
 Success is a person understanding the project, eventually installing it without

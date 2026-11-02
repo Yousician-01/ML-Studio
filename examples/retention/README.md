@@ -5,7 +5,7 @@ an identifier and a binary `churn` outcome. Blank cells are missing observations
 including four missing targets. No row represents a real person. Scores illustrate
 the workflow; they are not a benchmark or evidence of business generalization.
 
-Use the [supported Windows source setup](../../README.md#supported-installation-source-checkout-only).
+Use the [installation guide](../../docs/installation.md).
 For validation, set `MLSTUDIO_HOME` to a new temporary directory **before** running
 Alembic and starting the backend. Never damage real Run evidence for this demo.
 
@@ -37,8 +37,9 @@ Alembic and starting the backend. Never damage real Run evidence for this demo.
    with **Save split**. Select **Logistic Regression**, keeping visible defaults
    `C=1`, `penalty=l2`, `max_iter=1000`. Save edited parameters if necessary.
    Expected population: 116 eligible rows, 92 training rows and 24 test rows.
-6. In **Code**, inspect the **Current Working Pipeline** read-only Python. Refreshing
-   Code does not execute training. Return to **Train**, resolve any readiness issues,
+6. Use **Show Code** in the toolbar to inspect the current read-only Python.
+   Opening or refreshing the viewer does not execute training. Return to **Train**,
+   resolve any readiness issues,
    and click **Run experiment**. Wait for a genuine **Succeeded** status.
 7. In **Runs**, open the Run. Inspect frozen configuration, metrics, provenance and
    artifacts, then click **Inspect historical Code**. It is the original executed
@@ -65,5 +66,6 @@ Alembic and starting the backend. Never damage real Run evidence for this demo.
 
 Scores may vary outside the documented environment and are deliberately not fixed
 acceptance thresholds. No ROC curve, threshold tuning, prediction table, AI advice
-or editable Python is provided. Read [Security](../../SECURITY.md) and the local
+is provided by this visual demonstration. Optional editable Code Mode is documented
+in the [Code workspace guide](../../docs/user-guide/code-workspace.md). Read [Security](../../SECURITY.md) and the local
 recovery/retention notes before handling sensitive real data.
