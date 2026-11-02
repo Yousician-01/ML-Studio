@@ -1,0 +1,30 @@
+[package]
+name = "mls"
+version = "0.4.0-beta.1"
+edition = "2024"
+rust-version = "1.89"
+license = "Apache-2.0"
+description = "Repository installer and two-server local runtime manager for ML Studio"
+publish = false
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4.5", features = ["derive"] }
+ctrlc = { version = "3.4", features = ["termination"] }
+dirs = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sysinfo = "0.37"
+uuid = { version = "1", features = ["v4"] }
+walkdir = "2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Console"] }
+
+[profile.release]
+strip = true
+lto = "thin"

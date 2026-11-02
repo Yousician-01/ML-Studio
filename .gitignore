@@ -44,3 +44,6 @@ out/
 
 
 note.txt
+
+# Rust CLI build products (Cargo.lock is intentionally committed).
+/cli/target/
