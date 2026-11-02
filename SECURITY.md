@@ -20,7 +20,8 @@ synthetic reproduction. Redact credentials, private paths and Dataset contents.
 
 ## Supported boundary: trusted local development
 
-ML Studio 0.2.0 is a source-installed binary-classification and regression prototype.
+ML Studio v0.4.0-beta.1 is a source-installed local beta supporting binary
+classification, multiclass classification and regression.
 Its verified acceptance environment is Windows, Python 3.14.2 and Node.js 24.13.0. Other platforms
 and runtime versions are not acceptance-verified. It is not a production service.
 
@@ -32,7 +33,7 @@ and runtime versions are not acceptance-verified. It is not a production service
   environment inheritance, timeouts and bounded logs. It is **not sandboxed** and
   inherits the local user's filesystem and operating-system privileges. The API
   accepts only generated source for visual Runs.
-- In the v0.3 checkout, Code drafts are stored text; saving never executes them.
+- Code drafts are stored text; saving never executes them.
   Separate Code Run execution requires `MLSTUDIO_CODE_EXECUTION_ENABLED=true` and
   loopback peer/Host plus approved local Origin checks. Bind the backend to
   `127.0.0.1`. Trusted Python can access anything allowed to the local user; isolated
@@ -66,18 +67,18 @@ guessing that cleanup is safe. Follow [recovery and retention guidance](docs/dev
 do not edit historical Run rows or delete evidence to force recovery.
 
 There is no cloud execution, deployment, arbitrary model import, automatic garbage
-collection, backup service or multi-tenant security claim in v0.2. Future security
-collection, backup service or multi-tenant security claim in v0.1. Future security
+collection, backup service or multi-tenant security claim in this beta. Security
 fixes should preserve immutable experiment evidence and avoid expanding scope.
 
-## Known development-tooling advisory
+## Dependency audit evidence
 
-Release validation reported five high-severity npm audit entries along the existing
-`eslint-config-next` → `fast-glob` → `micromatch` → `braces` development-only chain.
-[GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm) describes
-stack exhaustion from deeply nested brace patterns; no patched braces version was
-listed at validation time. Do not process untrusted glob patterns or treat linting
-untrusted repositories as sandboxed. npm proposes a major tooling downgrade, which
-is not applied to the frozen working stack. This remains a disclosed tooling risk;
-review upstream fixes before updating pins. A clean production-only audit would
-not establish that all application or backend dependencies are vulnerability-free.
+The 2026-11-03 release preparation audit reported zero npm production
+vulnerabilities and 14 moderate development-tooling entries (no high/critical).
+Advisory results change over time and do not establish absence of vulnerabilities.
+Do not process untrusted repositories/patterns as though developer tools were
+sandboxed. Python `pip-audit` and Rust `cargo-audit` were unavailable locally;
+`pip check` verifies dependency consistency, not vulnerability status.
+
+See [beta readiness](docs/development/beta-release-readiness.md) for exact commands,
+validation limits and outstanding maintainer checks. No dependency upgrades were
+made as part of the documentation release pass.

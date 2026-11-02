@@ -1,5 +1,8 @@
 # Prototype scope — v0.1
 
+> Historical v0.1 scope. For the current beta, use the [documentation index](README.md).
+> Later extensions do not rewrite the frozen v0.1 contracts.
+
 **Status:** the domain contracts are complete; implementation is beginning. This
 is a concise product summary, not a claim that the application already runs.
 The [v0.1 specifications](specifications/project-v0.1.md) govern normative

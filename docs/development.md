@@ -1,12 +1,20 @@
 # Development
 
+For users: [Installation](installation.md), [Getting started](getting-started.md)
+and [user guides](README.md). For this release: [fresh beta readiness evidence](development/beta-release-readiness.md).
+
+The setup below runs manual developer servers. CLI source bootstrap builds only
+the launcher; `mls install` prepares the application and `mls start` supervises
+two independent production servers. See [CLI](cli.md).
+
 ## Live Python companion and full-screen Code Mode
 
 The Project toolbar opens a read-only live Python viewer across benches. Explicit
 Edit Code enters the full-screen persistent editor; opening the viewer alone does
 not suspend visual editing. See the [unified code workspace guide](development/unified-code-workspace.md)
 for proposed-IR preview, archived-draft continuation, return behavior, and the
-manual acceptance checklist. Visual verification remains pending user acceptance.
+manual acceptance checklist. The user has reported visual acceptance of this feature;
+this release pass does not claim a fresh automated browser inspection.
 
 ## Implemented workflow
 
@@ -83,8 +91,10 @@ The [Phase 2B evaluation bridge](development/v0.3-phase-2b-evaluation.md) adds e
 bounded reporting from Code Runs to the shared Evaluate bench.
 Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
 execution. Explicit snapshot-save or discard restores the preserved visual recipe;
-historical Runs and compiler/IR versions remain unchanged. Package versions remain
-0.2.0 until release finalization. See the linked guide for setup and limitations.
+historical Runs and compiler/IR versions remain unchanged. Public/CLI release
+identity is 0.4.0-beta.1; frontend/backend package versions remain independently
+versioned at 0.2.0. IR/result identities are separate. See the linked guide for
+setup and limitations.
 
 ML Studio 0.2.0 supports binary classification and regression from Project creation
 through managed CSV ingestion, task-aware Explore, explicit Prepare/Train,
@@ -149,7 +159,8 @@ Initialize the database, then start the backend:
 
 The migration chain is `0001_foundation` → `0002_project_dataset` →
 `0003_working_pipeline` → `0004_runs` → `0005_tracking` →
-`0006_task_objectives` → `0007_code_drafts` → `0008_code_runs` (current development head).
+`0006_task_objectives` → `0007_code_drafts` → `0008_code_runs` →
+`0009_multiclass` (current head).
 Fresh installation and upgrades are covered by the existing migration tests.
 Startup does not run migrations or call `metadata.create_all()`; Alembic owns
 schema evolution. Before upgrading an existing workspace, stop the backend and all
@@ -169,8 +180,8 @@ Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
 Expected response:
 `{"status":"ok","service":"ml-studio-api","database":"ready"}`.
 The endpoint checks SQLite with a trivial query. A query failure returns a
-sanitized HTTP 503, not internal paths or stack traces. Health proves database
-connectivity, not migration currency. Domain requests check the database revision
+sanitized HTTP 503, not internal paths or stack traces. Health uses the same
+schema-aware session dependency as domain requests. Requests check the database revision
 against Alembic's installed script heads before opening a session. A missing or
 stale revision returns a sanitized 503 with current/required revisions and the
 explicit `python -m alembic upgrade head` command (from an activated backend
@@ -202,7 +213,7 @@ It includes the API prefix and is embedded at build time. Restart development or
 rebuild production after changes. The browser calls FastAPI directly; CORS must
 allow the frontend origin.
 
-## Current v0.2 task and version behavior
+## v0.2 extension record: task and version behavior
 
 Creation accepts `ml_objective` as `binary_classification` (the omitted default)
 or `regression`; metadata PATCH cannot change it. The same Project/Dataset/Pipeline/
@@ -503,7 +514,7 @@ npm.cmd run lint
 npm.cmd run build
 ```
 
-Next.js 16.3.8 and React 19.3.0 were resolved from npm's stable releases.
+The current manifest pins Next.js 16.4.1 and React 19.3.0.
 TypeScript 6.0.3 is pinned because Next's typescript-eslint parser rejects 7.0.
 ESLint 9.39.5 is pinned because Next's React lint plugin fails with ESLint 10.11.0.
 npm labels ESLint 9 deprecated; revisit these tooling pins when upstream support
@@ -514,6 +525,9 @@ Run `git diff --check` and inspect `git status` before committing. Backend depen
 `backend/pyproject.toml`; frontend dependencies and scripts are declared in
 `frontend/package.json`. Setup commands must stay backed by actual
 verification; do not document aspirational commands as working instructions.
+
+The following phase-specific verification records are historical, not current
+beta validation. Use the readiness report above for fresh results.
 
 Phase 1 verification passed 69 backend tests, Ruff checks, `pip check`, fresh
 and Phase 0 Alembic upgrades, and `alembic check` with no schema drift.
@@ -702,7 +716,7 @@ The backend uses Python 3.14.2 and runs `python -m pip install -e ".[dev]"`,
 `python -m pip check`, and `python -m pip wheel --no-deps --wheel-dir dist .`
 from `backend/`. The wheel command uses the existing Hatchling build backend
 declared in `pyproject.toml`; no separate build CLI dependency is needed.
-CI sets `MLSTUDIO_HOME` under the runner temporary directory; tests also isolate
+CI sets `MLSTUDIO_HOME` to `${{ github.workspace }}/mlstudio-ci`; tests also isolate
 their workspaces. Wheels are validation output only and are not published.
 
 Actions are pinned to full commit SHAs. Permissions are limited to `contents: read`,

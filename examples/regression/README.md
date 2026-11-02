@@ -5,7 +5,7 @@ synthetic observations, never real customer data. Here `monthly_spend` is a nume
 target, not the classification demo's `churn` label. This is a workflow example,
 not a benchmark or a claim of business generalization.
 
-Use the [verified Windows source setup](../../README.md#supported-installation-source-checkout-only).
+Use the [installation guide](../../docs/installation.md).
 For a disposable workspace, set `MLSTUDIO_HOME` outside the repository before
 migrations/startup; see [Development](../../docs/development.md). The task cannot
 be changed on an existing Project, so create a separate regression Project.
@@ -34,7 +34,7 @@ be changed on an existing Project, so create a separate regression Project.
    no stratification control. Select **Linear Regression** and keep its displayed
    `fit_intercept` default. Save any edited fields and resolve readiness issues.
    With this source/target, 114 eligible rows give 91 training and 23 test rows.
-6. Open **Code** and inspect the read-only generated Python. Return to **Train**
+6. Use **Show Code** in the toolbar to inspect read-only generated Python. Return to **Train**
    and click **Run experiment**. Only an actual terminal **Succeeded** Run has
    successful evaluation evidence. Preprocessing is fitted on training rows only.
 7. Open **Evaluate** for that Run. Inspect MAE, MSE, RMSE, R², held-out population

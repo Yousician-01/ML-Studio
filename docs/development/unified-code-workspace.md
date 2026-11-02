@@ -91,7 +91,7 @@ Manual Python is never parsed back into visual configuration.
 Historical Run artifacts, generated-source identity, result protocols, execution
 opt-in, and the two independent FastAPI/Next.js servers are unchanged.
 
-## Manual acceptance — pending user verification
+## Manual acceptance scenarios
 
 1. **Visual-only:** open Show Code from Data, Explore, Prepare, Train, Runs, and
    Evaluate. Confirm no navigation or Code Mode transition, and that closing the
@@ -114,5 +114,6 @@ opt-in, and the two independent FastAPI/Next.js servers are unchanged.
    the previous Project's source cannot appear in the new viewer. Check reload and
    keyboard navigation as well as the existing unsaved-code leave warning.
 
-Visual acceptance is intentionally left to the user. This guide describes the
-implementation and acceptance scenarios; it does not claim browser verification.
+The user reported manual visual acceptance before beta release preparation.
+These remain repeatable acceptance scenarios; this document does not claim fresh
+automated browser verification.
