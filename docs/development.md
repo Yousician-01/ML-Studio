@@ -1,5 +1,13 @@
 # Development
 
+## Live Python companion and full-screen Code Mode
+
+The Project toolbar opens a read-only live Python viewer across benches. Explicit
+Edit Code enters the full-screen persistent editor; opening the viewer alone does
+not suspend visual editing. See the [unified code workspace guide](development/unified-code-workspace.md)
+for proposed-IR preview, archived-draft continuation, return behavior, and the
+manual acceptance checklist. Visual verification remains pending user acceptance.
+
 ## Implemented workflow
 
 ### Frontend workbench design

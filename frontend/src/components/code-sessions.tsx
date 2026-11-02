@@ -5,7 +5,7 @@ import { api } from "@/lib/api/projects";
 import type { CodeDraft, CodeSnapshot } from "@/lib/api/code-drafts";
 import { Alert, Button, Dialog, Loading, Panel } from "./ui";
 
-export function CodeSessions({ projectId }: { projectId: string }) {
+export function CodeSessions({ projectId, onResume }: { projectId: string; onResume?: (id: string) => void }) {
   const [items, setItems] = useState<Pick<CodeDraft, "id" | "status" | "origin_revision" | "created_at" | "updated_at">[] | null>(null);
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<string | null>(null);
@@ -18,7 +18,7 @@ export function CodeSessions({ projectId }: { projectId: string }) {
   }, [projectId, offset, attempt]);
   function page(next: number) { setItems(null); setError(""); setOffset(next); }
   return <Panel title="Saved Code sessions" description="Code drafts and snapshots are separate from Runs. Ended sessions can be inspected read-only.">
-    {error ? <Alert>{error}<Button onClick={() => setAttempt(v => v + 1)}>Retry</Button></Alert> : !items ? <Loading>Loading saved sessions…</Loading> : !items.length ? <p>No saved Code sessions on this page.</p> : <ul>{items.map(item => <li key={item.id}><Button onClick={() => setSelected(item.id)}>Inspect {item.status} session · visual revision {item.origin_revision} · {new Date(item.created_at).toLocaleString()}</Button></li>)}</ul>}
+    {error ? <Alert>{error}<Button onClick={() => setAttempt(v => v + 1)}>Retry</Button></Alert> : !items ? <Loading>Loading saved sessions…</Loading> : !items.length ? <p>No saved Code sessions on this page.</p> : <ul>{items.map(item => <li key={item.id}><Button onClick={() => setSelected(item.id)}>Inspect {item.status} session · visual revision {item.origin_revision} · {new Date(item.created_at).toLocaleString()}</Button>{onResume && item.status === "archived" && <Button onClick={() => onResume(item.id)}>Continue this draft</Button>}</li>)}</ul>}
     <div className="actions"><Button disabled={!items || offset === 0} onClick={() => page(offset - 20)}>Newer sessions</Button><Button disabled={!items || items.length < 20} onClick={() => page(offset + 20)}>Older sessions</Button></div>
     {selected && <SavedSession key={selected} projectId={projectId} draftId={selected} onClose={() => setSelected(null)} />}
   </Panel>;

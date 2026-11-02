@@ -1,0 +1,33 @@
+.code-companion-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; min-width: 0; }
+.code-companion-layout.has-code-dock { grid-template-columns: minmax(0, 1fr) minmax(320px, var(--live-code-width, 45%)); }
+.has-code-dock .workspace { padding-inline: 24px; }
+.live-viewer-slot { display: contents; }
+.visual-bench-boundary { min-width: 0; margin: 0; padding: 0; border: 0; }
+.live-code-panel { min-width: 0; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; z-index: 25; }
+.live-code-docked { position: sticky; top: 64px; height: calc(100dvh - 64px); border-right: 0; }
+.live-code-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.live-code-drag { display: flex; align-items: center; gap: 8px; background: transparent; border: 0; color: var(--text); font: inherit; font-weight: 600; touch-action: none; cursor: move; }
+.live-code-drag:disabled { opacity: 1; cursor: default; }
+.live-code-caption, .live-code-actions { padding: 4px 12px; font-size: 12px; margin: 4px 0; }
+.live-code-editor { flex: 1; min-height: 220px; overflow: hidden; }
+.live-code-divider { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; touch-action: none; z-index: 2; }
+.live-code-divider:focus-visible { outline: 2px solid var(--accent); }
+.live-code-floating { position: fixed; width: min(680px, 80vw); height: 70dvh; min-width: min(320px, 100vw); min-height: min(300px, calc(100dvh - 64px)); resize: both; overflow: auto; border-radius: 10px; box-shadow: 0 16px 48px #24242b25; }
+.live-code-floating .live-code-divider { display: none; }
+.live-code-history { padding: 12px; border-top: 1px solid var(--border); max-height: 45%; overflow: auto; }
+.live-code-changed { background: var(--accent-subtle); border-left: 2px solid var(--accent); }
+.full-code-workspace { position: fixed; inset: 64px 0 0 var(--sidebar-width); z-index: 19; overflow: auto; padding: 20px 28px; background: var(--bg); }
+.full-code-workspace .editor-frame { min-height: 65dvh; }
+.live-code-panel > .alert { margin: 12px; }
+@media (max-width: 1100px) {
+  .code-companion-layout.has-code-dock { grid-template-columns: minmax(0, 1fr); }
+  .live-code-panel.live-code-docked, .live-code-panel.live-code-floating { position: fixed; inset: 64px 0 0 auto !important; width: min(600px, 100vw); height: calc(100dvh - 64px); max-width: 100vw !important; max-height: calc(100dvh - 64px) !important; resize: none; border-radius: 0; }
+  .live-code-divider { display: none; }
+  .live-layout-toggle { display: none; }
+}
+@media (max-width: 760px) {
+  .full-code-workspace { inset: 58px 0 0; padding: 12px; }
+  .live-code-panel.live-code-docked, .live-code-panel.live-code-floating { top: 58px !important; height: calc(100dvh - 58px); max-height: calc(100dvh - 58px) !important; }
+  .app-topbar .local-indicator { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .live-code-changed { background: var(--surface-subtle); } }

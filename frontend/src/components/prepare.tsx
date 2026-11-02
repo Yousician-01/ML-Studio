@@ -6,6 +6,8 @@ import { api, ApiError } from "@/lib/api/projects";
 import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, WorkingPipeline } from "@/lib/api/pipelines";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 
+import { useLivePipeline } from "./live-pipeline";
+
 function Issues({ issues }: { issues: PipelineIssue[] }) {
   return <>{issues.map((issue, index) => <p className={issue.severity === "blocking" ? "prepare-error" : "muted"} key={`${issue.code}:${index}`}>
     <strong>{issue.severity === "blocking" ? "Blocking issue" : "Non-blocking observation"}:</strong> {issue.message}
@@ -15,6 +17,7 @@ function Issues({ issues }: { issues: PipelineIssue[] }) {
 export function Prepare({ projectId, datasetId, onReload }: {
   projectId: string; datasetId: string | null; onReload: () => void;
 }) {
+  const live = useLivePipeline();
   const [state, setState] = useState<WorkingPipeline | null>(null);
   const [error, setError] = useState("");
   const [errorScope, setErrorScope] = useState("pipeline");
@@ -25,26 +28,28 @@ export function Prepare({ projectId, datasetId, onReload }: {
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    api.pipeline(projectId, controller.signal).then((data) => {
+    function load() { void api.pipeline(projectId, controller.signal).then((data) => {
       if (!controller.signal.aborted) setState(data);
     }).catch((err: unknown) => {
       if (!controller.signal.aborted) setError(err instanceof Error ? err.message : "Prepare unavailable.");
     });
-    return () => controller.abort();
+    }
+    load(); window.addEventListener("mlstudio:visual-refresh", load);
+    return () => { controller.abort(); window.removeEventListener("mlstudio:visual-refresh", load); };
   }, [projectId]);
   async function persist(ir: PipelineIR, scope: string) {
     if (!state || busy || conflict) return;
-    setBusy(true); setError(""); setSaved(false); setErrorScope(scope);
+    live?.publish(null); setBusy(true); setError(""); setSaved(false); setErrorScope(scope);
     try { setState(await api.savePipeline(projectId, state.revision, ir)); setSaved(true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not save preparation."); setConflict(err instanceof ApiError && err.status === 409); }
-    finally { setBusy(false); }
+    finally { setBusy(false); live?.refresh(); }
   }
   async function reset() {
     if (!state || !datasetId || !confirmed) return;
-    setBusy(true); setError(""); setErrorScope("pipeline"); setSaved(false);
+    live?.publish(null); setBusy(true); setError(""); setErrorScope("pipeline"); setSaved(false);
     try { setState(await api.resetPipeline(projectId, state.revision, datasetId)); setConfirmed(false); setOffset(0); setSaved(true); }
     catch (err) { setError(err instanceof Error ? err.message : "Could not reset preparation."); setConflict(err instanceof ApiError && err.status === 409); }
-    finally { setBusy(false); }
+    finally { setBusy(false); live?.refresh(); }
   }
   const localError = (scope: string) => error && errorScope === scope ? <Alert>{error} <Button onClick={onReload}>Reload Prepare</Button></Alert> : null;
   if (!state) return error ? localError("pipeline") : <Loading>Loading Working Pipeline…</Loading>;

@@ -1,6 +1,6 @@
 "use client";
+import { OpenCodeButton } from "./open-code-button";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "@/lib/api/projects";
 import type { CodePreview } from "@/lib/api/code";
@@ -99,7 +99,7 @@ export function RunExperiment({ projectId, revision, ready, dirty, conflict, sav
   }
   return <div className="run-execution">
     <h3>Execute saved experiment</h3><p className="muted">Create an immutable Run from saved revision {revision}. Configuration is never auto-saved by this action.</p>
-    <div className="actions"><Button variant="primary" disabled={!enabled} onClick={() => void submit()}>{busy ? "Confirming submission…" : "Run experiment"}</Button><Link href={`/projects/${projectId}?view=code`}>Inspect current Code</Link></div>
+    <div className="actions"><Button variant="primary" disabled={!enabled} onClick={() => void submit()}>{busy ? "Confirming submission…" : "Run experiment"}</Button><OpenCodeButton>Inspect current Code</OpenCodeButton></div>
     <p className="muted">{dirty ? "Save local edits before execution." : conflict || stale ? "The experiment changed or capacity is occupied. Review before submitting again." : occupied ? "Execution capacity is occupied or unavailable." : !reviewed ? "Waiting for an executable preview of this saved revision." : `Ready to freeze revision ${revision}.`}</p>
     {error && <Alert>{error}</Alert>}
     {pending && <Alert tone="info">A submission is not yet confirmed. Preserve its identity to avoid duplicate execution.<div className="actions"><Button disabled={busy} onClick={() => void submit(true)}>Check existing submission</Button>{stale && <Button disabled={busy} onClick={() => void reviewLatest()}>Review latest configuration</Button>}</div></Alert>}

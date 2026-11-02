@@ -11,9 +11,9 @@ const workflow = [
   { view: "train", label: "Train", hint: "Configure & execute" },
 ] as const;
 
-export function AppShell({ project, view = "projects", onNavigate, children }: {
+export function AppShell({ project, view = "projects", onNavigate, children, toolbar }: {
   project?: { id: string; name: string } | null; view?: string;
-  onNavigate?: (view: string) => void; children: ReactNode;
+  onNavigate?: (view: string) => void; children: ReactNode; toolbar?: ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
@@ -29,7 +29,7 @@ export function AppShell({ project, view = "projects", onNavigate, children }: {
     <header className="app-topbar">
       <button ref={toggle} className="mobile-navigation" aria-label="Toggle workspace navigation" aria-expanded={expanded} aria-controls="app-navigation" onClick={() => setExpanded(value => !value)}><Icon name={expanded ? "close" : "menu"} /></button>
       <div className="topbar-path"><span>Workspace</span><span aria-hidden="true">/</span>{project && <><span className="topbar-project">{project.name}</span><span aria-hidden="true">/</span></>}<strong>{title}</strong></div>
-      <span className="local-indicator"><span aria-hidden="true" />Local workspace</span>
+      {toolbar}<span className="local-indicator"><span aria-hidden="true" />Local workspace</span>
     </header>
     <aside id="app-navigation" className={`app-sidebar${expanded ? " is-expanded" : ""}`}>
       <Link href="/" className="brand" aria-label="ML Studio home"><span className="brand-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 18V6l8 8 8-8v12M4 6l8 8 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg></span><span>ML Studio<small>Machine learning, clearly.</small></span></Link>
@@ -39,7 +39,7 @@ export function AppShell({ project, view = "projects", onNavigate, children }: {
         <div className="sidebar-section-label">Build your experiment</div>
         <nav className="sidebar-links" aria-label="Project workflow">{workflow.map(step => item(step.view, step.label, step.view, step.hint))}</nav>
         <div className="sidebar-section-label">Evidence & development</div>
-        <nav className="sidebar-links" aria-label="Project evidence">{item("runs", "Runs", "runs")}{item("evaluate", "Evaluate", "evaluate")}{item("code", "Code", "code")}</nav>
+        <nav className="sidebar-links" aria-label="Project evidence">{item("runs", "Runs", "runs")}{item("evaluate", "Evaluate", "evaluate")}</nav>
       </>}
       <div className="sidebar-note"><Icon name="local" /><div><strong>Built to run locally</strong><p>Managed data and Run history are stored on this device.</p></div></div>
       <div className="sidebar-footnote"><span className="small-brand-dot" />Visual ML. Real code.</div>
