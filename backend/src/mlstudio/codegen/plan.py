@@ -4,13 +4,14 @@ from mlstudio.codegen.compatibility import library_versions, python_version
 from mlstudio.codegen.schemas import (
     Constructor,
     EffectiveExecutionPlan,
-    FeaturePlan,
     ImplementationContract,
     ResolvedSplit,
     SourceContract,
     TargetPlan,
 )
 from mlstudio.services.pipelines import validate
+from mlstudio.services.temporal import features as temporal_features
+from mlstudio.services.temporal import resolved as resolved_temporal
 
 
 def operation(op):
@@ -126,16 +127,8 @@ def resolve(ir, dataset, selected_target, frame):
             positive_class=ir.target.positive_class,
             negative_class=next(c for c in classes if c != ir.target.positive_class),
         ),
-        features=tuple(
-            FeaturePlan(
-                name=c["name"],
-                physical_dtype=str(frame[c["name"]].dtype),
-                semantic_type=c["semantic_override"] or c["inferred_semantic_type"],
-                operations=tuple(operation(op) for op in ir.features[c["name"]].operations),
-            )
-            for c in columns
-            if c["name"] in ir.features and ir.features[c["name"]].included
-        ),
+        temporal=resolved_temporal(ir, dataset, frame),
+        features=temporal_features(ir, dataset, frame),
         split=ResolvedSplit(**ir.split.model_dump()),
         model=classifier(ir),
         implementation=ImplementationContract(

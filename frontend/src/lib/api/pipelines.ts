@@ -9,7 +9,11 @@ export type ModelIntent =
  | { type: "linear_regression"; parameters: { fit_intercept: boolean } }
  | { type: "ridge"; parameters: { alpha: number; fit_intercept: boolean } };
 export type SplitIntent = { test_size: number | null; random_seed: number | null; stratify?: boolean | null };
-type Recipe = { dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
+export type TemporalOperation = "year" | "quarter" | "month" | "day" | "day_of_week" | "iso_week" | "iso_year" | "day_of_year" | "hour" | "minute" | "second" | "is_weekend" | "is_leap_year" | "is_month_start" | "is_month_end" | "is_quarter_start" | "is_quarter_end" | "is_year_start" | "is_year_end" | "date_diff" | "calendar_age" | "cyclic_sin" | "cyclic_cos";
+export type TemporalExpression = { kind: "column" | "reference"; name: string } | { kind: "literal"; value: string } | { kind: "call"; operation: TemporalOperation; arguments: TemporalExpression[]; parameters: { unit?: "seconds" | "minutes" | "hours" | "days" | null } };
+export type TemporalConfig = { version: "temporal-v1"; sources: Record<string, { format: string; naive: "utc" | "reject"; invalid: "reject" | "coerce" }>; features: { name: string; expression: TemporalExpression }[] };
+export type TemporalPreview = { revision: number; limit: number; columns: { name: string; semantic_type: string; missing_count: number; values: (number | null)[] }[]; sources: Record<string, { missing_count: number; invalid_count: number; date_only_count: number }>; warnings: string[]; errors: string[] };
+type Recipe = { temporal?: TemporalConfig | null; dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
 export type PipelineIR = Recipe & (
  { ir_version: "0.1"; target: { column: string; positive_class: TypedScalar | null; missing_value_policy: "exclude_rows" } | null }
  | { ir_version: "0.2"; task: "regression"; target: { column: string; value_type: "numeric"; missing_value_policy: "exclude_rows" } | null }

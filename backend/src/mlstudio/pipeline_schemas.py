@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from mlstudio.schemas import ColumnResponse, InputModel, ProjectTask
+from mlstudio.temporal_schemas import TemporalFields
 
 
 class TypedScalar(InputModel):
@@ -115,7 +116,7 @@ class SplitIntent(InputModel):
     stratify: Annotated[bool, Field(strict=True)] | None = True
 
 
-class PipelineIR(InputModel):
+class PipelineIR(TemporalFields):
     ir_version: Literal["0.1"] = "0.1"
     dataset: DatasetBinding | None = None
     target: TargetIntent | None = None
@@ -159,7 +160,7 @@ AnyModelIntent = Annotated[
 ]
 
 
-class RegressionPipelineIR(InputModel):
+class RegressionPipelineIR(TemporalFields):
     ir_version: Literal["0.2"]
     task: Literal["regression"]
     dataset: DatasetBinding | None = None
@@ -174,7 +175,7 @@ class MulticlassTargetIntent(InputModel):
     missing_value_policy: Literal["reject"] = "reject"
 
 
-class MulticlassPipelineIR(InputModel):
+class MulticlassPipelineIR(TemporalFields):
     ir_version: Literal["0.3"] = "0.3"
     task: Literal["multiclass_classification"] = "multiclass_classification"
     dataset: DatasetBinding | None = None

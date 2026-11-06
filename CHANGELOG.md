@@ -6,6 +6,19 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ## [Unreleased]
 
+### v0.5.0 - Datetime feature engineering
+
+- Optional typed temporal-v1 features for binary classification, multiclass and
+  regression: calendar/ISO components, predicates, explicit cyclical components,
+  signed durations and completed calendar age with fixed/per-row references.
+- Prepare guided and nested-expression builders, explicit parsing/missing policies,
+  bounded preview diagnostics, save/discard and shared Live Python previews.
+- One stateless UTC transformer shared by preview, generated Python and complete
+  fitted-model inference; existing training-only imputation/scaling preserved.
+- Persist definitions in existing IR JSON; preserve old source goldens/history
+  when absent. No dependencies or database migration; conservative temporal-context
+  comparison warnings. No current clock, forecasting, lags or generic expressions.
+
 ## [0.4.0-beta.1] - Prepared, not published
 
 ### Added

@@ -37,8 +37,12 @@ def resolve_for_version(ir, dataset, selected_target, frame):
 def generate_for_version(plan):
     payload = plan if isinstance(plan, dict) else plan.model_dump(mode="json")
     resolved = load_plan(payload)
-    if isinstance(resolved, EffectiveExecutionPlan):
-        return binary_generate(resolved)
-    from mlstudio.codegen.v2.render import generate
+    from mlstudio.codegen.temporal import extend_source
 
-    return generate(resolved)
+    if isinstance(resolved, EffectiveExecutionPlan):
+        source = binary_generate(resolved)
+    else:
+        from mlstudio.codegen.v2.render import generate
+
+        source = generate(resolved)
+    return extend_source(source, resolved)

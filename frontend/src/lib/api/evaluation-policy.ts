@@ -94,6 +94,7 @@ export function compareContext(projectId: string, runs: Run[]) {
   check(same(a.summary.target, b.summary.target) && ((runTask(a) === "regression" && runTask(b) === "regression") || (a.result?.schema_version === "mlstudio-result-v3" && b.result?.schema_version === "mlstudio-result-v3" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels)) || (a.result?.schema_version === "mlstudio-result-v1" && b.result?.schema_version === "mlstudio-result-v1" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels))), "Target or typed positive/negative class orientation differs.");
   const pa = a.execution_plan, pb = b.execution_plan;
   check(same(pa?.source, pb?.source) && same(pa?.target, pb?.target), "Frozen source/target interpretation differs or is unavailable.");
+  check(same(pa?.temporal ?? "absent", pb?.temporal ?? "absent"), "Frozen temporal definitions or parsing policies differ; metric deltas are suppressed.");
   check(same(pa?.split, pb?.split), "Frozen test size, seed or stratification differs or is unavailable.");
   const versions = (run: Run) => {
     const plan = run.execution_plan;

@@ -7,6 +7,7 @@ import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, WorkingPipeli
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 
 import { useLivePipeline } from "./live-pipeline";
+import { TemporalFeaturesEditor } from "./temporal-features";
 
 function Issues({ issues }: { issues: PipelineIssue[] }) {
   return <>{issues.map((issue, index) => <p className={issue.severity === "blocking" ? "prepare-error" : "muted"} key={`${issue.code}:${index}`}>
@@ -26,6 +27,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
   const [confirmed, setConfirmed] = useState(false);
   const [offset, setOffset] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [temporalDirty, setTemporalDirty] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     function load() { void api.pipeline(projectId, controller.signal).then((data) => {
@@ -57,7 +59,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
   const { ir } = state;
   const incompleteCodes = new Set(["target_missing", "positive_class_missing", "dataset_missing", "features_empty"]);
   const hasInvalidIntent = state.issues.some(issue => issue.severity === "blocking" && issue.scope !== "train" && !incompleteCodes.has(issue.code));
-  const disabled = busy || conflict || state.stale;
+  const disabled = busy || conflict || state.stale || temporalDirty;
   const targetColumn = state.columns.find((column) => column.name === ir.target?.column);
   const names = [...state.columns.map(c => c.name).filter(name => name !== ir.target?.column), ...Object.keys(ir.features).filter(name => !state.columns.some(c => c.name === name))];
   function updateFeature(name: string, feature: FeatureIntent) {
@@ -81,7 +83,7 @@ export function Prepare({ projectId, datasetId, onReload }: {
       <details><summary>Reset preparation</summary>
         <p>Replace this working recipe with the current Dataset and target. All feature candidates start included, with no operations. Previous preparation choices{ir.ir_version === "0.1" ? ", positive class" : ""}, model, and split will be cleared.</p>
         <label className="check-label"><input type="checkbox" checked={confirmed} disabled={busy || conflict} onChange={e => setConfirmed(e.target.checked)} /> I understand that this replaces the working preparation.</label>
-        <Button disabled={!confirmed || busy || conflict} onClick={() => void reset()}>Reset for current Dataset</Button>
+        <Button disabled={!confirmed || busy || conflict || temporalDirty} onClick={() => void reset()}>Reset for current Dataset</Button>
       </details>
     </Panel>
     {!state.stale && <>
@@ -97,6 +99,8 @@ export function Prepare({ projectId, datasetId, onReload }: {
         </label>}
         {ir.ir_version === "0.3" ? <p className="muted">{state.target_classes.length} classes; missing labels are rejected. {state.target_classes.map(c => `${String(c.value)} (${c.value_type})`).join(", ")}</p> : <p className="muted">Missing target rows: {state.target_missing_count}. The fixed policy excludes these rows before training and evaluation; the target is never imputed. {ir.ir_version === "0.1" ? "Choosing a positive class confirms this policy." : "Constant or two-valued numeric targets are permitted; R² availability is determined by the held-out population."}</p>}
       </Panel>
+      <TemporalFeaturesEditor key={state.revision} projectId={projectId} state={state} disabled={busy || conflict || state.stale} onSave={next => persist(next, "pipeline")} onDirtyChange={setTemporalDirty} />
+      {temporalDirty && <p className="muted">Save or discard temporal changes before editing other preparation controls.</p>}
       <Panel title="Features" description="Operations are ordered: imputation first, then scaling or encoding. None means no operation. Excluded features retain dormant choices.">
         <div className="table-scroll" tabIndex={0} role="region" aria-label="Scrollable data table"><table className="prepare-table"><thead><tr><th>Feature / effective type</th><th>Participation</th><th>Missing values</th><th>Scaling / encoding</th><th>Validation / intent</th></tr></thead><tbody>
           {names.slice(offset, offset + 20).map(name => {

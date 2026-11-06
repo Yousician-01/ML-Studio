@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 
 from mlstudio.codegen.schemas import FeaturePlan, PlanModel, SourceContract
 from mlstudio.pipeline_schemas import DatasetBinding
+from mlstudio.temporal_schemas import TemporalPlanFields
 
 Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
 Integer = Annotated[int, Field(strict=True)]
@@ -114,7 +115,7 @@ class Evaluation(PlanModel):
     r2_policy: Literal["unavailable-if-small-or-constant"] = "unavailable-if-small-or-constant"
 
 
-class RegressionPlan(PlanModel):
+class RegressionPlan(TemporalPlanFields, PlanModel):
     plan_version: Literal["0.2"] = "0.2"
     ir_version: Literal["0.2"] = "0.2"
     task: Literal["regression"] = "regression"

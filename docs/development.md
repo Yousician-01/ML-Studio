@@ -1,5 +1,81 @@
 # Development
 
+## Temporal feature extension (v0.5)
+
+`temporal_schemas.py` extends existing Pipeline IR with optional `temporal-v1`
+declarative sources/features. Source expressions reference configured datetime
+columns; fixed ISO literals and references to other derived features compose with
+typed calls. Validation bounds 32 sources, 128 named outputs, nesting depth 8 and
+1024 visited expression nodes. Cycles, collisions, unresolved/type-incompatible
+references and target-derived leakage are rejected. No arithmetic/Python language
+is added. Existing feature intent controls participation and downstream operations.
+
+Example partial working recipe (retain the Project's existing task/target/binding,
+model, split and other feature intent):
+
+```json
+{
+  "temporal": {
+    "version": "temporal-v1",
+    "sources": {
+      "signup_date": {"format": "ISO8601", "naive": "utc", "invalid": "reject"},
+      "prediction_date": {"format": "ISO8601", "naive": "utc", "invalid": "reject"}
+    },
+    "features": [{
+      "name": "tenure_days",
+      "expression": {
+        "kind": "call", "operation": "date_diff",
+        "arguments": [{"kind": "column", "name": "prediction_date"}, {"kind": "column", "name": "signup_date"}],
+        "parameters": {"unit": "days"}
+      }
+    }]
+  },
+  "features": {
+    "signup_date": {"included": false, "operations": []},
+    "prediction_date": {"included": false, "operations": []},
+    "tenure_days": {"included": true, "operations": [{"type": "impute", "strategy": "median"}, {"type": "scale", "method": "standard"}]}
+  }
+}
+```
+
+`POST /api/v1/projects/{id}/pipeline/temporal-preview` takes the existing
+`PipelineUpdate` body (`revision`, proposed `ir`). It is read-only and binding/
+revision guarded; it returns up to 20 derived values per output, inferred output
+types, source-wide missing/invalid counts and warnings/errors. It stores no rows.
+Use existing pipeline PATCH to persist after preview. Invalid/incomplete intent
+can still be retained by that established PATCH contract with blocking issues.
+
+The shared `temporal_runtime_v1.py` implements parsing and evaluation. Generated
+source embeds its fixed functions/class, uses source-bound physical dtypes and
+prepends `TemporalFeatures` to the complete fitted sklearn pipeline. The feature
+validator uses transient derived observations for ordinary numeric/binary grammar;
+raw source/Dataset schema stays immutable. Only explicitly declared outputs are generated.
+The source extension checks template integration points and applies only when the
+versioned capability is present. No new dependencies or schema migration.
+
+For trusted local model loading in the backend environment, joblib resolves the
+stable `mlstudio.temporal_runtime_v1.TemporalFeatures` class. Standalone consumers
+must first import the Run's frozen generated source (using importlib and without
+calling main), then load its trusted model. That source registers the same frozen
+versioned class when the package is absent. The serialized transformer stores its
+explicit config; it needs no active Project state or clock. Supply a DataFrame of
+the original raw input columns, not precomputed derived columns. As with all
+joblib models, never load untrusted artifacts. Keep this runtime version stable;
+semantic changes require a new capability/runtime version.
+
+Existing IR/plan versions and result protocols are preserved; the optional field
+is omitted when absent, preserving legacy source goldens and canonical hashes.
+Code Draft origin snapshots naturally include proposed temporal intent and never
+reverse-translate edited Python. Historical Runs keep original artifacts. Evaluate
+conservatively excludes deltas across differing frozen temporal definitions or
+parsing policies. This does not introduce a prediction/inference service.
+
+Focused validation: from backend run `python -m pytest tests/test_temporal.py`,
+plus existing pipeline/source-golden and one legacy execution test. Frontend uses
+`node --experimental-strip-types --test tests/temporal.test.mjs`, normal typecheck,
+lint and production build. See the [user guide](user-guide/explore-and-prepare.md)
+for the operation catalogue, UTC/calendar policies, examples and deferred work.
+
 For users: [Installation](installation.md), [Getting started](getting-started.md)
 and [user guides](README.md). For this release: [fresh beta readiness evidence](development/beta-release-readiness.md).
 

@@ -18,6 +18,7 @@ export type RunResult = BinaryResult | RegressionResult | MulticlassResult;
 export type FrozenModel = { name?: string; estimator?: string; type?: string; parameters: Constructor["parameters"] };
 export type FrozenTarget = { column: string; positive_class?: TypedScalar; negative_class?: TypedScalar; classes?: TypedScalar[]; physical_dtype?: string; semantic_type?: string; missing_value_policy?: string; value_type?: string };
 export type FrozenPlan = {
+  temporal?: import("./pipelines").TemporalConfig & { input_dtypes: Record<string, string> };
   plan_version: string; ir_version: string; task?: "regression" | "multiclass_classification";
   generator: string;
   source: { parser: string; size_bytes: number; encoding: string; missing_values: string; integer_policy: string };

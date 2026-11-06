@@ -96,6 +96,35 @@ See [unified workspace](development/unified-code-workspace.md),
 [execution](development/v0.3-phase-2a-execution.md) and
 [reporting](development/v0.3-phase-2b-evaluation.md).
 
+## Typed temporal extension (v0.5 development)
+
+The existing task-specific IR gains an optional `temporal` object explicitly
+versioned `temporal-v1`. Structured source/literal/derived references and a small
+typed operation catalogue produce numeric/binary columns. Bounded dependency/type
+validation rejects cycles, unresolved references, target dependencies and name
+collisions. This extends the existing configuration authority; no parallel recipe
+or database migration is introduced.
+
+`temporal_schemas.py` owns contracts. `temporal_runtime_v1.py` owns stateless UTC
+parsing/calculation and the sklearn transformer. The source-bound service supplies
+virtual column metadata and bounded preview without changing Dataset metadata.
+All task resolvers reuse the same feature resolution. Generated source embeds the
+fixed runtime, explicit config and source dtypes; the saved model performs temporal
+transformation before its existing ColumnTransformer. Splitting remains before
+learned imputation/scaling. No expression uses eval/exec or the clock.
+
+Absent extensions are omitted from serialized IR/plans, preserving legacy hashes
+and byte-for-byte source goldens. New temporal plans freeze the capability version,
+definitions/policies and input dtypes; historical evidence is never regenerated.
+Existing compiler/result task identities remain unchanged, with this explicit
+versioned optional capability. Older applications cannot read temporal intent;
+use the compatible checkout instead of stripping it from frozen evidence.
+
+The Live Viewer and Code Drafts reuse existing preview/snapshot paths. Comparison
+conservatively suppresses deltas when frozen temporal definitions/policies differ.
+See the [user contract](user-guide/explore-and-prepare.md#datetime-feature-engineering-v05-development)
+and [developer details](development.md#temporal-feature-extension-v05).
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

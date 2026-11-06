@@ -32,6 +32,33 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    if (
+        ir.temporal is not None
+        and dataset is not None
+        and ir.dataset is not None
+        and (ir.dataset.dataset_id == dataset.id and ir.dataset.fingerprint == dataset.fingerprint)
+    ):
+        from mlstudio.services.temporal import context, warnings
+
+        try:
+            dataset, frame, _, errors = context(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError):
+            errors = [
+                "Invalid temporal expressions, references or parsing policies. "
+                "Review the temporal preview."
+            ]
+        issues.extend(
+            PipelineIssue(scope="pipeline", code="temporal_invalid", message=message)
+            for message in errors
+        )
+        if errors:
+            return issues, [], 0, False
+        issues.extend(
+            PipelineIssue(
+                scope="pipeline", code="temporal_leakage", message=message, severity="non_blocking"
+            )
+            for message in warnings()
+        )
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
     task = (
@@ -305,6 +332,23 @@ def response(project, dataset, settings):
         if dataset
         else []
     )
+    if ir.temporal is not None and dataset is not None and not stale:
+        from mlstudio.services.temporal import context
+
+        try:
+            virtual, _, _, _ = context(ir, dataset, frame)
+            columns.extend(
+                {
+                    **c,
+                    "effective_semantic_type": c["inferred_semantic_type"],
+                    "role": "feature"
+                    if ir.features.get(c["name"]) and ir.features[c["name"]].included
+                    else "excluded",
+                }
+                for c in virtual.columns[len(dataset.columns) :]
+            )
+        except (ValueError, KeyError, TypeError):
+            pass  # The invalid definitions remain persisted and carry blocking issues.
     eligible = (
         int(frame[ir.target.column].count()) if ir.target and ir.target.column in frame else 0
     )
