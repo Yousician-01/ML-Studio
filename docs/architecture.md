@@ -79,6 +79,18 @@ See [execution/tracking](development/v0.2-phase-5-execution.md).
 
 ## Frontend and Code Mode
 
+The v0.5 Data Preparation Studio unifies existing exploration and preparation
+around a bounded table. `lib/preparation.ts` derives fixed Applied Steps and prefix
+IR: parsing, temporal dependencies, participation and per-feature fitted branches.
+UI keys reconstruct from intent; no step/event-log schema is persisted. Temporal
+prefixes use the existing preview service; fitted stage values remain explicitly
+unavailable. No frontend fitting or second transformation engine is introduced.
+
+Bounded undo/redo and revision-checked tab recovery hold copies of the same IR.
+Existing PATCH remains authoritative SQLite persistence. Legacy configurations
+load without rewrite, and invalid entries remain editable. Prepare/Explore links
+enter the studio; Code Mode continues to suspend visual writes.
+
 The App Router Project workspace keeps typed API calls at the existing API
 boundary. Browser state/recovery buffers are not authoritative domain persistence.
 Explore shows bounded source profiles, not held-out predictions. Regression source

@@ -1,5 +1,87 @@
 # Explore and Prepare
 
+## Data Preparation Studio (v0.5 development)
+
+The primary workflow is **Dataset → Data Preparation → Train → Runs / Evaluate**.
+Uploading a CSV opens the studio; an existing Project loads its saved source and
+recipe. Dataset navigation remains for source management. Old `view=prepare` and
+`view=explore` links work; Explore opens diagnostics within the unified workspace.
+
+The central table shows the existing bounded **20 source-preview rows**, plus
+stateless temporal outputs from the backend. Scroll, select headers, search names,
+or page through 30 columns. Headers show actual semantic types, missingness where
+available, target and exclusion status. Cells are read-only. `null` means missing;
+exclusion controls estimator input and does not delete visible source values.
+
+### Column actions
+
+Right-click a header or use **⋯**. The same type-aware actions are searchable in
+**Add Transformation**. Arrow keys/Home/End navigate menus; Escape closes them.
+Numeric inputs expose existing imputation/scaling; categorical/binary inputs expose
+missing-value and one-hot options. Datetime inputs open the reused component,
+cycle, difference/tenure, age and nested-expression editors with unchanged UTC
+semantics. **View Column Profile** opens source evidence; **Dataset diagnostics**
+retains existing overview, quality and relationship views. Regression continues to
+use its own numeric diagnostics. Derived distributions are not fabricated.
+
+Configure an operation, then **Apply** or Cancel. Apply changes the studio draft.
+Temporal editing requires its existing preview before **Apply temporal changes**.
+**Save preparation** persists that IR using the existing revision-checked API.
+Configure generated-feature preprocessing through the generated column's menu.
+Invalid saved intent remains visibly blocked until repaired.
+
+**Source & target** reuses upload, semantic and target controls. These Dataset
+changes save immediately and are outside transformation undo; save/discard a pending
+draft first. Binary positive-class selection changes the preparation draft and
+requires Save. Source replacement preserves history and requires explicit reset
+when the current recipe becomes stale.
+
+### Applied Steps, undo and save
+
+The collapsible right panel is reconstructed from IR, not button-click history.
+Fixed stages are source, parsing policies, dependency-ordered temporal outputs,
+feature participation, then existing per-feature preprocessing branches. Dormant
+choices are labelled **not executed**; invalid legacy entries remain repairable.
+There is no arbitrary reordering.
+
+- **Select** a step for non-destructive inspection. Temporal prefixes are actually
+  recomputed by the existing runtime, not hidden from a previously calculated final
+  table. Active intent and the Live Code Companion stay on the latest draft.
+- **Edit** reuses the relevant editor. **Remove** changes only that configuration;
+  dependents remain with warnings so references can be repaired explicitly.
+- **Revert to this step** confirms and lists later configurations to remove from
+  the draft. Dataset, target, model and split context remain. Reverting before
+  participation restores original non-target candidates as included; review
+  identifiers/unsupported types. It never deletes source bytes or Runs. Save is
+  required to persist the revert.
+- **Undo/Redo** covers 30 applied draft edits, including add/edit/remove/revert.
+  A new edit clears redo; Save/Discard resets history. Applied Steps is current
+  configuration, not undo history.
+
+Applied IR and undo history can recover when navigating within the same tab (five
+Project/Dataset buffers), checked against saved IR/schema. Conflicts retain work
+but block saving. This memory is not authoritative persistence and cannot survive
+full reload/tab close. Browser traversal confirmation varies; memory recovery also
+protects applied drafts when traversal cannot be cancelled. Unapplied form fields
+have leave warnings but are outside that buffer. Save for durable persistence.
+
+### Preview and Train boundaries
+
+The latest table is a source-plus-temporal reference, **not a fitted training
+matrix**. Imputers/scalers/encoders are never fitted on the full Dataset to create
+a preview. Selecting a fitted stage shows an explicit unavailable state; fitted
+one-hot output names/width are not guessed. No new preprocessing/EDA algorithms
+are introduced.
+
+**Continue to Train** saves pending intent, validates returned preparation and
+blocks invalid/stale transformations. Model/split configuration remains in Train;
+their absence does not prevent opening it. Tracking, generation, Code Mode and
+historical evaluation retain their existing paths.
+
+**View options → Reset preparation** preserves the existing reset: it saves a
+fresh current-source recipe and clears preparation, model and split after explicit
+confirmation. It is separate from reverting a draft step.
+
 ## Explore: source evidence
 
 Explore reads managed source and its interpretation, not model predictions. It presents deterministic profiles/missingness, numeric distributions and box plots, categorical frequencies, and supported relationships. Classification views include target class information. Numeric correlations describe association, not causality or leakage-proof feature selection.
@@ -14,7 +96,9 @@ Review inclusion, effective semantics and target context. Supported operations i
 
 Binary requires an explicit typed positive class. Regression/multiclass do not invent one. Target is never a feature and is never imputed. Missing binary/regression targets are excluded before splitting; missing multiclass targets are rejected.
 
-Existing per-feature Prepare controls save immediately. The temporal builder uses explicit preview/save, with an unsaved indicator and discard action. Neither rewrites CSV. Learned imputers, scalers and encoders fit training data only inside the generated sklearn pipeline. The model artifact includes the complete preparation/model pipeline.
+Studio panels update a draft on Apply; **Save preparation** persists it. The retained
+legacy Prepare component still saves per-feature edits immediately. Neither rewrites
+CSV. Learned preparation fits training rows only inside the complete model pipeline.
 
 Open **Show Code** to inspect the recipe in Python. Viewing does not save a proposed pipeline or create a draft. Incomplete/invalid configuration produces validation instead of executable-looking stale source. Train uses explicit save actions; unsaved Train input can be previewed without silently persisting it.
 
@@ -23,7 +107,8 @@ After source replacement, resolve stale configuration and validation before trai
 ## Datetime feature engineering (v0.5 development)
 
 Available for binary classification, multiclass classification and regression. In
-Data, review or override a source's semantic type to **datetime**. In Prepare:
+Dataset or **Source & target**, set the source's semantic type to **datetime**. Open
+its column menu or Add Transformation in Data Preparation:
 
 1. Choose it in **Datetime feature engineering** and configure parsing. Use
    `ISO8601`, or a numeric explicit format such as `%d/%m/%Y`. Apply the source
@@ -43,10 +128,9 @@ Data, review or override a source's semantic type to **datetime**. In Prepare:
 5. Explicitly exclude configured raw datetime sources using the checkbox or their
    feature participation controls. They remain available for derivation and in the
    immutable CSV, but must not be sent untransformed to the estimator.
-6. Preview, inspect types, up to 20 source-row values, full-source missing/invalid
-   counts and warnings, then **Save temporal configuration**. Configure imputation
-   and supported scaling/encoding for the generated rows in the feature table.
-   Save or discard temporal changes before editing other preparation controls.
+6. Preview types, up to 20 source-row values, missing/invalid counts and warnings.
+   **Apply temporal changes**, then **Save preparation**. Configure generated-feature
+   imputation/scaling from its column menu.
 7. Inspect **Show Code**, configure Train, and run normally. The complete saved
    model accepts the original raw input columns and performs the same derivations.
 

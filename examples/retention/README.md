@@ -1,5 +1,10 @@
 # Synthetic customer-retention demonstration
 
+For the v0.5 checkout, upload completion opens **Data Preparation**. Use
+**Source & target** for the Data controls below, **Dataset diagnostics** for Explore,
+and column menus for the preparation choices. Apply editors, then **Save preparation**
+and **Continue to Train**. Legacy Prepare/Explore URLs remain supported.
+
 `customers.csv` contains 120 entirely synthetic customers, three candidate features,
 an identifier and a binary `churn` outcome. Blank cells are missing observations,
 including four missing targets. No row represents a real person. Scores illustrate
@@ -29,7 +34,7 @@ Alembic and starting the backend. Never damage real Run evidence for this demo.
    | `monthly_spend` | Median | Standard |
    | `plan` | Most frequent | One-hot |
 
-   Changes save immediately. Source data is immutable; transformations are learned
+   Apply the column editors and Save preparation. Source data is immutable; transformations are learned
    only when the experiment trains. Four missing-target rows are excluded before
    splitting; the target is never imputed.
 5. In **Train**, click **Configure 80 / 20 split** if not configured. Keep test size

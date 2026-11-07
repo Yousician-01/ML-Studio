@@ -135,6 +135,8 @@ test("Workspace passes regression task to Explore and avoids classification prof
   let index = 0, classificationProfiles = 0, regressionProfiles = 0;
   const states = [], effects = [];
   const project = { id: "p", name: "Regression", ml_objective: "regression", active_dataset_id: "d", revision: 1 };
+  const dataset = { id: "d", revision: 1, columns: [], preview: [], row_count: 20, column_count: 0, preview_limit: 20, original_filename: "regression.csv" };
+  const pipeline = { revision: 1, ir: { ir_version: "0.2", task: "regression", features: {}, dataset: { dataset_id: "d", fingerprint: "sha256:a" }, target: null, model: null, split: null }, columns: [], issues: [], stale: false };
   let resolveProject;
   const loadedProject = new Promise(resolve => { resolveProject = resolve; });
   // Retain hook state across renders without assuming where Project/loading
@@ -151,6 +153,8 @@ test("Workspace passes regression task to Explore and avoids classification prof
     "./live-code-viewer": { LiveCodeViewer: () => null },
     "@/lib/api/projects": { api: {
       project: () => loadedProject,
+      dataset: async () => dataset,
+      pipeline: async () => pipeline,
       profile: (_projectId, _dataset, _offset, _signal, filters) => {
         if (filters === undefined) regressionProfiles++; else classificationProfiles++;
         return new Promise(() => {}); // Keep the real Explore view in its profiling state.
@@ -158,8 +162,10 @@ test("Workspace passes regression task to Explore and avoids classification prof
     } },
   });
   const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
   const cleanups = [];
   globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  globalThis.document = { addEventListener() {}, removeEventListener() {}, activeElement: null };
   function flushEffects() {
     for (const effect of effects.splice(0)) {
       const cleanup = effect();
@@ -171,6 +177,11 @@ test("Workspace passes regression task to Explore and avoids classification prof
     flushEffects();
     resolveProject(project);
     await loadedProject;
+    await new Promise(resolve => setImmediate(resolve));
+    index = 0;
+    render(Workspace, { projectId: "p" });
+    flushEffects();
+    await new Promise(resolve => setImmediate(resolve));
     index = 0;
     const html = render(Workspace, { projectId: "p" });
     flushEffects();
@@ -182,6 +193,7 @@ test("Workspace passes regression task to Explore and avoids classification prof
   } finally {
     for (const cleanup of cleanups.reverse()) cleanup();
     globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
   }
 });
 test("Train readiness displays target-scoped training blockers and constant R2 warnings", () => {

@@ -1,5 +1,41 @@
 # Development
 
+## Data Preparation Studio (v0.5 Commit 02)
+
+`DataPreparationStudio` replaces primary Prepare/Explore navigation with a
+table-first workspace. `view=prepare` is canonical; Explore deep links open the
+existing task-aware diagnostics. Upload completion enters the studio; plain Project
+URLs default to it. Dataset management and Train/Runs/Evaluate retain their APIs.
+
+`lib/preparation.ts` projects Applied Steps and prefix IR without executing values.
+Temporal definitions follow dependencies; fitted operations follow actual branch
+and within-branch order. Invalid/missing/orphan intent stays visible rather than
+silently repaired. Select is read-only; remove/revert produce a draft, with
+dependency warnings and revert confirmation. Source artifacts remain immutable.
+Reverting before participation explicitly restores included source candidates.
+
+`OperationSelect` shares existing preprocessing controls with retained Prepare.
+The existing temporal editor's managed mode applies to the studio draft rather
+than independently saving. Its existing preview endpoint computes real prefixes.
+No backend, IR schema, migration, algorithm or execution changes are needed.
+Fitted previews are unavailable rather than learned on full-source rows.
+
+Limits: 20 source rows, 30 visible columns per page, 20 cached source profiles,
+8 temporal previews, 30 undo/redo configurations and 5 tab-memory draft buffers.
+Search/selection does not regenerate temporal outputs. Session recovery is keyed
+by Project/Dataset, checked against saved IR/columns and blocked on conflicts.
+Save/reset/discard clears recovery. Buffers store configuration, not rows, and are
+not durable across full reload. Cancellable history traversal is guarded; applied
+IR recovery also protects non-cancellable traversal. Unapplied forms have leave
+warnings and are not persisted transformations.
+
+Continue to Train saves or re-reads intent and checks backend preparation issues;
+Train-only model/split omissions do not trap users outside Train. Source/target
+changes still save immediately through the reused Dataset UI, outside undo history.
+Focused frontend tests cover menus/editor routing, stage projections, dependencies,
+undo/revert, save/reload/Train, temporal compatibility and tab recovery. Backend
+tests are not required for this UI-only integration.
+
 ## Temporal feature extension (v0.5)
 
 `temporal_schemas.py` extends existing Pipeline IR with optional `temporal-v1`

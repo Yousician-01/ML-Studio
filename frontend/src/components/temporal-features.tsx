@@ -33,22 +33,25 @@ function ExpressionInput({ value, onChange, columns, references, depth = 0 }: Ex
   </fieldset>;
 }
 
-export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onDirtyChange }: {
+export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onDirtyChange, managed = false, initialSource, initialOperation = "month", initialMode = "guided", initialEncoding = "raw", initialFeature }: {
   projectId: string; state: WorkingPipeline; disabled: boolean; onSave: (ir: PipelineIR) => Promise<void>; onDirtyChange: (dirty: boolean) => void;
+  managed?: boolean; initialSource?: string; initialOperation?: TemporalOperation; initialMode?: "guided" | "expression"; initialEncoding?: "raw" | "cyclical" | "both"; initialFeature?: string;
 }) {
   const publish = useLivePipeline()?.publish;
   const columns = state.columns.filter(column => column.effective_semantic_type === "datetime" && column.name !== state.ir.target?.column).map(column => column.name);
   const [temporal, setTemporal] = useState<TemporalConfig>(state.ir.temporal ?? { version: "temporal-v1", sources: {}, features: [] });
-  const [source, setSource] = useState(columns[0] ?? "");
-  const [policy, setPolicy] = useState<TemporalConfig["sources"][string]>(state.ir.temporal?.sources[columns[0]] ?? { format: "ISO8601", naive: "reject", invalid: "reject" });
-  const [mode, setMode] = useState<"guided" | "expression">("guided");
-  const [operation, setOperation] = useState<TemporalOperation>("month");
-  const [encoding, setEncoding] = useState<"raw" | "cyclical" | "both">("raw");
+  const chosenSource = initialSource && columns.includes(initialSource) ? initialSource : columns[0] ?? "";
+  const edited = state.ir.temporal?.features.find(feature => feature.name === initialFeature);
+  const [source, setSource] = useState(chosenSource);
+  const [policy, setPolicy] = useState<TemporalConfig["sources"][string]>(state.ir.temporal?.sources[chosenSource] ?? { format: "ISO8601", naive: "reject", invalid: "reject" });
+  const [mode, setMode] = useState<"guided" | "expression">(edited ? "expression" : initialMode);
+  const [operation, setOperation] = useState<TemporalOperation>(initialOperation);
+  const [encoding, setEncoding] = useState<"raw" | "cyclical" | "both">(initialEncoding);
   const [reference, setReference] = useState<TemporalExpression>({ kind: "literal", value: "" });
   const [unit, setUnit] = useState<"seconds" | "minutes" | "hours" | "days">("days");
-  const [name, setName] = useState("");
-  const [expression, setExpression] = useState<TemporalExpression>(temporalCall("month", [{ kind: "column", name: columns[0] ?? "" }]));
-  const [editing, setEditing] = useState<string | null>(null);
+  const [name, setName] = useState(edited?.name ?? "");
+  const [expression, setExpression] = useState<TemporalExpression>(edited?.expression ?? temporalCall("month", [{ kind: "column", name: chosenSource }]));
+  const [editing, setEditing] = useState<string | null>(edited?.name ?? null);
   const [excludeSources, setExcludeSources] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -67,11 +70,12 @@ export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onD
     return () => onDirtyChange(false);
   }, [changed, onDirtyChange]);
   useEffect(() => {
+    if (managed) return;
     publish?.(changed ? { revision: state.revision, ir: JSON.parse(signature) as PipelineIR } : undefined);
     return () => publish?.(undefined);
-  }, [changed, signature, state.revision, publish]);
+  }, [changed, signature, state.revision, publish, managed]);
   useEffect(() => {
-    if (!changed) return;
+    if (!changed || managed) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     const navigate = (event: MouseEvent) => {
       const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
@@ -83,7 +87,7 @@ export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onD
     window.addEventListener("beforeunload", unload);
     document.addEventListener("click", navigate, true);
     return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", navigate, true); };
-  }, [changed]);
+  }, [changed, managed]);
 
   function addFeature() {
     try {
@@ -130,8 +134,8 @@ export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onD
       <div className="actions"><Button disabled={!name || (mode === "guided" && !source)} onClick={addFeature}>{editing ? "Replace feature" : "Add feature"}</Button>{editing && <Button onClick={() => { setEditing(null); setName(""); }}>Cancel feature edit</Button>}</div>
       <ul>{temporal.features.map(feature => <li key={feature.name}><strong>{feature.name}</strong> <code>{feature.expression.kind === "call" ? feature.expression.operation : feature.expression.kind}</code> <Button onClick={() => { setEditing(feature.name); setName(feature.name); setExpression(feature.expression); setMode("expression"); }}>Edit {feature.name}</Button> <Button onClick={() => setTemporal({ ...temporal, features: temporal.features.filter(item => item.name !== feature.name) })}>Remove {feature.name}</Button></li>)}</ul>
       <label className="check-label"><input type="checkbox" checked={excludeSources} onChange={e => setExcludeSources(e.target.checked)} />Exclude configured raw datetime sources from estimator input on save</label>
-      <p role="status">{changed ? "Unsaved temporal changes. Preview, then save explicitly." : "Temporal configuration saved."}</p>
-      <div className="actions"><Button onClick={() => void loadPreview()}>{busy ? "Calculating preview..." : "Preview temporal features"}</Button><Button disabled={!changed || !current || !!current.errors.length} onClick={() => void onSave(candidate)}>Save temporal configuration</Button><Button disabled={!changed} onClick={() => { setTemporal(state.ir.temporal ?? { version: "temporal-v1", sources: {}, features: [] }); setExcludeSources(false); setPreview(null); setError(""); }}>Discard unsaved temporal changes</Button></div>
+      <p role="status">{changed ? managed ? "Unapplied temporal changes. Preview, then Apply to the studio draft." : "Unsaved temporal changes. Preview, then save explicitly." : managed ? "Matches the current studio draft." : "Temporal configuration saved."}</p>
+      <div className="actions"><Button onClick={() => void loadPreview()}>{busy ? "Calculating preview..." : "Preview temporal features"}</Button><Button disabled={!changed || !current || !!current.errors.length} onClick={() => void onSave(candidate)}>{managed ? "Apply temporal changes" : "Save temporal configuration"}</Button><Button disabled={!changed} onClick={() => { setTemporal(state.ir.temporal ?? { version: "temporal-v1", sources: {}, features: [] }); setExcludeSources(false); setPreview(null); setError(""); }}>Discard unsaved temporal changes</Button></div>
     </fieldset>
     {error && <Alert>{error}</Alert>}
     {current && <>

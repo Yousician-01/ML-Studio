@@ -8,7 +8,7 @@ import { displayScalar } from "@/lib/api/scalars";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 import { Bars, Boxplot, Heatmap, Histogram, compactNumber, percentage } from "./explore-charts";
 
-function ColumnDetail({ column }: { column: ColumnProfile }) {
+export function ColumnDetail({ column }: { column: ColumnProfile }) {
   const [plot, setPlot] = useState("histogram");
   const stats = column.numeric;
   return <article className="eda-column-detail">

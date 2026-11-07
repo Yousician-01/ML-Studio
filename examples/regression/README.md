@@ -1,5 +1,10 @@
 # Synthetic regression demonstration
 
+For the v0.5 checkout, upload completion opens **Data Preparation**. Use
+**Source & target** for the Data controls below, **Dataset diagnostics** for Explore,
+and column menus for the preparation choices. Apply editors, then **Save preparation**
+and **Continue to Train**. Legacy Prepare/Explore URLs remain supported.
+
 This walkthrough reuses [customers.csv](../retention/customers.csv): 120 entirely
 synthetic observations, never real customer data. Here `monthly_spend` is a numeric
 target, not the classification demo's `churn` label. This is a workflow example,

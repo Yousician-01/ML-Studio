@@ -8,6 +8,14 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Datetime feature engineering
 
+- Unified table-first Data Preparation Studio with type-aware column menus,
+  searchable transformation actions and reused source diagnostics.
+- IR-derived Applied Steps, genuine temporal-prefix previews, edit/remove/revert,
+  bounded undo/redo and revision-checked tab-memory recovery.
+- Explicit Apply/Save and validation before existing Train; old Prepare/Explore
+  links preserved. Fitted preview limits are visible. No backend/IR/migration or
+  preprocessing-engine changes in this UI integration.
+
 - Optional typed temporal-v1 features for binary classification, multiclass and
   regression: calendar/ISO components, predicates, explicit cyclical components,
   signed durations and completed calendar age with fixed/per-row references.

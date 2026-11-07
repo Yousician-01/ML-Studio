@@ -1,5 +1,9 @@
 # Projects and data
 
+Use **Dataset** navigation or **Source & target** within Data Preparation for
+source management. Upload completion opens the table-first studio. Source/target
+metadata changes save immediately; studio transformation edits use Apply and Save.
+
 A Project owns a mutable working recipe and immutable history. Create it with a name, meaningful problem statement, optional description and one task: binary classification, regression or multiclass classification. Task is fixed at creation; metadata edits cannot convert old Runs into another task. Use a separate Project for another objective.
 
 ## Managed CSV sources

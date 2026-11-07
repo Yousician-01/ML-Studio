@@ -125,7 +125,7 @@ const json = (method: string, body: unknown): RequestInit => ({
 const projectPath = (id: string) => `/projects/${encodeURIComponent(id)}`;
 
 export const api = {
-  temporalPreview: (id: string, revision: number, ir: PipelineIR) => request<import("./pipelines").TemporalPreview>(projectPath(id) + "/pipeline/temporal-preview", json("POST", { revision, ir }), true),
+  temporalPreview: (id: string, revision: number, ir: PipelineIR, signal?: AbortSignal) => request<import("./pipelines").TemporalPreview>(projectPath(id) + "/pipeline/temporal-preview", { ...json("POST", { revision, ir }), signal }, true),
   previewCode: (id: string, revision: number, ir: PipelineIR, signal?: AbortSignal) => request<import("./code").CodePreview>(projectPath(id) + "/code/preview", { ...json("POST", { revision, ir }), signal }),
   resumeCodeDraft: (id: string, draft: string, revision: number) => request<import("./code-drafts").CodeDraft>(projectPath(id) + `/code-drafts/${encodeURIComponent(draft)}/resume`, json("POST", { revision })),
   createCodeRun: (id: string, body: { draft_id: string; revision: number; source: string; request_id: string }) => request<import("./code-runs").CodeRunStarted>(projectPath(id) + "/code-runs", json("POST", body)),
