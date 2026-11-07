@@ -6,7 +6,15 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ## [Unreleased]
 
-### v0.5.0 - Datetime feature engineering
+### v0.5.0 - Advanced preprocessing
+
+- Generalized `derived-v1` feature builder with Guided/Expression controls, typed
+  arithmetic/comparison/boolean/string/null operations and dependency-aware repair.
+- One bounded row-wise runtime across preview, all task compilers and complete
+  saved-model inference; temporal outputs can feed generalized expressions.
+- Studio column actions, real expression-prefix Applied Steps, undo/save/reload,
+  and conservative historical comparison. No migration, dependency changes or new
+  fitted preprocessing algorithms; missing/domain/precision policies are explicit.
 
 - Unified table-first Data Preparation Studio with type-aware column menus,
   searchable transformation actions and reused source diagnostics.
@@ -25,7 +33,7 @@ release entry does not imply that its tag or GitHub release has been published.
   fitted-model inference; existing training-only imputation/scaling preserved.
 - Persist definitions in existing IR JSON; preserve old source goldens/history
   when absent. No dependencies or database migration; conservative temporal-context
-  comparison warnings. No current clock, forecasting, lags or generic expressions.
+  comparison warnings. No current clock, forecasting or lags.
 
 ## [0.4.0-beta.1] - Prepared, not published
 

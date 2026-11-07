@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from pydantic import Field
 
-from mlstudio.schemas import InputModel
+from mlstudio.schemas import InputModel, Scalar
 from mlstudio.temporal_runtime_v1 import temporal_transform
 from mlstudio.temporal_schemas import ResolvedTemporalConfig, validate_temporal
 
@@ -13,7 +13,9 @@ class TemporalPreviewColumn(InputModel):
     name: str
     semantic_type: str
     missing_count: int
-    values: list[float | None]
+    values: list[Scalar]
+    invalid_count: int = 0
+    physical_dtype: str = "float64"
 
 
 class ParsingCounts(InputModel):
@@ -84,8 +86,10 @@ def features(ir, dataset, frame):
     from mlstudio.codegen.plan import operation
     from mlstudio.codegen.schemas import FeaturePlan
 
-    if ir.temporal is not None:
-        dataset, frame, _, _ = context(ir, dataset, frame)
+    if ir.temporal is not None or ir.derived is not None:
+        from mlstudio.services.derived import context as rowwise_context
+
+        dataset, frame, _, _ = rowwise_context(ir, dataset, frame)
     return tuple(
         FeaturePlan(
             name=c["name"],
@@ -116,7 +120,7 @@ def preview(session, project, settings, body):
     from mlstudio.pipeline_schemas import load_ir
     from mlstudio.services.artifacts import verified_source
     from mlstudio.services.pipelines import snapshot
-    from mlstudio.services.source import DomainError, parse_source
+    from mlstudio.services.source import DomainError, json_scalar, parse_source
 
     project, dataset = snapshot(session, project.id)
     if project.revision != body.revision:
@@ -129,13 +133,22 @@ def preview(session, project, settings, body):
     ):
         raise DomainError("Reset preparation for the current Dataset before previewing.", 409)
     result = TemporalPreview(revision=body.revision)
-    if ir.temporal is not None:
+    if ir.temporal is not None or ir.derived is not None:
         frame = parse_source(verified_source(settings.home, dataset))
         try:
-            virtual, expanded, counts, errors = context(ir, dataset, frame)
+            from mlstudio.services.derived import context as rowwise_context
+
+            virtual, expanded, counts, errors = rowwise_context(ir, dataset, frame)
             result.sources = {name: ParsingCounts(**value) for name, value in counts.items()}
             result.errors = errors
-            result.warnings = warnings()
+            result.warnings = (
+                warnings()
+                if ir.temporal is not None
+                else [
+                    "Confirm all expression inputs are available at prediction time; "
+                    "semantic leakage is not automatically detected."
+                ]
+            )
             for c in virtual.columns[len(dataset.columns) :]:
                 series = expanded[c["name"]]
                 result.columns.append(
@@ -143,10 +156,11 @@ def preview(session, project, settings, body):
                         name=c["name"],
                         semantic_type=c["inferred_semantic_type"],
                         missing_count=int(series.isna().sum()),
-                        values=[
-                            None if value != value else float(value)
-                            for value in series.head(result.limit)
-                        ],
+                        physical_dtype=str(series.dtype),
+                        invalid_count=getattr(virtual, "derived_diagnostics", {})
+                        .get(c["name"], {})
+                        .get("invalid_count", 0),
+                        values=[json_scalar(value) for value in series.head(result.limit)],
                     )
                 )
         except (ValueError, KeyError, TypeError) as error:

@@ -9,6 +9,7 @@ from mlstudio.codegen.schemas import (
     SourceContract,
     TargetPlan,
 )
+from mlstudio.services.derived import resolved as resolved_derived
 from mlstudio.services.pipelines import validate
 from mlstudio.services.temporal import features as temporal_features
 from mlstudio.services.temporal import resolved as resolved_temporal
@@ -128,6 +129,7 @@ def resolve(ir, dataset, selected_target, frame):
             negative_class=next(c for c in classes if c != ir.target.positive_class),
         ),
         temporal=resolved_temporal(ir, dataset, frame),
+        derived=resolved_derived(ir, dataset, frame),
         features=temporal_features(ir, dataset, frame),
         split=ResolvedSplit(**ir.split.model_dump()),
         model=classifier(ir),

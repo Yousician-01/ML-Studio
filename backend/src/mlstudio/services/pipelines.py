@@ -33,22 +33,27 @@ def typed_scalar(value) -> TypedScalar:
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
     if (
-        ir.temporal is not None
+        (ir.temporal is not None or ir.derived is not None)
         and dataset is not None
         and ir.dataset is not None
         and (ir.dataset.dataset_id == dataset.id and ir.dataset.fingerprint == dataset.fingerprint)
     ):
-        from mlstudio.services.temporal import context, warnings
+        from mlstudio.services.derived import context
+        from mlstudio.services.temporal import warnings
 
         try:
             dataset, frame, _, errors = context(ir, dataset, frame)
         except (ValueError, KeyError, TypeError):
             errors = [
-                "Invalid temporal expressions, references or parsing policies. "
-                "Review the temporal preview."
+                "Invalid temporal or derived expressions, references or parsing policies. "
+                "Review the feature preview."
             ]
         issues.extend(
-            PipelineIssue(scope="pipeline", code="temporal_invalid", message=message)
+            PipelineIssue(
+                scope="pipeline",
+                code="derived_invalid" if ir.derived is not None else "temporal_invalid",
+                message=message,
+            )
             for message in errors
         )
         if errors:
@@ -57,7 +62,14 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
             PipelineIssue(
                 scope="pipeline", code="temporal_leakage", message=message, severity="non_blocking"
             )
-            for message in warnings()
+            for message in (
+                warnings()
+                if ir.temporal is not None
+                else [
+                    "Confirm expression inputs are available at prediction time. "
+                    "Row-wise validation cannot detect all semantic leakage."
+                ]
+            )
         )
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
@@ -332,8 +344,8 @@ def response(project, dataset, settings):
         if dataset
         else []
     )
-    if ir.temporal is not None and dataset is not None and not stale:
-        from mlstudio.services.temporal import context
+    if (ir.temporal is not None or ir.derived is not None) and dataset is not None and not stale:
+        from mlstudio.services.derived import context
 
         try:
             virtual, _, _, _ = context(ir, dataset, frame)

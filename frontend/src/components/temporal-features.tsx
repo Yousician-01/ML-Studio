@@ -143,7 +143,7 @@ export function TemporalFeaturesEditor({ projectId, state, disabled, onSave, onD
       {current.warnings.map((message, index) => <p className="muted" key={index}>{message}</p>)}
       <p>Preview: up to {current.limit} source rows; counts cover the source, not a test split.</p>
       {Object.entries(current.sources).map(([name, counts]) => <p key={name}><strong>{name}</strong>: {counts.missing_count} missing, {counts.invalid_count} invalid/disallowed, {counts.date_only_count} date-only.</p>)}
-      <div className="table-scroll" role="region" tabIndex={0} aria-label="Derived feature preview"><table><thead><tr><th>Feature</th><th>Output type</th><th>Missing</th><th>Source sample values</th></tr></thead><tbody>{current.columns.map(column => <tr key={column.name}><th scope="row">{column.name}</th><td>{column.semantic_type}</td><td>{column.missing_count}</td><td>{column.values.map(value => value === null ? "Missing" : String(Number(value.toPrecision(6)))).join(", ")}</td></tr>)}</tbody></table></div>
+      <div className="table-scroll" role="region" tabIndex={0} aria-label="Derived feature preview"><table><thead><tr><th>Feature</th><th>Output type</th><th>Missing</th><th>Source sample values</th></tr></thead><tbody>{current.columns.map(column => <tr key={column.name}><th scope="row">{column.name}</th><td>{column.semantic_type}</td><td>{column.missing_count}</td><td>{column.values.map(value => value === null ? "Missing" : typeof value === "number" ? String(Number(value.toPrecision(6))) : String(value)).join(", ")}</td></tr>)}</tbody></table></div>
     </>}
   </Panel>;
 }

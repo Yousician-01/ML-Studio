@@ -1,5 +1,36 @@
 # Development
 
+## Generalized feature builder (v0.5 Commit 03)
+
+Contracts/runtime live in `derived_schemas.py` / `derived_runtime_v1.py`, composition
+in `services/derived.py`, and standalone embedding in `codegen/derived.py`. All three
+compiler plans share feature resolution. `derived` is optional versioned JSON,
+omitted when absent. No dependency or migration is required. Execution order is
+temporal, generalized, training-fitted ColumnTransformer, estimator. Numeric/binary
+temporal outputs may feed general expressions; the reverse direction is unsupported.
+
+Frontend `derived.ts` owns structural helpers and dependency-closure preview intent;
+`derived-features.tsx` owns Guided/Expression controls. There is no frontend
+evaluator. Existing preview transport adds string/boolean scalar samples and
+aggregate invalid counts. Browser samples remain bounded to 20; managed source is
+evaluated server-side without fitting. Apply, Save, Code Mode ownership and draft
+history remain separate. Per-definition repair previews omit unrelated invalid
+definitions, never dependencies; complete invalid preparation still blocks training.
+
+Exact integers beyond the safe range are rejected before float conversion. Boolean
+expression types remain distinct though model outputs use float 0/1/missing.
+Numeric categorical codes use numeric operand typing; string categories never
+receive implicit numeric conversion. Unhandled missing model inputs remain
+validation failures. Bounds/null/domain behavior are documented in the
+[user guide](user-guide/explore-and-prepare.md#generalized-derived-feature-builder-v05-development).
+
+Focused backend validation from `backend`:
+`python -m pytest tests/test_derived.py tests/test_temporal.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+From `frontend`:
+`node --experimental-strip-types --test tests/derived.test.mjs tests/preparation.test.mjs tests/evaluation.test.mjs`.
+Use existing Ruff, frontend lint/typecheck/build and `git diff --check` gates. No
+additional browser or test framework was introduced.
+
 ## Data Preparation Studio (v0.5 Commit 02)
 
 `DataPreparationStudio` replaces primary Prepare/Explore navigation with a
@@ -21,8 +52,8 @@ No backend, IR schema, migration, algorithm or execution changes are needed.
 Fitted previews are unavailable rather than learned on full-source rows.
 
 Limits: 20 source rows, 30 visible columns per page, 20 cached source profiles,
-8 temporal previews, 30 undo/redo configurations and 5 tab-memory draft buffers.
-Search/selection does not regenerate temporal outputs. Session recovery is keyed
+8 row-wise previews, 30 undo/redo configurations and 5 tab-memory draft buffers.
+Search/selection does not regenerate row-wise outputs. Session recovery is keyed
 by Project/Dataset, checked against saved IR/columns and blocked on conflicts.
 Save/reset/discard clears recovery. Buffers store configuration, not rows, and are
 not durable across full reload. Cancellable history traversal is guarded; applied

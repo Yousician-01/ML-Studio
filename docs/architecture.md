@@ -137,6 +137,31 @@ conservatively suppresses deltas when frozen temporal definitions/policies diffe
 See the [user contract](user-guide/explore-and-prepare.md#datetime-feature-engineering-v05-development)
 and [developer details](development.md#temporal-feature-extension-v05).
 
+## Generalized derived extension (v0.5 Commit 03)
+
+Existing task-specific IR/plan objects gain optional `derived` with version
+`derived-v1`; absent extensions are omitted, preserving legacy plan bytes and
+source goldens. JSON persistence and Project revisions are unchanged; no database
+migration or endpoint is added. `derived_schemas.py` bounds untrusted trees before
+recursive parsing and delegates type/dependency validation to portable helpers.
+
+`derived_runtime_v1.py` contains the fixed stateless interpreter and sklearn
+`DerivedFeatures` transformer. `services/derived.py` composes temporal then general
+stages into virtual columns, separate from immutable Dataset metadata. The existing
+`pipeline/temporal-preview` transport returns both kinds of row-wise outputs with
+JSON-safe samples and diagnostics. All task resolvers freeze raw dtypes, input/output
+types and definitions into existing execution plans. Generated source embeds that
+exact runtime; the saved model retains it before the existing ColumnTransformer
+and estimator. Raw dependency columns remain required even when excluded as direct
+estimator inputs. Training-partition guards inspect actual derived model inputs.
+No user expression becomes Python source or learns full-source statistics.
+
+The Studio sends the selected dependency closure for repair previews while Apply
+retains complete intent. Applied Steps emits temporal then dependency-ordered
+generalized prefixes. Saved-model inference repeats calculation from raw inputs;
+historical Run source/model evidence is never rewritten. See the
+[feature guide](user-guide/explore-and-prepare.md#generalized-derived-feature-builder-v05-development).
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

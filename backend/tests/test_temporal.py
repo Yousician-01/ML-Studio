@@ -16,6 +16,49 @@ def column(name):
     return {"kind": "column", "name": name}
 
 
+def test_generalized_preview_persistence_and_train_validation(client):
+    from test_projects_datasets import configure, create, upload
+
+    project = create(client)
+    upload(client, project, b"revenue,orders,label\n10,2,yes\n20,0,no\n30,3,yes\n40,4,no\n")
+    configure(client, project, target_column="label")
+    path = f"/api/v1/projects/{project['id']}/pipeline"
+    state = client.get(path).json()
+    ir = state["ir"]
+    ir["derived"] = {
+        "version": "derived-v1",
+        "features": [
+            {
+                "name": "ratio",
+                "expression": call("safe_divide", column("revenue"), column("orders")),
+            }
+        ],
+    }
+    ir["features"]["ratio"] = {"included": True, "operations": []}
+    ir["model"], ir["split"] = {"type": "logistic_regression"}, {}
+    body = {"revision": state["revision"], "ir": ir}
+    preview = client.post(path + "/temporal-preview", json=body)
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["errors"] == []
+    assert preview.json()["columns"][0]["values"] == [5.0, None, 10.0, 10.0]
+    assert preview.json()["columns"][0]["invalid_count"] == 1
+    saved = client.patch(path, json=body)
+    assert saved.status_code == 200, saved.text
+    assert any(
+        i["code"] == "feature_missing_values" and i["column"] == "ratio"
+        for i in saved.json()["issues"]
+    )
+    reopened = client.get(path).json()
+    assert reopened["ir"]["derived"]["version"] == "derived-v1"
+    assert reopened["columns"][-1]["effective_semantic_type"] == "continuous"
+    invalid = reopened["ir"]
+    invalid["derived"]["features"][0]["expression"] = column("label")
+    result = client.post(
+        path + "/temporal-preview", json={"revision": reopened["revision"], "ir": invalid}
+    )
+    assert result.status_code == 200 and result.json()["errors"]
+
+
 def call(operation, *arguments, **parameters):
     return {
         "kind": "call",
@@ -291,3 +334,166 @@ def test_temporal_preview_persistence_and_real_generated_execution(client, setti
     assert draft.json()["origin_ir"]["temporal"]["version"] == "temporal-v1"
     assert "TEMPORAL_CONFIG" in draft.json()["source"]
     assert client.get(path + f"/runs/{run_id}/code").json()["source"] == code["source"]
+
+
+def test_generalized_compiler_all_tasks_and_raw_saved_inference(tmp_path):
+    import hashlib
+    import json
+
+    from mlstudio.codegen.csv_runtime import parse_csv_bytes
+    from mlstudio.codegen.dispatch import generate_for_version, resolve_for_version
+    from mlstudio.pipeline_schemas import load_ir
+    from mlstudio.services.derived import context
+    from mlstudio.services.source import describe_columns
+
+    for task, version, model in [
+        ("binary_classification", "0.1", "logistic_regression"),
+        ("regression", "0.2", "ridge"),
+        ("multiclass_classification", "0.3", "logistic_regression"),
+    ]:
+        values = pd.DataFrame(
+            {
+                "revenue": np.arange(36) + 20.0,
+                "cost": np.arange(36) / 2.0,
+                "orders": [0.0, 2.0, 3.0] * 12,
+                "segment": [" Premium ", "Basic", "Other"] * 12,
+                "date": [f"2024-{1 + i % 12:02d}-15" for i in range(36)],
+                "target": list(range(36))
+                if version == "0.2"
+                else ["no", "yes"] * 18
+                if version == "0.1"
+                else ["a", "b", "c"] * 12,
+            }
+        )
+        raw = values.to_csv(index=False).encode()
+        frame = parse_csv_bytes(raw)
+        dataset = SimpleNamespace(
+            id="derived-test",
+            fingerprint="sha256:" + hashlib.sha256(raw).hexdigest(),
+            size_bytes=len(raw),
+            columns=describe_columns(frame),
+        )
+        general = {
+            "version": "derived-v1",
+            "features": [
+                {
+                    "name": "margin",
+                    "expression": call(
+                        "safe_divide", {"kind": "reference", "name": "profit"}, column("orders")
+                    ),
+                },
+                {
+                    "name": "profit",
+                    "expression": call("subtract", column("revenue"), column("cost")),
+                },
+                {
+                    "name": "month_scaled",
+                    "expression": call(
+                        "safe_divide",
+                        {"kind": "reference", "name": "month"},
+                        {"kind": "literal", "value": 12},
+                    ),
+                },
+                {"name": "clean", "expression": call("lower", call("trim", column("segment")))},
+            ],
+        }
+        payload = {
+            "ir_version": version,
+            "dataset": {"dataset_id": dataset.id, "fingerprint": dataset.fingerprint},
+            "target": {"column": "target"},
+            "temporal": config({"month": call("month", column("date"))}, date={"naive": "utc"}),
+            "derived": general,
+            "features": {
+                name: {"included": False, "operations": []} for name in frame if name != "target"
+            },
+            "model": {"type": model},
+            "split": {},
+        }
+        if version == "0.1":
+            payload.pop("temporal")
+            payload["derived"]["features"][2]["expression"] = call(
+                "safe_divide", column("revenue"), {"kind": "literal", "value": 12}
+            )
+        payload["features"].update(
+            {
+                "month": {"included": False, "operations": []},
+                "margin": {
+                    "included": True,
+                    "operations": [{"type": "impute", "strategy": "median"}],
+                },
+                "profit": {"included": False, "operations": []},
+                "month_scaled": {"included": True, "operations": []},
+                "clean": {
+                    "included": True,
+                    "operations": [{"type": "encode", "method": "one_hot"}],
+                },
+            }
+        )
+        if version == "0.1":
+            payload["features"].pop("month")
+            payload["target"]["positive_class"] = {"value_type": "string", "value": "yes"}
+        else:
+            payload["task"] = task
+        ir = load_ir(payload, task)
+        plan, issues = resolve_for_version(ir, dataset, "target", frame)
+        assert plan is not None, issues
+        source = generate_for_version(plan)
+        assert source == generate_for_version(plan)
+        if plan.temporal is not None:
+            assert source.index("('temporal', TemporalFeatures(") < source.index(
+                "('derived', DerivedFeatures("
+            )
+        else:
+            assert "TEMPORAL_CONFIG" not in source
+        directory = tmp_path / version
+        directory.mkdir()
+        source_path, data_path = directory / "generated.py", directory / "source.csv"
+        source_path.write_text(source, encoding="utf-8", newline="\n")
+        data_path.write_bytes(raw)
+        result_path, model_path = directory / "result.json", directory / "model.joblib"
+        subprocess.run(
+            [
+                sys.executable,
+                str(source_path),
+                "--dataset",
+                str(data_path),
+                "--result",
+                str(result_path),
+                "--model",
+                str(model_path),
+            ],
+            check=True,
+            timeout=40,
+        )
+        assert json.loads(result_path.read_text())["status"] == "success"
+        spec = importlib.util.spec_from_file_location(
+            "generated_derived_" + version.replace(".", "_"), source_path
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        expected = context(ir, dataset, frame)[1]
+        raw_inputs = frame.drop(columns="target")
+        transformed = (
+            module.TemporalFeatures(ir.temporal.model_dump(mode="json")).transform(raw_inputs)
+            if ir.temporal
+            else raw_inputs
+        )
+        actual = module.DerivedFeatures(plan.derived.model_dump(mode="json")).transform(transformed)
+        pd.testing.assert_frame_equal(expected.drop(columns="target"), actual)
+        loader = directory / "inference.py"
+        loader.write_text(
+            "import importlib.util, sys, joblib, pandas as pd\n"
+            "spec=importlib.util.spec_from_file_location('frozen',sys.argv[1])\n"
+            "m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+            "model=joblib.load(sys.argv[2]); raw=pd.read_csv(sys.argv[3]).drop(columns='target')\n"
+            "assert model.predict(raw).shape == (len(raw),)\n"
+            "try: model.predict(raw.drop(columns='orders'))\n"
+            "except ValueError: pass\n"
+            "else: raise AssertionError('missing raw input accepted')\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(loader), str(source_path), str(model_path), str(data_path)],
+            check=True,
+            timeout=30,
+        )

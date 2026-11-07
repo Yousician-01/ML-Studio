@@ -45,4 +45,6 @@ def generate_for_version(plan):
         from mlstudio.codegen.v2.render import generate
 
         source = generate(resolved)
-    return extend_source(source, resolved)
+    from mlstudio.codegen.derived import extend_source as extend_derived
+
+    return extend_derived(extend_source(source, resolved), resolved)

@@ -1,11 +1,11 @@
 import type { Column } from "./api/projects";
-import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, TemporalExpression } from "./api/pipelines";
+import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, TemporalExpression, DerivedExpression } from "./api/pipelines";
 
-export type PrepStep = { id: string; kind: "source" | "parse" | "temporal" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
-export type ColumnAction = { id: "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
+export type PrepStep = { id: string; kind: "source" | "parse" | "temporal" | "derived" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
+export type ColumnAction = { id: "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
 const clone = <T,>(value: T): T => structuredClone(value);
 
-export function references(expression: TemporalExpression, kind: "reference" | "column" = "reference"): string[] {
+export function references(expression: TemporalExpression | DerivedExpression, kind: "reference" | "column" = "reference"): string[] {
   if (expression.kind === kind) return [expression.name];
   return expression.kind === "call" ? expression.arguments.flatMap(arg => references(arg, kind)) : [];
 }
@@ -14,6 +14,7 @@ export function columnActions(column: Pick<Column, "effective_semantic_type" | "
   const actions: ColumnAction[] = [{ id: "profile", label: "View Column Profile" }];
   if (target) return actions;
   const type = column.effective_semantic_type;
+  if (type !== "datetime") actions.push({ id: "derived-create", label: "Create Derived Feature" });
   if (type === "datetime") actions.push(
     { id: "temporal-extract", label: "Extract Date Components" }, { id: "temporal-cycle", label: "Cyclical Encoding" },
     { id: "temporal-difference", label: "Create Date Difference / Tenure" }, { id: "temporal-age", label: "Calculate Calendar Age" }, { id: "temporal-expression", label: "Open Temporal Expression Builder" },
@@ -49,7 +50,27 @@ export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "sou
   } catch {
     steps.push({ id: "temporal-invalid", kind: "legacy", label: "Invalid temporal dependency group", stage: "Blocked · review existing definitions", inputs: Object.keys(temporal?.sources ?? {}), outputs: [...definitions.keys()], invalid: true });
   }
-  const names = [...columns.filter(c => c.name !== ir.target?.column).sort((a, b) => a.source_order - b.source_order).map(c => c.name), ...definitions.keys()];
+  const general = new Map(ir.derived?.features.map(feature => [feature.name, feature]) ?? []);
+  const generalOrdered: string[] = [], generalVisited = new Set<string>(), generalVisiting = new Set<string>();
+  function visitGeneral(name: string) {
+    if (generalVisited.has(name)) return;
+    if (generalVisiting.has(name) || !general.has(name)) throw new Error("Invalid derived dependencies");
+    generalVisiting.add(name);
+    const expression = general.get(name)!.expression;
+    for (const ref of references(expression)) {
+      if (general.has(ref)) visitGeneral(ref);
+      else if (!definitions.has(ref)) throw new Error("Absent derived reference");
+    }
+    for (const ref of references(expression, "column")) if (!columns.some(column => column.name === ref) || ref === ir.target?.column) throw new Error("Invalid source reference");
+    generalVisiting.delete(name); generalVisited.add(name); generalOrdered.push(name);
+  }
+  try {
+    for (const name of general.keys()) visitGeneral(name);
+    for (const name of generalOrdered) steps.push({ id: `derived:${name}`, kind: "derived", label: `Create ${name}`, stage: "Stateless derived-v1", column: name, inputs: [...references(general.get(name)!.expression, "column"), ...references(general.get(name)!.expression)], outputs: [name] });
+  } catch {
+    steps.push({ id: "derived-invalid", kind: "legacy", label: "Invalid derived dependency group", stage: "Blocked ? repair retained definitions", inputs: [], outputs: [...general.keys()], invalid: true });
+  }
+  const names = [...columns.filter(c => c.name !== ir.target?.column).sort((a, b) => a.source_order - b.source_order).map(c => c.name), ...definitions.keys(), ...general.keys()];
   if (Object.values(ir.features).some(feature => !feature.included) || names.some(name => !ir.features[name])) steps.push({ id: "participation", kind: "participation", label: "Feature Participation", stage: "Model input selection", inputs: [...new Set([...names, ...Object.keys(ir.features)])], outputs: Object.keys(ir.features).filter(name => ir.features[name].included), invalid: names.some(name => !ir.features[name]) });
   const usableNames = new Set(names);
   const orphaned = Object.keys(ir.features).filter(name => !usableNames.has(name));
@@ -73,12 +94,17 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
   if (end < 0) throw new Error("This step no longer exists.");
   const result = clone(ir);
   result.features = Object.fromEntries(columns.filter(c => c.name !== ir.target?.column).map(c => [c.name, { included: true, operations: [] }]));
+  result.derived = ir.derived ? { ...clone(ir.derived), features: [] } : null;
   result.temporal = ir.temporal ? { ...clone(ir.temporal), sources: {}, features: [] } : null;
   for (const step of steps.slice(1, end + 1)) {
     if (step.kind === "legacy") throw new Error("An invalid configuration group has no reproducible stage preview. Edit its definitions first.");
     if (step.kind === "parse") result.temporal!.sources[step.column!] = clone(ir.temporal!.sources[step.column!]);
     if (step.kind === "temporal") {
       result.temporal!.features.push(clone(ir.temporal!.features.find(feature => feature.name === step.column)!));
+      result.features[step.column!] = { included: true, operations: [] };
+    }
+    if (step.kind === "derived") {
+      result.derived!.features.push(clone(ir.derived!.features.find(feature => feature.name === step.column)!));
       result.features[step.column!] = { included: true, operations: [] };
     }
     if (step.kind === "participation") for (const name of Object.keys(result.features)) {
@@ -89,6 +115,7 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
     if (step.kind === "dormant") for (const name of step.inputs) result.features[name].operations = clone(ir.features[name].operations);
   }
   if (!result.temporal?.features.length && !Object.keys(result.temporal?.sources ?? {}).length) result.temporal = null;
+  if (!result.derived?.features.length) result.derived = null;
   return result;
 }
 
@@ -100,6 +127,10 @@ export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
     next.temporal!.features = next.temporal!.features.filter(feature => feature.name !== step.column);
     delete next.features[step.column!];
   }
+  if (step.kind === "derived") {
+    next.derived!.features = next.derived!.features.filter(feature => feature.name !== step.column);
+    delete next.features[step.column!];
+  }
   if (step.kind === "operation") next.features[step.column!].operations.splice(step.index!, 1);
   if (step.kind === "participation") for (const name of step.inputs) {
     if (name === next.target?.column) continue;
@@ -109,6 +140,10 @@ export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
   if (step.kind === "dormant") for (const name of step.inputs) next.features[name].operations = [];
   if (step.id === "legacy-features") for (const name of step.inputs) delete next.features[name];
   else if (step.id.startsWith("legacy-operations:") && step.column) next.features[step.column].operations = [];
+  else if (step.id === "derived-invalid") {
+    for (const feature of next.derived?.features ?? []) delete next.features[feature.name];
+    next.derived = null;
+  }
   else if (step.kind === "legacy") {
     for (const feature of next.temporal?.features ?? []) delete next.features[feature.name];
     next.temporal = null;

@@ -95,6 +95,7 @@ export function compareContext(projectId: string, runs: Run[]) {
   const pa = a.execution_plan, pb = b.execution_plan;
   check(same(pa?.source, pb?.source) && same(pa?.target, pb?.target), "Frozen source/target interpretation differs or is unavailable.");
   check(same(pa?.temporal ?? "absent", pb?.temporal ?? "absent"), "Frozen temporal definitions or parsing policies differ; metric deltas are suppressed.");
+  check(same(pa?.derived ?? "absent", pb?.derived ?? "absent"), "Frozen derived definitions or input interpretation differ; metric deltas are suppressed.");
   check(same(pa?.split, pb?.split), "Frozen test size, seed or stratification differs or is unavailable.");
   const versions = (run: Run) => {
     const plan = run.execution_plan;

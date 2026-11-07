@@ -16,6 +16,29 @@ test("column menus expose compatible editors and use one action policy for every
   assert.deepEqual(columnActions(columns[1], true, false).map(action => action.id), ["profile"]);
 });
 
+test("generalized features follow temporal dependencies and retain exact stage prefixes across undo/reload", () => {
+  const ir = recipe();
+  const ref = name => ({ kind: "reference", name });
+  ir.derived = { version: "derived-v1", features: [
+    { name: "long_term", expression: { kind: "call", operation: "greater", arguments: [ref("years"), { kind: "literal", value: 1 }], parameters: {} } },
+    { name: "years", expression: { kind: "call", operation: "safe_divide", arguments: [ref("month"), { kind: "literal", value: 12 }], parameters: {} } },
+  ] };
+  ir.features.years = { included: true, operations: [] };
+  ir.features.long_term = { included: true, operations: [] };
+  const steps = appliedSteps(ir, columns);
+  assert.deepEqual(steps.filter(step => step.kind === "derived").map(step => step.column), ["years", "long_term"]);
+  const prefix = atStep(ir, columns, "derived:years");
+  assert.deepEqual(prefix.derived.features.map(feature => feature.name), ["years"]);
+  assert.deepEqual(prefix.temporal, ir.temporal);
+  assert.equal(atStep(ir, columns, "source").derived, null);
+  const removed = removeStep(ir, steps.find(step => step.id === "derived:years"));
+  assert.equal(removed.derived.features[0].name, "long_term", "dependent retained for repair");
+  assert.ok(appliedSteps(removed, columns).some(step => step.id === "derived-invalid"));
+  const history = changeDraft(draftHistory(ir), removed);
+  assert.deepEqual(undoDraft(history).present.derived, ir.derived);
+  assert.deepEqual(appliedSteps(JSON.parse(JSON.stringify(ir)), columns), steps);
+});
+
 test("applied steps project executable stages; edit/remove/revert and undo/redo preserve unrelated intent", () => {
   const original = recipe(), originalJson = JSON.stringify(original);
   const steps = appliedSteps(original, columns);

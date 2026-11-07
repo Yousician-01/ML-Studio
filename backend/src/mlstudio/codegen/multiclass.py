@@ -8,6 +8,7 @@ from mlstudio.codegen.compatibility import library_versions, python_version
 from mlstudio.codegen.plan import classifier
 from mlstudio.codegen.schemas import EffectiveExecutionPlan, PlanModel, SourceContract
 from mlstudio.pipeline_schemas import TypedScalar
+from mlstudio.services.derived import resolved as resolved_derived
 from mlstudio.services.temporal import features as temporal_features
 from mlstudio.services.temporal import resolved as resolved_temporal
 
@@ -71,6 +72,7 @@ def resolve(ir, dataset, selected_target, frame):
             classes=tuple(classes),
         ),
         temporal=resolved_temporal(ir, dataset, frame),
+        derived=resolved_derived(ir, dataset, frame),
         features=temporal_features(ir, dataset, frame),
         split=ir.split.model_dump(),
         model=classifier(ir),
