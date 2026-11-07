@@ -42,6 +42,10 @@ def context(ir, dataset, frame):
     """Temporal outputs may feed derived-v1, never the reverse direction."""
     from mlstudio.services.temporal import context as temporal_context
 
+    if ir.cleaning is not None:
+        from mlstudio.services.cleaning import raw_context
+
+        dataset, frame, _ = raw_context(ir, dataset, frame)
     raw_dataset = dataset
     counts, errors = {}, []
     if ir.temporal is not None:
@@ -97,6 +101,10 @@ def context(ir, dataset, frame):
 def resolved(ir, dataset, frame):
     if ir.derived is None:
         return None
+    if ir.cleaning is not None:
+        from mlstudio.services.cleaning import raw_context
+
+        dataset, frame, _ = raw_context(ir, dataset, frame)
     types = source_types(dataset, frame)
     temporal_types = {}
     if ir.temporal is not None:

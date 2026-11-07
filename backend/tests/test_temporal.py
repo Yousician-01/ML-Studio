@@ -16,6 +16,73 @@ def column(name):
     return {"kind": "column", "name": name}
 
 
+def test_cleaning_preview_and_persistence_use_real_retained_source(client, settings):
+    from test_projects_datasets import configure, create, upload
+
+    project = create(client)
+    raw = b"age,date,label\n18,,yes\n-,2024-01-01,no\n30,2024-02-01,no\n30,2024-02-01,no\n"
+    dataset = upload(client, project, raw).json()
+    configure(client, project, target_column="label")
+    path = f"/api/v1/projects/{project['id']}/pipeline"
+    state = client.get(path).json()
+    ir = state["ir"]
+    ir["cleaning"] = {
+        "version": "cleaning-v1",
+        "steps": [
+            {
+                "id": "tokens",
+                "kind": "normalize",
+                "column": "age",
+                "tokens": ["-"],
+                "trim": True,
+                "case_sensitive": True,
+            },
+            {
+                "id": "number",
+                "kind": "convert",
+                "column": "age",
+                "destination": "continuous",
+                "invalid": "reject",
+            },
+            {
+                "id": "date",
+                "kind": "datetime_fill",
+                "column": "date",
+                "value": "2020-01-01T00:00:00Z",
+                "policy": {"naive": "utc"},
+            },
+            {
+                "id": "rows",
+                "kind": "missing_filter",
+                "columns": ["age"],
+                "keep": "present",
+                "mode": "any",
+            },
+            {
+                "id": "duplicates",
+                "kind": "deduplicate",
+                "columns": ["age", "date"],
+                "keep": "first",
+            },
+        ],
+    }
+    body = {"revision": state["revision"], "ir": ir}
+    preview = client.post(path + "/temporal-preview", json=body)
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["errors"] == []
+    result = preview.json()["cleaning"]
+    assert (result["source_rows"], result["retained_rows"], result["removed_rows"]) == (4, 2, 2)
+    assert result["row_indices"] == [0, 2]
+    assert result["rows"][0][0] == 18 and result["rows"][0][1].startswith("2020-01-01")
+    saved = client.patch(path, json=body)
+    assert saved.status_code == 200, saved.text
+    assert client.get(path).json()["ir"]["cleaning"]["version"] == "cleaning-v1"
+    assert client.get(path).json()["columns"][0]["effective_semantic_type"] == "continuous"
+    assert (
+        settings.home / "projects" / project["id"] / "datasets" / dataset["id"] / "source.csv"
+    ).read_bytes() == raw
+
+
 def test_advanced_imputation_diagnostics_and_ir_persistence(client, monkeypatch):
     from mlstudio.imputation_runtime_v1 import ImputationFeatures
 
@@ -709,6 +776,190 @@ def test_advanced_imputation_compiles_all_tasks_and_saved_raw_inference(tmp_path
         )
         subprocess.run(
             [sys.executable, str(loader), str(source_path), str(model_path), str(data_path)],
+            check=True,
+            timeout=30,
+        )
+
+
+def test_cleaning_generated_runs_population_and_saved_inference(client, settings, tmp_path):
+    from test_projects_datasets import configure, upload
+
+    for task, version, model in [
+        ("binary_classification", "0.1", "logistic_regression"),
+        ("regression", "0.2", "ridge"),
+        ("multiclass_classification", "0.3", "logistic_regression"),
+    ]:
+        project = client.post(
+            "/api/v1/projects",
+            json={
+                "name": "Cleaning",
+                "problem_statement": "Predict from cleaned data",
+                "ml_objective": task,
+            },
+        ).json()
+        values = pd.DataFrame(
+            {
+                "record_id": list(range(45)) + list(range(3)),
+                "amount": ["-" if i % 5 == 0 else str(100 + i) for i in [*range(45), *range(3)]],
+                "date": [
+                    None if i % 7 == 0 else f"2024-{1 + i % 12:02d}-15"
+                    for i in [*range(45), *range(3)]
+                ],
+                "label": [
+                    float(i)
+                    if task == "regression"
+                    else ["a", "b", "c"][i % 3]
+                    if version == "0.3"
+                    else ["no", "yes"][i % 2]
+                    for i in [*range(45), *range(3)]
+                ],
+            }
+        )
+        raw = values.to_csv(index=False).encode()
+        dataset = upload(client, project, raw).json()
+        assert configure(client, project, target_column="label").status_code == 200
+        path = f"/api/v1/projects/{project['id']}"
+        state = client.get(path + "/pipeline").json()
+        ir = state["ir"]
+        ir["cleaning"] = {
+            "version": "cleaning-v1",
+            "steps": [
+                {
+                    "id": "tokens",
+                    "kind": "normalize",
+                    "column": "amount",
+                    "tokens": ["-"],
+                    "trim": True,
+                    "case_sensitive": True,
+                },
+                {
+                    "id": "numeric",
+                    "kind": "convert",
+                    "column": "amount",
+                    "destination": "continuous",
+                    "invalid": "reject",
+                },
+                {
+                    "id": "dates",
+                    "kind": "datetime_fill",
+                    "column": "date",
+                    "value": "2020-01-01T00:00:00Z",
+                    "policy": {"naive": "utc"},
+                },
+                {
+                    "id": "quality",
+                    "kind": "validate",
+                    "column": "amount",
+                    "check": "range",
+                    "action": "report",
+                    "minimum": 0,
+                },
+                {
+                    "id": "missing",
+                    "kind": "missing_filter",
+                    "columns": ["amount"],
+                    "mode": "any",
+                    "keep": "present",
+                },
+                {
+                    "id": "adults",
+                    "kind": "filter",
+                    "condition": call(
+                        "greater",
+                        {"kind": "reference", "name": "profit"},
+                        {"kind": "literal", "value": 205},
+                    ),
+                    "keep": "matches",
+                },
+                {
+                    "id": "duplicates",
+                    "kind": "deduplicate",
+                    "columns": ["record_id"],
+                    "keep": "first",
+                },
+            ],
+        }
+        ir["temporal"] = config({"year": call("year", column("date"))}, date={"naive": "utc"})
+        ir["derived"] = {
+            "version": "derived-v1",
+            "features": [
+                {
+                    "name": "profit",
+                    "expression": call(
+                        "multiply", column("amount"), {"kind": "literal", "value": 2}
+                    ),
+                }
+            ],
+        }
+        ir["features"] = {
+            name: {"included": name in {"year", "profit"}, "operations": []}
+            for name in ["record_id", "amount", "date", "year", "profit"]
+        }
+        ir["features"]["profit"]["operations"] = [{"type": "scale", "method": "standard"}]
+        ir["imputation"] = {
+            "version": "imputation-v1",
+            "columns": {
+                "profit": {
+                    "rules": [{"strategy": "median"}],
+                    "fallback": {"strategy": "constant", "value": 0},
+                    "indicator": "profit_missing",
+                }
+            },
+        }
+        ir["model"], ir["split"] = {"type": model}, {}
+        if version == "0.1":
+            ir["target"]["positive_class"] = {"value_type": "string", "value": "yes"}
+        saved = client.patch(path + "/pipeline", json={"revision": state["revision"], "ir": ir})
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["configuration_ready"], saved.json()["issues"]
+        code = client.get(path + "/code").json()
+        assert code["ready"], code["issues"]
+        admission = client.post(
+            path + "/runs",
+            json={
+                "request_id": str(uuid4()),
+                "expected_revision": code["revision"],
+                "expected_source_sha256": code["source_sha256"],
+                "expected_plan_sha256": code["plan_sha256"],
+            },
+        )
+        assert admission.status_code == 202, admission.text
+        run_id = admission.json()["id"]
+        deadline = time.monotonic() + 60
+        while True:
+            run = client.get(path + f"/runs/{run_id}").json()
+            if run["state"] in {"SUCCEEDED", "FAILED"}:
+                break
+            assert time.monotonic() < deadline
+            time.sleep(0.1)
+        assert run["state"] == "SUCCEEDED", run.get("failure")
+        counts = run["result"]["population"]
+        assert counts["source"] == len(values) and counts["eligible"] < counts["source"]
+        assert counts["training"] + counts["test"] == counts["eligible"]
+        directory = settings.home / "projects" / project["id"] / "runs" / run_id
+        assert (directory / "generated_run.py").read_text(encoding="utf-8") == code["source"]
+        loader = tmp_path / f"cleaning_{version}.py"
+        loader.write_text(
+            "import importlib.util,sys,joblib,pandas as pd\n"
+            "spec=importlib.util.spec_from_file_location('frozen',sys.argv[1]);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n"
+            "model=joblib.load(sys.argv[2]);raw=pd.read_csv(sys.argv[3]).drop(columns='label')\n"
+            "assert model.predict(raw).shape == (len(raw),), 'inference silently filtered rows'\n"
+            "try:model.predict(raw.drop(columns='amount'))\n"
+            "except ValueError:pass\n"
+            "else:raise AssertionError('missing required input accepted')\n",
+            encoding="utf-8",
+        )
+        source_path = (
+            settings.home / "projects" / project["id"] / "datasets" / dataset["id"] / "source.csv"
+        )
+        subprocess.run(
+            [
+                sys.executable,
+                str(loader),
+                str(directory / "generated_run.py"),
+                str(directory / "model.joblib"),
+                str(source_path),
+            ],
             check=True,
             timeout=30,
         )

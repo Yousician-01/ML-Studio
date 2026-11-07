@@ -8,6 +8,14 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Advanced preprocessing
 
+- Declarative `cleaning-v1` source normalization, typed replacement/conversion,
+  fixed UTC datetime filling and report/reject/coerce validation in the Studio.
+- Ordered missing/predicate row filters and deterministic duplicate removal before
+  splitting, with accurate retained-row previews and frozen population accounting.
+  Saved inference applies row-wise cleaning without filtering or deduplicating rows.
+- Cleaning Applied Steps, draft history and comparison guards; shared datetime
+  policy and unchanged legacy extension behavior. No dependency or migration added.
+
 - Selective/group-wise `imputation-v1` rules with explicit fallbacks, original
   missingness indicators, Studio editing and Applied Steps integration.
 - Training-only global/group statistics retained in complete saved models and

@@ -30,11 +30,12 @@ def validate_result(path, limit, plan, population):
         ):
             raise ValueError()
         fields(result["population"], "source eligible training test")
-        test = math.ceil(population["source"] * resolved.split.test_size)
-        counts = {**population, "test": test, "training": population["source"] - test}
+        test = math.ceil(population["eligible"] * resolved.split.test_size)
+        counts = {**population, "test": test, "training": population["eligible"] - test}
         if (
             any(type(v) is not int or v <= 0 for v in result["population"].values())
-            or population["source"] != population["eligible"]
+            or (resolved.cleaning is None and population["source"] != population["eligible"])
+            or population["eligible"] > population["source"]
             or result["population"] != counts
             or min(test, counts["training"]) < len(resolved.target.classes)
         ):

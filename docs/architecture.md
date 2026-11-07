@@ -186,6 +186,35 @@ serialization and source goldens. There is no database migration, dependency,
 second workflow engine or historical artifact rewrite. See the
 [user guide](user-guide/explore-and-prepare.md#advanced-imputation-v05-development).
 
+## Declarative cleaning and selection (v0.5 Commit 05)
+
+Optional `cleaning-v1` extends existing IR/plan JSON without changing legacy
+serialization. Raw operations execute before temporal/generalized derivation;
+Dataset-only filters/deduplication execute afterward, before splitting. Raw quality
+rules use report/reject/coerce behavior; they never implicitly remove rows. Source
+columns, label identity and historical artifacts retain their existing ownership.
+
+`cleaning_runtime_v1.py` reuses typed derived predicates and the frozen temporal
+parser. `CleaningFeatures` is a stateless, cardinality-preserving model transformer;
+`cleaning_select` is a separate training-only runtime entry point. Fixed datetime
+fills emit canonical UTC values, with downstream resolved temporal policies adapted
+to ISO without rewriting original temporal intent. `datetime_policy.py` shares the
+unchanged policy model between schemas, avoiding circular imports/duplicate grammar.
+
+`services/cleaning.py` supplies virtual corrected schema, bounded diagnostics,
+retained preview indices and deterministic population counts. All task compilers
+embed the same row-wise/runtime selection code. Generated training selects original
+raw row indices after evaluating cleaned/derived features, then fits the complete
+pipeline on its training partition. Selection-only inputs are not hidden inference
+requirements. Learned imputation remains after the split.
+
+Run admission freezes original-source and filtered-eligible counts in the existing
+manifest. Multiclass finalization permits their difference only for cleaning plans
+and computes held-out denominators from eligible rows. Existing result protocol
+fields are preserved. Historical plans without cleaning retain their old constraints.
+Frontend comparison rejects differing frozen cleaning contexts. See the
+[user contract](user-guide/explore-and-prepare.md#data-cleaning-selection-and-validation-v05-development).
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

@@ -41,6 +41,7 @@ test("each frozen context mismatch independently suppresses deltas", () => {
     b => { b.result.confusion_matrix.labels.reverse(); },
     b => { b.execution_plan.source.missing_values = "different"; },
     b => { b.execution_plan.target.missing_value_policy = "different"; },
+    b => { b.execution_plan.cleaning = { version: "cleaning-v1", steps: [] }; },
     b => { b.execution_plan.imputation = { version: "imputation-v1", columns: {} }; },
     b => { b.execution_plan.derived = { version: "derived-v1", features: [] }; },
     ...["test_size", "random_seed", "stratify"].map(key => b => { b.execution_plan.split[key] = key === "stratify" ? false : .3; }),

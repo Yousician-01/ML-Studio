@@ -118,6 +118,15 @@ def create(session, project_id, body, coordinator):
             if plan.plan_version in ("0.2", "0.3")
             else {}
         )
+        if ir.cleaning is not None:
+            from mlstudio.services.cleaning import population as cleaning_population
+
+            population = cleaning_population(ir, dataset, frame)
+        else:
+            population = {
+                "source": len(frame),
+                "eligible": int(frame[plan.target.column].notna().sum()),
+            }
         manifest = Manifest(
             run_id=run_id,
             project_id=project_id,
@@ -138,10 +147,7 @@ def create(session, project_id, body, coordinator):
                 **plan.implementation.libraries,
                 **task_context,
             },
-            population={
-                "source": len(frame),
-                "eligible": int(frame[plan.target.column].notna().sum()),
-            },
+            population=population,
         ).model_dump(mode="json")
         manifest_bytes = canonical(manifest)
         write_new(staged / "package.json", manifest_bytes)

@@ -17,6 +17,39 @@ test("column menus expose compatible editors and use one action policy for every
   assert.deepEqual(columnActions(columns[1], true, false).map(action => action.id), ["profile"]);
 });
 
+test("column menu groups missing-value actions in a keyboard-accessible submenu", () => {
+  let cursor = 0, chosen = null, closed = 0;
+  const slots = [];
+  const { PreparationMenu } = loadComponent("components/preparation-menu.tsx", { react: {
+    ...React, useEffect() {}, useRef: value => ({ current: value }),
+    useState: initial => { const index = cursor++; if (!(index in slots)) slots[index] = initial; return [slots[index], value => { slots[index] = value; }]; },
+  } });
+  const actions = columnActions(columns[1], false, true);
+  const props = { column: "amount", actions, position: { x: 10, y: 10 }, onAction: action => { chosen = action; }, onClose: () => { closed++; } };
+  function render() { cursor = 0; return PreparationMenu(props); }
+  function elements(node) { if (!React.isValidElement(node)) return []; return [node, ...React.Children.toArray(node.props.children).flatMap(elements)]; }
+  const item = (tree, name) => elements(tree).find(node => node.props.role === "menuitem" && node.props.children === name);
+  let tree = render();
+  assert.ok(item(tree, "Handle Missing Values"));
+  assert.equal(item(tree, "Configure Imputation"), undefined);
+  assert.equal(item(tree, "Remove Rows Where This Column Is Missing"), undefined);
+  assert.ok(item(tree, "Replace Values"));
+  item(tree, "Handle Missing Values").props.onClick(); tree = render();
+  for (const name of ["Configure Imputation", "Advanced Imputation", "Normalize Missing Tokens", "Fill Missing Datetime", "Replace With Missing", "Remove Rows Where This Column Is Missing", "Keep Rows Where This Column Is Missing"]) assert.ok(item(tree, name), name);
+  assert.equal(item(tree, "Replace Values"), undefined);
+  item(tree, "Advanced Imputation").props.onClick();
+  assert.equal(chosen, actions.find(action => action.id === "advanced-imputation"));
+  tree.props.onKeyDown({ key: "ArrowLeft", preventDefault() {}, stopPropagation() {} }); tree = render();
+  assert.ok(item(tree, "Handle Missing Values")); assert.equal(closed, 0);
+  item(tree, "Handle Missing Values").props.onKeyDown({ key: "ArrowRight", preventDefault() {}, stopPropagation() {} }); tree = render();
+  assert.ok(item(tree, "Configure Imputation"));
+  tree.props.onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} }); tree = render();
+  assert.ok(item(tree, "Handle Missing Values")); assert.equal(closed, 0);
+  tree.props.onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} }); assert.equal(closed, 1);
+  cursor = 0; slots.length = 0;
+  assert.equal(item(PreparationMenu({ ...props, actions: actions.filter(action => action.id === "profile") }), "Handle Missing Values"), undefined);
+});
+
 test("advanced imputation has a fixed fitted stage; prefixes, restoration and history preserve prior intent", () => {
   const ir = recipe();
   ir.features.amount.operations = [{ type: "scale", method: "standard" }];
@@ -165,4 +198,24 @@ test("header menu routes to the shared editor; Apply, Save, reload and Continue 
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(routes, ["/projects/p?view=train"]);
   } finally { globalThis.window = previousWindow; }
+});
+
+
+test("cleaning stage prefixes, selected removal and undo retain executable ordered intent", () => {
+  const ir = recipe();
+  ir.cleaning = { version: "cleaning-v1", steps: [
+    { id: "select", kind: "missing_filter", columns: ["amount"], mode: "any", keep: "present" },
+    { id: "raw", kind: "normalize", column: "amount", tokens: ["N/A"], trim: true, case_sensitive: true },
+    { id: "duplicates", kind: "deduplicate", columns: ["amount"], keep: "last" },
+  ] };
+  const steps = appliedSteps(ir, columns);
+  assert.ok(steps.findIndex(s => s.id === "cleaning:raw") < steps.findIndex(s => s.kind === "parse"));
+  assert.ok(steps.findIndex(s => s.id === "cleaning:select") > steps.findIndex(s => s.kind === "temporal"));
+  assert.equal(atStep(ir, columns, "source").cleaning, null);
+  assert.deepEqual(atStep(ir, columns, "cleaning:select").cleaning.steps.map(s => s.id), ["raw", "select"]);
+  const removed = removeStep(ir, steps.find(s => s.id === "cleaning:select"));
+  assert.deepEqual(removed.cleaning.steps.map(s => s.id), ["raw", "duplicates"]);
+  assert.deepEqual(undoDraft(changeDraft(draftHistory(ir), removed)).present, ir);
+  assert.ok(columnActions(columns[1], false, true).some(a => a.id === "cleaning-normalize"));
+  assert.ok(!columnActions(columns[1], false, true, false).some(a => a.id === "cleaning-normalize"));
 });

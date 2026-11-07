@@ -1,33 +1,14 @@
 """Versioned, bounded temporal expressions carried by the existing Pipeline IR."""
 
-import re
 from typing import Annotated, Literal
 
 from pydantic import Field, model_serializer, model_validator
 
+from mlstudio.cleaning_schemas import CleaningConfig, ResolvedCleaningConfig
+from mlstudio.datetime_policy import DatetimeSource
 from mlstudio.derived_schemas import DerivedConfig, ResolvedDerivedConfig
 from mlstudio.imputation_schemas import ImputationConfig, ResolvedImputationConfig
 from mlstudio.schemas import InputModel
-
-
-class DatetimeSource(InputModel):
-    format: str = Field(default="ISO8601", min_length=1, max_length=100)
-    naive: Literal["utc", "reject"] = "reject"
-    invalid: Literal["reject", "coerce"] = "reject"
-
-    @model_validator(mode="after")
-    def explicit_format(self):
-        if self.format != "ISO8601" and not (
-            "%Y" in self.format and "%m" in self.format and "%d" in self.format
-        ):
-            raise ValueError("Use ISO8601 or an explicit format containing year, month and day.")
-        if self.format != "ISO8601" and (
-            set(re.findall(r"%([A-Za-z%])", self.format)) - set("YmdHMSfz%")
-        ):
-            raise ValueError(
-                "Use numeric date/time directives; locale-dependent formats are unsupported."
-            )
-        return self
 
 
 class ColumnExpression(InputModel):
@@ -109,6 +90,7 @@ class TemporalFields(InputModel):
     temporal: TemporalConfig | None = None
     derived: DerivedConfig | None = None
     imputation: ImputationConfig | None = None
+    cleaning: CleaningConfig | None = None
 
     @model_serializer(mode="wrap")
     def omit_absent_extension(self, handler):
@@ -120,6 +102,8 @@ class TemporalFields(InputModel):
             data.pop("derived", None)
         if self.imputation is None:
             data.pop("imputation", None)
+        if self.cleaning is None:
+            data.pop("cleaning", None)
         return data
 
 
@@ -131,6 +115,7 @@ class TemporalPlanFields(TemporalFields):
     temporal: ResolvedTemporalConfig | None = None
     derived: ResolvedDerivedConfig | None = None
     imputation: ResolvedImputationConfig | None = None
+    cleaning: ResolvedCleaningConfig | None = None
 
 
 def validate_temporal(config, semantics, target):

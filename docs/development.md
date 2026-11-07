@@ -1,5 +1,33 @@
 # Development
 
+## Declarative cleaning (v0.5 Commit 05)
+
+`cleaning_schemas.py` / `cleaning_runtime_v1.py` provide bounded `cleaning-v1`
+intent, raw stateless transformation and training-only selection. Predicate logic
+reuses derived evaluation; timestamp handling reuses the temporal parser. The exact
+existing `DatetimeSource` policy now lives in `datetime_policy.py` and remains
+re-exported from `temporal_schemas.py`. Runtime helpers are embedded verbatim by
+`codegen/cleaning.py`, with fixed imports and literal configuration serialization.
+
+`services/cleaning.py` composes virtual types, diagnostics and row eligibility.
+Pipeline validation sees corrected/selected features before existing train checks.
+Run manifests and strict result checks use original source count and actual eligible
+count; multiclass retains original class-universe/missing-label safeguards. Model
+transformers never run source selection, preserving prediction cardinality.
+
+`cleaning.ts` and `cleaning-editor.tsx` reuse the Studio and expression controls.
+Raw and selection Applied Steps reflect fixed stages and recompute real prefixes.
+Explicit source preview remains separate from cleaned/retained rows. Coercion needs
+acknowledgment; diagnostics are transient preview evidence, not SQLite/log rows.
+No dependency or migration is added. Policies/limits are in the
+[guide](user-guide/explore-and-prepare.md#data-cleaning-selection-and-validation-v05-development).
+
+Focused checks from `backend` include
+`python -m pytest tests/test_cleaning.py tests/test_temporal.py tests/test_derived.py tests/test_imputation.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+From `frontend`, run existing tests/lint/typecheck/build; the focused UI files are
+`tests/cleaning.test.mjs` and `tests/preparation.test.mjs`. Generated Run integration
+also verifies finalization and fresh-process raw-input inference for all three tasks.
+
 ## Advanced imputation (v0.5 Commit 04)
 
 `imputation_schemas.py` adds optional bounded `imputation-v1` intent and resolved

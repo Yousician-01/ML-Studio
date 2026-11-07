@@ -5,6 +5,12 @@ For the v0.5 checkout, upload completion opens **Data Preparation**. Use
 and column menus for the preparation choices. Apply editors, then **Save preparation**
 and **Continue to Train**. Legacy Prepare/Explore URLs remain supported.
 
+Optional v0.5 cleaning exercise: open `monthly_spend`'s column menu and choose
+**Remove Rows Where This Column Is Missing**. Preview the actual retained count,
+then Apply and Save in a separate experiment. This selects training/evaluation
+rows, whereas imputation fills cells. Saved inference does not drop rows. Use
+Undo/Discard to retain this walkthrough's original experiment configuration.
+
 `customers.csv` contains 120 entirely synthetic customers, three candidate features,
 an identifier and a binary `churn` outcome. Blank cells are missing observations,
 including four missing targets. No row represents a real person. Scores illustrate

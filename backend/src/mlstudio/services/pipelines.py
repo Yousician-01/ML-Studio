@@ -32,8 +32,9 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    original_dataset, original_frame = dataset, frame
     if (
-        (ir.temporal is not None or ir.derived is not None)
+        (ir.temporal is not None or ir.derived is not None or ir.cleaning is not None)
         and dataset is not None
         and ir.dataset is not None
         and (ir.dataset.dataset_id == dataset.id and ir.dataset.fingerprint == dataset.fingerprint)
@@ -43,15 +44,24 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
 
         try:
             dataset, frame, _, errors = context(ir, dataset, frame)
+            if ir.cleaning is not None and not errors:
+                from mlstudio.services.cleaning import selection
+
+                frame, _ = selection(ir, original_dataset, original_frame, dataset, frame)
         except (ValueError, KeyError, TypeError):
             errors = [
-                "Invalid temporal or derived expressions, references or parsing policies. "
+                "Invalid cleaning, temporal or derived expressions, "
+                "references or parsing policies. "
                 "Review the feature preview."
             ]
         issues.extend(
             PipelineIssue(
                 scope="pipeline",
-                code="derived_invalid" if ir.derived is not None else "temporal_invalid",
+                code="cleaning_invalid"
+                if ir.cleaning is not None
+                else "derived_invalid"
+                if ir.derived is not None
+                else "temporal_invalid",
                 message=message,
             )
             for message in errors
@@ -395,7 +405,12 @@ def response(project, dataset, settings):
         else []
     )
     if (
-        (ir.temporal is not None or ir.derived is not None or ir.imputation is not None)
+        (
+            ir.temporal is not None
+            or ir.derived is not None
+            or ir.imputation is not None
+            or ir.cleaning is not None
+        )
         and dataset is not None
         and not stale
     ):
@@ -407,6 +422,16 @@ def response(project, dataset, settings):
                 from mlstudio.services.imputation import context as imputation_context
 
                 virtual, _, _ = imputation_context(ir, virtual, expanded)
+            if ir.cleaning is not None:
+                columns = [
+                    {
+                        **c,
+                        "effective_semantic_type": c["semantic_override"]
+                        or c["inferred_semantic_type"],
+                        "role": column_role(project, dataset, c["name"]),
+                    }
+                    for c in virtual.columns[: len(dataset.columns)]
+                ]
             columns.extend(
                 {
                     **c,
@@ -423,6 +448,13 @@ def response(project, dataset, settings):
     eligible = (
         int(frame[ir.target.column].count()) if ir.target and ir.target.column in frame else 0
     )
+    if ir.cleaning is not None and dataset is not None and not stale and ir.target:
+        from mlstudio.services.cleaning import population
+
+        try:
+            eligible = population(ir, dataset, frame)["eligible"]
+        except (ValueError, KeyError, TypeError):
+            eligible = 0
     train_rows, test_rows = partition_sizes(eligible, ir.split)
     regression = ir.ir_version == "0.2"
     if regression and stale:

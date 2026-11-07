@@ -30,8 +30,45 @@ class ImputationDiagnostics(InputModel):
     indicator_values: list[float] = Field(max_length=20)
 
 
+class CleaningColumn(InputModel):
+    name: str
+    physical_dtype: str
+    semantic_type: str
+    missing_count: int
+    unique_count: int
+
+
+class CleaningDiagnostic(InputModel):
+    id: str
+    column: str | None = None
+    invalid_count: int
+    status: str
+    message: str
+    examples: list[Scalar] = Field(default_factory=list, max_length=5)
+
+
+class CleaningEvent(InputModel):
+    id: str
+    kind: str
+    before: int
+    retained: int
+    removed: int
+
+
+class CleaningPreview(InputModel):
+    columns: list[CleaningColumn]
+    rows: list[list[Scalar]] = Field(max_length=20)
+    row_indices: list[int] = Field(max_length=20)
+    source_rows: int
+    retained_rows: int
+    removed_rows: int
+    events: list[CleaningEvent]
+    diagnostics: list[CleaningDiagnostic]
+
+
 class TemporalPreview(InputModel):
     revision: int
+    cleaning: CleaningPreview | None = None
     imputation: dict[str, ImputationDiagnostics] = Field(default_factory=dict)
     limit: int = 20
     columns: list[TemporalPreviewColumn] = Field(default_factory=list)
@@ -44,10 +81,11 @@ def context(ir, dataset, frame):
     semantics = {
         c["name"]: c["semantic_override"] or c["inferred_semantic_type"] for c in dataset.columns
     }
-    _, types = validate_temporal(ir.temporal, semantics, ir.target.column if ir.target else None)
-    expanded, counts = temporal_transform(
-        frame, ir.temporal.model_dump(mode="json"), diagnostic=True
-    )
+    from mlstudio.services.cleaning import temporal_config
+
+    config = temporal_config(ir)
+    _, types = validate_temporal(config, semantics, ir.target.column if ir.target else None)
+    expanded, counts = temporal_transform(frame, config.model_dump(mode="json"), diagnostic=True)
     errors = [
         f"Datetime source {name}: {count['invalid_count']} invalid/disallowed values; "
         "correct the parsing policy or explicitly choose coerce to missing."
@@ -83,8 +121,10 @@ def context(ir, dataset, frame):
 def resolved(ir, dataset, frame):
     if ir.temporal is None:
         return None
+    from mlstudio.services.cleaning import temporal_config
+
     return ResolvedTemporalConfig(
-        **ir.temporal.model_dump(mode="json"),
+        **temporal_config(ir).model_dump(mode="json"),
         input_dtypes={name: str(frame[name].dtype) for name in ir.temporal.sources},
     )
 
@@ -93,7 +133,7 @@ def features(ir, dataset, frame):
     from mlstudio.codegen.plan import operation
     from mlstudio.codegen.schemas import FeaturePlan
 
-    if ir.temporal is not None or ir.derived is not None:
+    if ir.temporal is not None or ir.derived is not None or ir.cleaning is not None:
         from mlstudio.services.derived import context as rowwise_context
 
         dataset, frame, _, _ = rowwise_context(ir, dataset, frame)
@@ -147,12 +187,36 @@ def preview(session, project, settings, body):
     ):
         raise DomainError("Reset preparation for the current Dataset before previewing.", 409)
     result = TemporalPreview(revision=body.revision)
-    if ir.temporal is not None or ir.derived is not None or ir.imputation is not None:
+    if (
+        ir.temporal is not None
+        or ir.derived is not None
+        or ir.imputation is not None
+        or ir.cleaning is not None
+    ):
         frame = parse_source(verified_source(settings.home, dataset))
         try:
             from mlstudio.services.derived import context as rowwise_context
 
+            raw_diagnostics = []
+            if ir.cleaning is not None:
+                from mlstudio.services.cleaning import evidence, raw_context
+
+                cleaned_dataset, cleaned, raw_diagnostics = raw_context(
+                    ir, dataset, frame, diagnostic=True
+                )
+                result.cleaning = CleaningPreview(
+                    **evidence(cleaned_dataset, cleaned, len(frame), [], raw_diagnostics)
+                )
             virtual, expanded, counts, errors = rowwise_context(ir, dataset, frame)
+            if ir.cleaning is not None and not errors:
+                from mlstudio.services.cleaning import selection
+
+                expanded, events = selection(
+                    ir, dataset, frame, virtual, expanded, validate_targets=False
+                )
+                result.cleaning = CleaningPreview(
+                    **evidence(cleaned_dataset, expanded, len(frame), events, raw_diagnostics)
+                )
             if ir.imputation is not None:
                 from mlstudio.services.imputation import context as imputation_context
 

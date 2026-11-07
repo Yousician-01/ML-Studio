@@ -371,4 +371,126 @@ Bounds: 64 configured targets, 16 rules per target, four grouping columns per ru
 retain the derived depth/size bounds and add a 4,096-node configuration total. Text
 constants are at most 1,000 characters. Excessive group cardinality fails safely.
 There are no learned thresholds, KNN/iterative/predictive imputers, post-imputation
-dependencies, row filtering or arbitrary global step reordering.
+dependencies or arbitrary global step reordering. Imputation does not filter rows;
+use the separate cleaning selection operations below.
+
+## Data cleaning, selection and validation (v0.5 development)
+
+**Imputation fills cells. Row filtering removes or retains whole observations.**
+Neither changes the managed CSV. The Studio's column menu and searchable
+**Add Transformation** expose Remove/Keep Rows Where This Column Is Missing,
+Replace Values, Replace With Missing, Normalize Missing Tokens, Change Data Type,
+Fill Missing Datetime and Validate Column. Global actions include Filter Rows,
+Remove Duplicate Rows and Data Quality Rules. The supervised label is excluded.
+
+Choose one column for the common missing-row action, then Preview and Apply. For
+multiple columns choose **any** or **all** missing and whether to keep matching
+rows or remove them. General filters use the existing visual expression controls
+with source or pre-imputation temporal/generalized references. Only explicitly true
+predicates match: Keep matches drops unknowns; Remove matches retains unknowns.
+
+Cleaning has fixed stages. Raw-column operations execute in their stored order,
+then temporal/generalized derivations run, then ordered filters/deduplication run,
+then missing-target handling/splitting and fitted imputation/scaling/encoding.
+Source validation therefore happens before derivation and selection. Filters can
+use derived columns; raw cleaning/validation cannot depend on future derived or
+imputed outputs. There is no arbitrary global step reordering. Add source operations
+before their dependents; Applied Steps shows the actual fixed-stage order.
+
+### Source values and explicit type correction
+
+- **Normalize Missing Tokens** changes only explicitly listed strings to missing.
+  Choose trim-before-match and case sensitivity. A blank token line denotes an
+  empty string; trim permits matching whitespace-only input. CSV parser defaults
+  may already have treated tokens such as NA as missing; cleaning does not recover
+  original lexical tokens from parsed values.
+- **Replace Values** uses exact typed matches, case-sensitive strings and explicit
+  null matching. A condition selects rows instead of the exact-match field; unknown
+  does not match. Replacement can change nonmissing cells. For example, select
+  numeric `age < 0` and replace with missing. Boolean and numeric matches are distinct.
+- **Change Data Type** executes a real conversion, not just a semantic label.
+  Continuous conversion explicitly parses numeric strings, rejecting booleans,
+  non-finite and unsafe integral values. Categorical conversion explicitly renders
+  numeric/boolean inputs as strings; it preserves existing strings. Binary conversion
+  accepts booleans, numeric 0/1, or the case-sensitive tokens `true`, `false`, `1`, `0`.
+  Missing values stay missing. Datetime conversion uses the explicit parsing policy.
+- Invalid conversion is **Reject** or explicitly confirmed **Coerce to missing**.
+  Numeric precision loss is rejected/coerced rather than hidden. Review diagnostics
+  and configure downstream missing-value handling. Converted effective types and
+  physical dtypes belong to this recipe; original Dataset interpretation is retained.
+
+### Original datetime columns
+
+**Fill Missing Datetime** parses the selected raw column with the existing ISO or
+numeric-format policy, explicit naive UTC/reject behavior and invalid reject/coerce
+behavior. Supply a fixed ISO date or timestamp, optionally with a stateless condition.
+Fixed dates mean UTC midnight. No local timezone or current clock is substituted.
+
+Only originally missing cells are filled. Valid instants retain their meaning;
+outputs are canonical UTC ISO strings, including supported subsecond precision.
+Invalid values coerced during that same fill remain missing rather than receiving
+the fill silently. To deliberately coerce and then fill them, use separate explicit
+conversion/fill steps. Downstream temporal derivations consume the cleaned values
+through the resolved canonical ISO policy. For datetime **conversion**, the single
+Invalid conversion control governs parsing; for **fill**, Invalid timestamps governs it.
+
+Forward/backward fill, interpolation, timestamp statistics and clock-based fills
+remain unsupported.
+
+### Quality rules and duplicates
+
+Raw-column quality rules support required/nonmissing, numeric min/max/ranges,
+typed allowed values, string length bounds and numeric/string/boolean compatibility.
+Choose report, reject, or explicitly confirmed coercion to missing. Missing inputs
+are ignored by range/length/type checks; use required to disallow them. Allowed-value
+checks permit missing only if null is explicitly allowed. Validation never removes
+rows; rejection is an explicit error in training or prediction, and report-only
+findings do not block. Use datetime parsing policies for timestamp validity.
+
+Diagnostics show rule/column, invalid count, status and at most five scalar examples
+in the explicit local preview. They are not persisted as raw rows or ordinary logs.
+Required constraints must be repaired explicitly; coerce-to-missing does not magically
+make a required value present.
+
+Deduplication uses an explicit set of raw/derived keys and **first** or **last**
+occurrence in source order. Select all desired eligible feature keys or a subset;
+the label cannot be part of duplicate identity. Missing keys compare as duplicates
+according to pandas behavior. Contradictory outcomes for equal feature keys retain
+the chosen occurrence; this is not a solution for near-duplicate/entity leakage.
+
+### Preview, training and inference boundaries
+
+The table and editor use actual backend transformations, accurate full-source
+before/retained/removed counts, per-selection counts and at most 20 retained rows
+with original row numbers. **Original source preview** shows the unmodified source
+sample. Selecting an Applied Step recomputes the true prefix. No fitted imputer,
+encoder or scaler is learned for preview. Rejected conversions can expose diagnostic
+proposals, but errors block Apply and further valid-stage claims.
+
+Apply/Cancel, Save/Discard, edit/remove/clear, revert and Undo/Redo use the existing
+IR and revision guard. The whole cleaning configuration can be repaired locally
+before preview/apply. Removing a cleaning operation retains downstream intent for
+explicit repair. Saved source bytes and historical Runs remain unchanged.
+
+Training-only filters/deduplication run before the existing split and before target
+exclusion. Binary/regression missing labels still follow exclusion; multiclass
+missing labels remain invalid even if a feature filter could remove those rows.
+Selection cannot silently remove an entire classification class. Existing split,
+class coverage and minimum-population checks apply to the retained population.
+Source population counts retain the original CSV count; eligible/training/test
+counts reflect actual selection and target policy. Invalid subsets block training.
+
+Saved models repeat row-wise cleaning, conversion, datetime fill and validation from
+raw input columns. They **never run training filters or deduplicate inference**.
+Every accepted input row gets a prediction, including rows excluded from training;
+violated rejection constraints fail explicitly rather than shortening predictions.
+Training-only key columns are not added to model requirements solely for selection.
+Generated Python executes both stages with the same runtime. Comparison suppresses
+metric deltas when frozen cleaning/selection/validation contexts differ.
+
+Limits: 64 cleaning steps, 16 missing-filter columns, 32 duplicate keys, 32 tokens,
+128 allowed values, 1,000 characters per scalar string, depth 8/256 nodes per
+predicate and 4,096 predicate nodes overall. Only source-column cleaning/validation
+and pre-imputation selection are supported; post-imputation cleaning, unrestricted
+regex, learned thresholds, row-wise rejection-result schemas and ordered time-series
+fills are deferred. No new dependency, database migration or separate workspace.

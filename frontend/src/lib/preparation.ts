@@ -1,9 +1,10 @@
+import { cleaningLabel, selectionStep } from "./cleaning";
 import { removeAdvancedImputation } from "./imputation";
 import type { Column } from "./api/projects";
 import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, TemporalExpression, DerivedExpression } from "./api/pipelines";
 
-export type PrepStep = { id: string; kind: "source" | "parse" | "temporal" | "derived" | "advanced" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
-export type ColumnAction = { id: "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
+export type PrepStep = { id: string; cleaningId?: string; kind: "cleaning" | "selection" | "source" | "parse" | "temporal" | "derived" | "advanced" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
+export type ColumnAction = { id: "cleaning-normalize" | "cleaning-convert" | "cleaning-replace" | "cleaning-replace-missing" | "cleaning-datetime_fill" | "cleaning-validate" | "cleaning-missing_filter" | "cleaning-keep-missing" | "cleaning-filter" | "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
 const clone = <T,>(value: T): T => structuredClone(value);
 
 export function references(expression: TemporalExpression | DerivedExpression, kind: "reference" | "column" = "reference"): string[] {
@@ -11,9 +12,15 @@ export function references(expression: TemporalExpression | DerivedExpression, k
   return expression.kind === "call" ? expression.arguments.flatMap(arg => references(arg, kind)) : [];
 }
 
-export function columnActions(column: Pick<Column, "effective_semantic_type" | "physical_dtype">, target: boolean, included: boolean): ColumnAction[] {
+export function columnActions(column: Pick<Column, "effective_semantic_type" | "physical_dtype">, target: boolean, included: boolean, raw = true): ColumnAction[] {
   const actions: ColumnAction[] = [{ id: "profile", label: "View Column Profile" }];
   if (target) return actions;
+  if (raw) actions.push(
+    { id: "cleaning-missing_filter", label: "Remove Rows Where This Column Is Missing" }, { id: "cleaning-keep-missing", label: "Keep Rows Where This Column Is Missing" },
+    { id: "cleaning-replace", label: "Replace Values" }, { id: "cleaning-replace-missing", label: "Replace With Missing" },
+    { id: "cleaning-normalize", label: "Normalize Missing Tokens" }, { id: "cleaning-convert", label: "Change Data Type" },
+    { id: "cleaning-datetime_fill", label: "Fill Missing Datetime" }, { id: "cleaning-validate", label: "Validate Column" });
+  actions.push({ id: "cleaning-filter", label: "Filter Rows" });
   const type = column.effective_semantic_type;
   if (type !== "datetime") actions.push({ id: "derived-create", label: "Create Derived Feature" });
   if (type === "datetime") actions.push(
@@ -31,6 +38,8 @@ export function columnActions(column: Pick<Column, "effective_semantic_type" | "
 
 export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "source_order">[]): PrepStep[] {
   const steps: PrepStep[] = [{ id: "source", kind: "source", label: "Source Dataset", stage: "Immutable source", inputs: [], outputs: columns.map(c => c.name) }];
+  const cleaningSteps: PrepStep[] = (ir.cleaning?.steps ?? []).map(step => ({ id: `cleaning:${step.id}`, cleaningId: step.id, kind: selectionStep(step) ? "selection" : "cleaning", label: cleaningLabel(step), stage: selectionStep(step) ? "Dataset selection - before split; inference retains rows" : "Stateless source cleaning - before derivation", column: "column" in step ? step.column : undefined, inputs: "column" in step ? [step.column] : "columns" in step ? step.columns : [...references(step.condition, "column"), ...references(step.condition)], outputs: "column" in step ? [step.column] : [] }));
+  steps.push(...cleaningSteps.filter(step => step.kind === "cleaning"));
   const temporal = ir.temporal;
   for (const name of Object.keys(temporal?.sources ?? {}).sort()) steps.push({ id: `parse:${encodeURIComponent(name)}`, kind: "parse", label: `Parse ${name}`, stage: "Stateless parsing · UTC", column: name, inputs: [name], outputs: [] });
   const definitions = new Map(temporal?.features.map(feature => [feature.name, feature]) ?? []);
@@ -71,6 +80,7 @@ export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "sou
   } catch {
     steps.push({ id: "derived-invalid", kind: "legacy", label: "Invalid derived dependency group", stage: "Blocked ? repair retained definitions", inputs: [], outputs: [...general.keys()], invalid: true });
   }
+  steps.push(...cleaningSteps.filter(step => step.kind === "selection"));
   const names = [...columns.filter(c => c.name !== ir.target?.column).sort((a, b) => a.source_order - b.source_order).map(c => c.name), ...definitions.keys(), ...general.keys()];
   if (Object.values(ir.features).some(feature => !feature.included) || names.some(name => !ir.features[name])) steps.push({ id: "participation", kind: "participation", label: "Feature Participation", stage: "Model input selection", inputs: [...new Set([...names, ...Object.keys(ir.features)])], outputs: Object.keys(ir.features).filter(name => ir.features[name].included), invalid: names.some(name => !ir.features[name]) });
   const usableNames = new Set(names);
@@ -100,12 +110,17 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
   const steps = appliedSteps(ir, columns), end = steps.findIndex(step => step.id === id);
   if (end < 0) throw new Error("This step no longer exists.");
   const result = clone(ir);
+  result.cleaning = null;
   result.features = Object.fromEntries(columns.filter(c => c.name !== ir.target?.column).map(c => [c.name, { included: true, operations: [] }]));
   result.imputation = ir.imputation ? { version: "imputation-v1", columns: {} } : null;
   result.derived = ir.derived ? { ...clone(ir.derived), features: [] } : null;
   result.temporal = ir.temporal ? { ...clone(ir.temporal), sources: {}, features: [] } : null;
   for (const step of steps.slice(1, end + 1)) {
     if (step.kind === "legacy") throw new Error("An invalid configuration group has no reproducible stage preview. Edit its definitions first.");
+    if (step.kind === "cleaning" || step.kind === "selection") {
+      result.cleaning ??= { version: "cleaning-v1", steps: [] };
+      result.cleaning.steps.push(clone(ir.cleaning!.steps.find(rule => rule.id === step.cleaningId)!));
+    }
     if (step.kind === "parse") result.temporal!.sources[step.column!] = clone(ir.temporal!.sources[step.column!]);
     if (step.kind === "temporal") {
       result.temporal!.features.push(clone(ir.temporal!.features.find(feature => feature.name === step.column)!));
@@ -133,6 +148,10 @@ export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
   if (step.kind === "source") throw new Error("The Source step is immutable.");
   if (step.kind === "advanced") return removeAdvancedImputation(ir, step.column!);
   const next = clone(ir);
+  if (step.kind === "cleaning" || step.kind === "selection") {
+    const steps = next.cleaning!.steps.filter(rule => rule.id !== step.cleaningId);
+    next.cleaning = steps.length ? { version: "cleaning-v1", steps } : null;
+  }
   if (step.kind === "parse") delete next.temporal!.sources[step.column!];
   if (step.kind === "temporal") {
     next.temporal!.features = next.temporal!.features.filter(feature => feature.name !== step.column);
