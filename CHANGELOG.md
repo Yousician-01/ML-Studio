@@ -8,6 +8,13 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Advanced preprocessing
 
+- Selective/group-wise `imputation-v1` rules with explicit fallbacks, original
+  missingness indicators, Studio editing and Applied Steps integration.
+- Training-only global/group statistics retained in complete saved models and
+  executed by standalone generated Python. Configuration previews never fit
+  uploaded data. Quick imputers remain available with explicit replacement and
+  restoration; no migration, dependency or new model family is introduced.
+
 - Generalized `derived-v1` feature builder with Guided/Expression controls, typed
   arithmetic/comparison/boolean/string/null operations and dependency-aware repair.
 - One bounded row-wise runtime across preview, all task compilers and complete

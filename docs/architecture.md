@@ -162,6 +162,30 @@ generalized prefixes. Saved-model inference repeats calculation from raw inputs;
 historical Run source/model evidence is never rewritten. See the
 [feature guide](user-guide/explore-and-prepare.md#generalized-derived-feature-builder-v05-development).
 
+## Advanced imputation extension (v0.5 Commit 04)
+
+Optional `imputation-v1` JSON intent configures a single shared DataFrame transformer
+after stateless temporal/generalized derivation and before existing feature branches.
+`imputation_schemas.py` and `imputation_runtime_v1.py` own bounded admission and the
+sklearn transformer. Predicates normalize source/derived references and reuse the
+existing typed derived interpreter. They always read pre-imputation inputs.
+`services/imputation.py` supplies validation, non-fitted diagnostics, indicator
+metadata and resolved raw dependencies through the existing Pipeline/preview APIs.
+
+Every compiler embeds the same fixed runtime. The existing split happens first;
+only `model_pipeline.fit(X_train, y_train)` estimates global/group donors. Transform
+uses stored mappings and never relearns on held-out/inference rows. Included
+indicator outputs are explicit model columns. Earlier feature guards remain for
+unhandled columns; advanced fit/transform owns its actionable completeness checks.
+Generated failure messages allow only the runtime's sanitized validation exception.
+
+Quick and advanced imputers cannot be active together on one column. The former
+quick strategy is restoration metadata, not a second executed configuration.
+Excluded targets retain dormant settings. Omitted extensions preserve old IR/plan
+serialization and source goldens. There is no database migration, dependency,
+second workflow engine or historical artifact rewrite. See the
+[user guide](user-guide/explore-and-prepare.md#advanced-imputation-v05-development).
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

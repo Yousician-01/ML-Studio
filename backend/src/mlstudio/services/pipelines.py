@@ -71,6 +71,38 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 ]
             )
         )
+    if (
+        ir.imputation is not None
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.imputation import context as imputation_context
+
+        try:
+            dataset, frame, _ = imputation_context(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="imputation_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid advanced imputation references.",
+                )
+            )
+            return issues, [], 0, False
+        issues.append(
+            PipelineIssue(
+                scope="pipeline",
+                code="imputation_fitted",
+                severity="non_blocking",
+                message="Advanced statistics fit training rows only. "
+                "Unresolved missing values fail training; "
+                "no full-source fitted preview is available.",
+            )
+        )
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
     task = (
@@ -193,7 +225,11 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 )
     target = ir.target.column if ir.target else None
     for name in columns:
-        if name != target and name not in ir.features:
+        if (
+            name != target
+            and name not in ir.features
+            and columns[name].get("inference_version") != "imputation-v1"
+        ):
             issue(
                 "feature_missing",
                 "Column is missing from the feature map. Reset or restore its configuration.",
@@ -216,6 +252,14 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         if name == target or name == selected_target:
             issue(
                 "target_feature", "The target must be absent from the feature map.", "feature", name
+            )
+        if columns[name].get("inference_version") == "imputation-v1":
+            issue(
+                "indicator_stage",
+                "Missingness indicators are automatic advanced-stage outputs; "
+                "do not configure earlier feature operations for them.",
+                "feature",
+                name,
             )
         semantic = columns[name]["semantic_override"] or columns[name]["inferred_semantic_type"]
         numeric = is_numeric_dtype(frame[name].dtype) and not is_bool_dtype(frame[name].dtype)
@@ -259,7 +303,12 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         # Inspect eligible source facts only; never fit or split feature matrices.
         if feature.included and ir.model is not None and target_series is not None:
             observed = frame.loc[target_series.notna(), name]
-            if not observed.empty and observed.count() == 0:
+            advanced = ir.imputation.columns.get(name) if ir.imputation else None
+            if (
+                not observed.empty
+                and observed.count() == 0
+                and not (advanced and advanced.fallback.strategy == "constant")
+            ):
                 issue(
                     "feature_all_missing",
                     "No observed feature values remain after target "
@@ -270,6 +319,7 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
             elif (
                 observed.isna().any()
                 and "impute" not in families
+                and advanced is None
                 and descriptor
                 and descriptor.feature_requirements.requires_complete_features
             ):
@@ -344,17 +394,26 @@ def response(project, dataset, settings):
         if dataset
         else []
     )
-    if (ir.temporal is not None or ir.derived is not None) and dataset is not None and not stale:
+    if (
+        (ir.temporal is not None or ir.derived is not None or ir.imputation is not None)
+        and dataset is not None
+        and not stale
+    ):
         from mlstudio.services.derived import context
 
         try:
-            virtual, _, _, _ = context(ir, dataset, frame)
+            virtual, expanded, _, _ = context(ir, dataset, frame)
+            if ir.imputation is not None:
+                from mlstudio.services.imputation import context as imputation_context
+
+                virtual, _, _ = imputation_context(ir, virtual, expanded)
             columns.extend(
                 {
                     **c,
                     "effective_semantic_type": c["inferred_semantic_type"],
                     "role": "feature"
-                    if ir.features.get(c["name"]) and ir.features[c["name"]].included
+                    if c.get("inference_version") == "imputation-v1"
+                    or (ir.features.get(c["name"]) and ir.features[c["name"]].included)
                     else "excluded",
                 }
                 for c in virtual.columns[len(dataset.columns) :]

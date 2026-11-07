@@ -24,8 +24,15 @@ class ParsingCounts(InputModel):
     date_only_count: int
 
 
+class ImputationDiagnostics(InputModel):
+    missing_count: int = Field(ge=0)
+    rule_matches: list[int] = Field(max_length=16)
+    indicator_values: list[float] = Field(max_length=20)
+
+
 class TemporalPreview(InputModel):
     revision: int
+    imputation: dict[str, ImputationDiagnostics] = Field(default_factory=dict)
     limit: int = 20
     columns: list[TemporalPreviewColumn] = Field(default_factory=list)
     sources: dict[str, ParsingCounts] = Field(default_factory=dict)
@@ -90,15 +97,22 @@ def features(ir, dataset, frame):
         from mlstudio.services.derived import context as rowwise_context
 
         dataset, frame, _, _ = rowwise_context(ir, dataset, frame)
+    if ir.imputation is not None:
+        from mlstudio.services.imputation import context as imputation_context
+
+        dataset, frame, _ = imputation_context(ir, dataset, frame)
     return tuple(
         FeaturePlan(
             name=c["name"],
             physical_dtype=str(frame[c["name"]].dtype),
             semantic_type=c["semantic_override"] or c["inferred_semantic_type"],
-            operations=tuple(operation(op) for op in ir.features[c["name"]].operations),
+            operations=tuple(operation(op) for op in ir.features[c["name"]].operations)
+            if c.get("inference_version") != "imputation-v1"
+            else (),
         )
         for c in sorted(dataset.columns, key=lambda c: c["source_order"])
-        if c["name"] in ir.features and ir.features[c["name"]].included
+        if c.get("inference_version") == "imputation-v1"
+        or (c["name"] in ir.features and ir.features[c["name"]].included)
     )
 
 
@@ -133,12 +147,19 @@ def preview(session, project, settings, body):
     ):
         raise DomainError("Reset preparation for the current Dataset before previewing.", 409)
     result = TemporalPreview(revision=body.revision)
-    if ir.temporal is not None or ir.derived is not None:
+    if ir.temporal is not None or ir.derived is not None or ir.imputation is not None:
         frame = parse_source(verified_source(settings.home, dataset))
         try:
             from mlstudio.services.derived import context as rowwise_context
 
             virtual, expanded, counts, errors = rowwise_context(ir, dataset, frame)
+            if ir.imputation is not None:
+                from mlstudio.services.imputation import context as imputation_context
+
+                virtual, expanded, diagnostics = imputation_context(ir, virtual, expanded)
+                result.imputation = {
+                    name: ImputationDiagnostics(**value) for name, value in diagnostics.items()
+                }
             result.sources = {name: ParsingCounts(**value) for name, value in counts.items()}
             result.errors = errors
             result.warnings = (
@@ -149,6 +170,12 @@ def preview(session, project, settings, body):
                     "semantic leakage is not automatically detected."
                 ]
             )
+            if ir.imputation is not None:
+                result.warnings.append(
+                    "Configuration preview only: no imputation statistics are fitted. "
+                    "Predicate counts may overlap; missing groups and unknown conditions "
+                    "do not guarantee a fill."
+                )
             for c in virtual.columns[len(dataset.columns) :]:
                 series = expanded[c["name"]]
                 result.columns.append(

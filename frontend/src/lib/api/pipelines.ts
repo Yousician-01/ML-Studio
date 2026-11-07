@@ -15,8 +15,14 @@ export type TemporalConfig = { version: "temporal-v1"; sources: Record<string, {
 export type DerivedOperation = "add" | "subtract" | "multiply" | "safe_divide" | "modulo" | "abs" | "negate" | "power" | "sqrt" | "log" | "log1p" | "round" | "floor" | "ceil" | "minimum" | "maximum" | "equal" | "not_equal" | "greater" | "greater_equal" | "less" | "less_equal" | "and" | "or" | "not" | "is_missing" | "is_not_missing" | "if" | "trim" | "lower" | "upper" | "length" | "starts_with" | "ends_with" | "contains" | "concat" | "replace" | "coalesce";
 export type DerivedExpression = { kind: "column" | "reference"; name: string } | { kind: "literal"; value: string | number | boolean | null } | { kind: "call"; operation: DerivedOperation; arguments: DerivedExpression[]; parameters: { precision?: number | null } };
 export type DerivedConfig = { version: "derived-v1"; features: { name: string; expression: DerivedExpression }[] };
-export type TemporalPreview = { revision: number; limit: number; columns: { name: string; semantic_type: string; missing_count: number; invalid_count?: number; physical_dtype?: string; values: (number | string | boolean | null)[] }[]; sources: Record<string, { missing_count: number; invalid_count: number; date_only_count: number }>; warnings: string[]; errors: string[] };
-type Recipe = { derived?: DerivedConfig | null; temporal?: TemporalConfig | null; dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
+export type ImputationStrategy = "constant" | "mean" | "median" | "most_frequent";
+export type ImputationRule = { condition: DerivedExpression | null; strategy: ImputationStrategy; value: string | number | boolean | null; group_by: string[] };
+export type ImputationFallback = { strategy: ImputationStrategy | "leave_missing"; value: string | number | boolean | null };
+export type ColumnImputation = { rules: ImputationRule[]; fallback: ImputationFallback; indicator: string | null; previous_strategy: "mean" | "median" | "most_frequent" | null };
+export type ImputationConfig = { version: "imputation-v1"; columns: Record<string, ColumnImputation> };
+export type ImputationDiagnostics = { missing_count: number; rule_matches: number[]; indicator_values: number[] };
+export type TemporalPreview = { imputation?: Record<string, ImputationDiagnostics>; revision: number; limit: number; columns: { name: string; semantic_type: string; missing_count: number; invalid_count?: number; physical_dtype?: string; values: (number | string | boolean | null)[] }[]; sources: Record<string, { missing_count: number; invalid_count: number; date_only_count: number }>; warnings: string[]; errors: string[] };
+type Recipe = { imputation?: ImputationConfig | null; derived?: DerivedConfig | null; temporal?: TemporalConfig | null; dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
 export type PipelineIR = Recipe & (
  { ir_version: "0.1"; target: { column: string; positive_class: TypedScalar | null; missing_value_policy: "exclude_rows" } | null }
  | { ir_version: "0.2"; task: "regression"; target: { column: string; value_type: "numeric"; missing_value_policy: "exclude_rows" } | null }

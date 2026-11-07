@@ -16,6 +16,50 @@ def column(name):
     return {"kind": "column", "name": name}
 
 
+def test_advanced_imputation_diagnostics_and_ir_persistence(client, monkeypatch):
+    from mlstudio.imputation_runtime_v1 import ImputationFeatures
+
+    def refuse_fit(*args, **kwargs):
+        raise AssertionError("Configuration previews must not fit statistics")
+
+    monkeypatch.setattr(ImputationFeatures, "fit", refuse_fit)
+    from test_projects_datasets import configure, create, upload
+
+    project = create(client)
+    upload(
+        client, project, b"income,city,label\n10,Pune,yes\n,Pune,no\n30,Mumbai,yes\n,Mumbai,no\n"
+    )
+    configure(client, project, target_column="label")
+    path = f"/api/v1/projects/{project['id']}/pipeline"
+    state = client.get(path).json()
+    ir = state["ir"]
+    ir["imputation"] = {
+        "version": "imputation-v1",
+        "columns": {
+            "income": {
+                "rules": [
+                    {"condition": None, "strategy": "median", "value": None, "group_by": ["city"]}
+                ],
+                "fallback": {"strategy": "constant", "value": 5},
+                "indicator": "income_was_missing",
+                "previous_strategy": None,
+            }
+        },
+    }
+    body = {"revision": state["revision"], "ir": ir}
+    preview = client.post(path + "/temporal-preview", json=body)
+    assert preview.status_code == 200, preview.text
+    evidence = preview.json()["imputation"]["income"]
+    assert evidence["missing_count"] == 2 and evidence["rule_matches"] == [2]
+    assert evidence["indicator_values"] == [0, 1, 0, 1]
+    assert not any(c["name"] == "income" for c in preview.json()["columns"]), (
+        "no fitted full-source values"
+    )
+    saved = client.patch(path, json=body)
+    assert saved.status_code == 200, saved.text
+    assert client.get(path).json()["ir"]["imputation"]["version"] == "imputation-v1"
+
+
 def test_generalized_preview_persistence_and_train_validation(client):
     from test_projects_datasets import configure, create, upload
 
@@ -490,6 +534,177 @@ def test_generalized_compiler_all_tasks_and_raw_saved_inference(tmp_path):
             "try: model.predict(raw.drop(columns='orders'))\n"
             "except ValueError: pass\n"
             "else: raise AssertionError('missing raw input accepted')\n",
+            encoding="utf-8",
+        )
+        subprocess.run(
+            [sys.executable, str(loader), str(source_path), str(model_path), str(data_path)],
+            check=True,
+            timeout=30,
+        )
+
+
+def test_advanced_imputation_compiles_all_tasks_and_saved_raw_inference(tmp_path):
+    import hashlib
+    import json
+
+    from mlstudio.codegen.csv_runtime import parse_csv_bytes
+    from mlstudio.codegen.dispatch import generate_for_version, resolve_for_version
+    from mlstudio.pipeline_schemas import load_ir
+    from mlstudio.services.source import describe_columns
+
+    for task, version, model in [
+        ("binary_classification", "0.1", "logistic_regression"),
+        ("regression", "0.2", "ridge"),
+        ("multiclass_classification", "0.3", "logistic_regression"),
+    ]:
+        values = pd.DataFrame(
+            {
+                "income": [None if i % 3 == 0 else float(100 + i) for i in range(36)],
+                "city": ["Pune", "Mumbai", None] * 12,
+                "employment": ["Salaried", "Self"] * 18,
+                "date": [None if i % 5 == 0 else f"2024-{1 + i % 12:02d}-15" for i in range(36)],
+                "target": list(range(36))
+                if version == "0.2"
+                else ["no", "yes"] * 18
+                if version == "0.1"
+                else ["a", "b", "c"] * 12,
+            }
+        )
+        raw = values.to_csv(index=False).encode()
+        frame = parse_csv_bytes(raw)
+        dataset = SimpleNamespace(
+            id="advanced-test",
+            fingerprint="sha256:" + hashlib.sha256(raw).hexdigest(),
+            size_bytes=len(raw),
+            columns=describe_columns(frame),
+        )
+        generalized = {
+            "version": "derived-v1",
+            "features": [
+                {
+                    "name": "tenure",
+                    "expression": call(
+                        "safe_divide",
+                        {"kind": "reference", "name": "month"},
+                        {"kind": "literal", "value": 12},
+                    ),
+                },
+                {
+                    "name": "is_salary",
+                    "expression": call(
+                        "equal", column("employment"), {"kind": "literal", "value": "Salaried"}
+                    ),
+                },
+                {"name": "clean_city", "expression": call("trim", column("city"))},
+            ],
+        }
+        payload = {
+            "ir_version": version,
+            "dataset": {"dataset_id": dataset.id, "fingerprint": dataset.fingerprint},
+            "target": {"column": "target"},
+            "temporal": config({"month": call("month", column("date"))}, date={"naive": "utc"}),
+            "derived": generalized,
+            "features": {
+                name: {"included": False, "operations": []}
+                for name in [*frame.columns, "month", "tenure", "is_salary", "clean_city"]
+                if name != "target"
+            },
+            "imputation": {
+                "version": "imputation-v1",
+                "columns": {
+                    "income": {
+                        "rules": [
+                            {
+                                "condition": {"kind": "reference", "name": "is_salary"},
+                                "strategy": "median",
+                                "group_by": ["clean_city"],
+                            }
+                        ],
+                        "fallback": {"strategy": "constant", "value": 99},
+                        "indicator": "income_missing",
+                    },
+                    "tenure": {
+                        "rules": [{"strategy": "mean", "group_by": ["clean_city"]}],
+                        "fallback": {"strategy": "constant", "value": 0},
+                        "indicator": "tenure_missing",
+                    },
+                },
+            },
+            "model": {"type": model},
+            "split": {},
+        }
+        payload["features"]["income"] = {
+            "included": True,
+            "operations": [{"type": "scale", "method": "robust"}],
+        }
+        payload["features"]["tenure"]["included"] = True
+        if version == "0.1":
+            payload["target"]["positive_class"] = {"value_type": "string", "value": "yes"}
+        else:
+            payload["task"] = task
+        if version == "0.1":
+            payload.pop("temporal")
+            payload.pop("derived")
+            for name in ["month", "tenure", "is_salary", "clean_city"]:
+                payload["features"].pop(name)
+            payload["imputation"]["columns"].pop("tenure")
+            first_rule = payload["imputation"]["columns"]["income"]["rules"][0]
+            first_rule["condition"] = call(
+                "equal", column("employment"), {"kind": "literal", "value": "Salaried"}
+            )
+            first_rule["group_by"] = ["city"]
+        ir = load_ir(json.loads(json.dumps(payload)), task)
+        plan, issues = resolve_for_version(ir, dataset, "target", frame)
+        assert plan is not None, issues
+        expected_indicators = (
+            ["income_missing"] if version == "0.1" else ["income_missing", "tenure_missing"]
+        )
+        assert [f.name for f in plan.features][-len(expected_indicators) :] == expected_indicators
+        source = generate_for_version(plan)
+        assert source == generate_for_version(plan)
+        if version != "0.1":
+            assert source.index("('derived', DerivedFeatures(") < source.index(
+                "('advanced_imputation', ImputationFeatures("
+            )
+        directory = tmp_path / version
+        directory.mkdir()
+        source_path, data_path = directory / "generated.py", directory / "source.csv"
+        source_path.write_text(source, encoding="utf-8", newline="\n")
+        data_path.write_bytes(raw)
+        result_path, model_path = directory / "result.json", directory / "model.joblib"
+        subprocess.run(
+            [
+                sys.executable,
+                str(source_path),
+                "--dataset",
+                str(data_path),
+                "--result",
+                str(result_path),
+                "--model",
+                str(model_path),
+            ],
+            check=True,
+            timeout=40,
+        )
+        assert json.loads(result_path.read_text())["status"] == "success"
+        loader = directory / "load.py"
+        loader.write_text(
+            "import importlib.util,sys,joblib,pandas as pd,numpy as np\n"
+            "spec=importlib.util.spec_from_file_location('frozen',sys.argv[1])\n"
+            "m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)\n"
+            "model=joblib.load(sys.argv[2]);raw=pd.read_csv(sys.argv[3]).drop(columns='target')\n"
+            "assert model.predict(raw).shape == (len(raw),)\n"
+            "new=raw.iloc[:1].copy();new['city']='Unseen';new['income']=np.nan\n"
+            "assert model.predict(new).shape == (1,)\n"
+            "idx=list(model.named_steps).index('advanced_imputation')\n"
+            "rowwise=model[:idx].transform(raw) if idx else raw\n"
+            "transformed=model.named_steps['advanced_imputation'].transform(rowwise)\n"
+            "assert transformed['income'].notna().all()\n"
+            "np.testing.assert_allclose(transformed['income_missing'],raw['income'].isna().astype(float))\n"
+            "np.testing.assert_allclose(transformed.loc[raw.income.notna(),'income'],raw.loc[raw.income.notna(),'income'])\n"
+            "try:model.predict(raw.drop(columns='employment'))\n"
+            "except ValueError:pass\n"
+            "else:raise AssertionError('missing condition input accepted')\n",
             encoding="utf-8",
         )
         subprocess.run(

@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appliedSteps, atStep, removeStep, draftHistory, changeDraft, undoDraft, redoDraft, columnActions, preparationErrors, rememberStudioSession, readStudioSession, clearStudioSession } from "../src/lib/preparation.ts";
+
 import React from "react";
 import { loadComponent } from "./load-component.mjs";
+const { appliedSteps, atStep, removeStep, draftHistory, changeDraft, undoDraft, redoDraft, columnActions, preparationErrors, rememberStudioSession, readStudioSession, clearStudioSession } = loadComponent("lib/preparation.ts");
 
 const columns = [{ name: "date", source_order: 0, physical_dtype: "str", effective_semantic_type: "datetime" }, { name: "amount", source_order: 1, physical_dtype: "float64", effective_semantic_type: "continuous" }];
 function recipe() {
@@ -14,6 +15,29 @@ test("column menus expose compatible editors and use one action policy for every
   assert.ok(!columnActions(columns[0], false, true).some(action => action.id === "scale"));
   assert.ok(columnActions(columns[1], false, true).some(action => action.id === "scale"));
   assert.deepEqual(columnActions(columns[1], true, false).map(action => action.id), ["profile"]);
+});
+
+test("advanced imputation has a fixed fitted stage; prefixes, restoration and history preserve prior intent", () => {
+  const ir = recipe();
+  ir.features.amount.operations = [{ type: "scale", method: "standard" }];
+  ir.imputation = { version: "imputation-v1", columns: { amount: {
+    rules: [{ condition: null, strategy: "median", value: null, group_by: [] }],
+    fallback: { strategy: "constant", value: 0 }, indicator: "amount_missing", previous_strategy: "mean",
+  } } };
+  const steps = appliedSteps(ir, columns), advanced = steps.find(step => step.kind === "advanced");
+  assert.ok(advanced);
+  assert.ok(steps.indexOf(advanced) > steps.findIndex(step => step.kind === "participation"));
+  assert.ok(steps.indexOf(advanced) < steps.findIndex(step => step.kind === "operation"));
+  assert.deepEqual(advanced.outputs, ["amount", "amount_missing"]);
+  assert.equal(atStep(ir, columns, "source").imputation, null);
+  const prefix = atStep(ir, columns, advanced.id);
+  assert.deepEqual(prefix.imputation, ir.imputation);
+  assert.deepEqual(prefix.features.amount.operations, []);
+  const removed = removeStep(ir, advanced);
+  assert.deepEqual(removed.features.amount.operations, [{ type: "impute", strategy: "mean" }, { type: "scale", method: "standard" }]);
+  assert.equal(removed.imputation, undefined);
+  assert.deepEqual(undoDraft(changeDraft(draftHistory(ir), removed)).present, ir);
+  assert.deepEqual(appliedSteps(JSON.parse(JSON.stringify(ir)), columns), steps);
 });
 
 test("generalized features follow temporal dependencies and retain exact stage prefixes across undo/reload", () => {

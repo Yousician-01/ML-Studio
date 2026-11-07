@@ -40,7 +40,7 @@ Open http://127.0.0.1:3000. Ctrl+C in the launcher terminal stops both servers. 
 
 ## First experiment
 
-**Dataset / Data Preparation / Train / Evaluate**, with history in **Runs** and Python through **Show Code**. The v0.5 development studio brings source exploration, typed derived features and preparation into one table-first workspace; see the [studio guide](docs/user-guide/explore-and-prepare.md).
+**Dataset / Data Preparation / Train / Evaluate**, with history in **Runs** and Python through **Show Code**. The v0.5 development studio brings source exploration, typed derived features, advanced imputation and preparation into one table-first workspace; see the [studio guide](docs/user-guide/explore-and-prepare.md).
 
 Follow [Getting started](docs/getting-started.md) using the committed synthetic CSV. Code Mode is an optional explicit fork: arbitrary Python edits never update the preserved visual pipeline automatically.
 

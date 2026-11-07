@@ -280,3 +280,95 @@ literal; 4,096 characters/computed string. Oversized computed strings become mis
 with invalid diagnostics. Preview retains the existing 20-row browser bound.
 No arbitrary Python, cross-row aggregates, row filtering, lag/window operations,
 learned thresholds, new scalers/encoders/imputers, or arbitrary step reordering.
+
+## Advanced Imputation (v0.5 development)
+
+Choose **Advanced Imputation** from an included or excluded compatible column's
+right-click/ellipsis menu or search in **Add Transformation**. Existing quick
+mean/median/most-frequent options remain available. The supervised label cannot be
+imputed. Supported targets are numeric, categorical and binary model features,
+including temporal and generalized outputs.
+
+Each configuration has ordered rules, a final fallback and an optional indicator.
+Use **Add Rule**, **Edit Rule**, **Remove Rule**, **Up** and **Down** to configure
+precedence within this stage. Conditions reuse the visual derived-expression
+controls: comparisons, boolean logic and missing checks can read compatible source,
+temporal and generalized columns. Only explicitly true conditions match; unknown
+conditions do not. Every rule additionally requires the target cell to remain
+missing. Nonmissing original cells are preserved, and the first successful fill
+wins. An unavailable group statistic leaves the cell for later rules/fallback.
+
+Strategies are compatible constants, global mean/median/most-frequent, or the same
+statistics grouped by up to four columns. Mean/median require numeric inputs;
+boolean and string constants must retain their types. Statistical donors are all
+observed training values in the configured group/global population, not merely rows
+matching the recipient predicate. Conditions select recipients; they do not filter
+the donor population. No validation/test/inference values estimate statistics.
+
+For example:
+
+```text
+Target: income
+Rule 1: WHEN employment_type = "Salaried"
+        fill remaining missing income with training median grouped by city
+Rule 2: fill remaining missing income with global training median
+Fallback: leave missing and warn
+Indicator: income_was_missing
+```
+
+The final fallback can leave missing, use a constant, or use a global training
+statistic. There is no implicit global substitution for an unavailable group.
+Missing keys are unmatched, not converted into a string category. Unseen groups
+and groups with no observed donors continue through later rules/fallback. Composite
+keys retain scalar type and column boundaries. Numeric grouping codes remain
+numeric; strings and booleans are not silently interchangeable. Most-frequent ties
+use the smallest numeric value, Unicode string order, or false before true.
+
+All predicates and keys read the immutable **pre-imputation** inputs. A rule on one
+column never sees another column's newly imputed value, regardless of rule/config
+order. Grouping by the imputation target itself is rejected. Label references,
+unavailable inputs and post-imputation indicator references are rejected. Indicators
+cannot feed earlier temporal/generalized expressions.
+
+An indicator is always 1 for an originally missing cell and 0 otherwise, independent
+of rule success. Its name must be a distinct letter-led identifier. It is included
+automatically as a binary model input when its imputation target is included;
+excluded targets retain dormant configuration without executing it or emitting an
+indicator. Indicators do not receive separate earlier feature operations.
+
+**Preview imputation** validates configuration and reports original missingness,
+observational predicate match counts (which can overlap), and up to 20 indicator
+values. It never estimates group/global statistics or displays fitted fill values.
+Even constant-only configurations use this conservative configuration preview.
+The main table retains pre-imputation target cells and marks indicator output;
+selecting an active fitted Applied Step reports values unavailable.
+
+**Apply imputation** requires a matching successful preview and updates the draft.
+Save preparation persists it with existing revision guards. Cancel, Undo/Redo,
+Discard, reopen and Applied Steps retain their existing semantics. Applying advanced
+configuration removes the active quick imputer while remembering its former
+strategy. Removing the advanced step restores that strategy, subject to validation.
+Explicitly applying a quick setting replaces advanced configuration and removes
+its indicator. Scaling/encoding remain after the shared imputation stage. Both
+imputers are never silently applied together. Downstream invalid definitions are
+retained for repair rather than deleted.
+
+All current estimators require complete inputs. **Leave missing and warn** is a
+valid saved choice, but if missing values actually remain, training or prediction
+fails with an explicit request for another rule/fallback. A training feature with
+no observed values requires a compatible constant fallback. An unavailable
+statistical fallback fails rather than inventing zero. Numeric inputs/constants
+must be finite and exact integer conversion stays within the documented safe range.
+
+The complete fitted model stores its training statistics; callers supply raw input
+columns only. The same runtime executes generated Python and saved inference after
+temporal/generalized stages and before scaling/encoding. Existing splits, target
+filtering, historical Runs, source CSV and Code Mode boundaries remain unchanged.
+Comparison conservatively suppresses deltas when frozen advanced rules differ.
+
+Bounds: 64 configured targets, 16 rules per target, four grouping columns per rule,
+10,000 observed groups per fitted rule and 50,000 across the transformer. Predicates
+retain the derived depth/size bounds and add a 4,096-node configuration total. Text
+constants are at most 1,000 characters. Excessive group cardinality fails safely.
+There are no learned thresholds, KNN/iterative/predictive imputers, post-imputation
+dependencies, row filtering or arbitrary global step reordering.

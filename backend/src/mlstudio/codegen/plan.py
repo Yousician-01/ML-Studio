@@ -10,6 +10,7 @@ from mlstudio.codegen.schemas import (
     TargetPlan,
 )
 from mlstudio.services.derived import resolved as resolved_derived
+from mlstudio.services.imputation import resolved as resolved_imputation
 from mlstudio.services.pipelines import validate
 from mlstudio.services.temporal import features as temporal_features
 from mlstudio.services.temporal import resolved as resolved_temporal
@@ -130,6 +131,7 @@ def resolve(ir, dataset, selected_target, frame):
         ),
         temporal=resolved_temporal(ir, dataset, frame),
         derived=resolved_derived(ir, dataset, frame),
+        imputation=resolved_imputation(ir, dataset, frame),
         features=temporal_features(ir, dataset, frame),
         split=ResolvedSplit(**ir.split.model_dump()),
         model=classifier(ir),

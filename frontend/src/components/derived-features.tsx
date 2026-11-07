@@ -42,6 +42,8 @@ function ExpressionInput({ value, onChange, columns, references, depth = 1, leaf
   </fieldset>;
 }
 
+export const DerivedExpressionInput = ExpressionInput;
+
 export function DerivedFeaturesEditor({ projectId, state, disabled, initialColumn, initialFeature, onApply, onCancel, onDirtyChange }: {
   projectId: string; state: WorkingPipeline; disabled: boolean; initialColumn?: string; initialFeature?: string;
   onApply: (ir: PipelineIR) => void; onCancel: () => void; onDirtyChange: (dirty: boolean) => void;

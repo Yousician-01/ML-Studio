@@ -1,5 +1,34 @@
 # Development
 
+## Advanced imputation (v0.5 Commit 04)
+
+`imputation_schemas.py` adds optional bounded `imputation-v1` intent and resolved
+input types/dtypes. `imputation_runtime_v1.py` reuses derived predicate evaluation
+and implements train-only global/group statistics, ordered missing-only fills and
+automatic original-missingness indicators. `services/imputation.py` never fits:
+it validates stage inputs and returns bounded diagnostics/virtual metadata through
+the existing preview API. `codegen/imputation.py` embeds the runtime and retains
+raw predicate/group dependencies even when excluded as estimator features.
+
+The existing split/filter logic and ColumnTransformer branches are preserved.
+Advanced fit/transform handles completeness errors explicitly; it neither drops
+rows nor computes inference statistics. Grouped numeric aggregation uses pandas;
+typed keys, deterministic mode ties and bounded fitted mappings preserve repeatable
+inference. Live Code, Code Drafts and frozen Run evidence keep their existing paths.
+
+Frontend `advanced-imputation.tsx` reuses exported derived-expression controls;
+`imputation.ts` handles draft replacement/restoration. Applied Steps mirrors the
+actual shared fitted stage before scaling/encoding, not click history. Preview
+validation does not imply that a future training partition has usable group donors.
+See [policies and limits](user-guide/explore-and-prepare.md#advanced-imputation-v05-development).
+
+Focused backend checks from `backend`:
+`python -m pytest tests/test_imputation.py tests/test_temporal.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+Frontend checks from `frontend`:
+`node --experimental-strip-types --test tests/imputation.test.mjs tests/preparation.test.mjs tests/derived.test.mjs tests/evaluation.test.mjs`.
+Use existing Ruff, lint, typecheck, build and whitespace gates; no new test framework
+or dependency is required.
+
 ## Generalized feature builder (v0.5 Commit 03)
 
 Contracts/runtime live in `derived_schemas.py` / `derived_runtime_v1.py`, composition

@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import Field, model_serializer, model_validator
 
 from mlstudio.derived_schemas import DerivedConfig, ResolvedDerivedConfig
+from mlstudio.imputation_schemas import ImputationConfig, ResolvedImputationConfig
 from mlstudio.schemas import InputModel
 
 
@@ -107,6 +108,7 @@ class TemporalConfig(InputModel):
 class TemporalFields(InputModel):
     temporal: TemporalConfig | None = None
     derived: DerivedConfig | None = None
+    imputation: ImputationConfig | None = None
 
     @model_serializer(mode="wrap")
     def omit_absent_extension(self, handler):
@@ -116,6 +118,8 @@ class TemporalFields(InputModel):
             data.pop("temporal", None)
         if self.derived is None:
             data.pop("derived", None)
+        if self.imputation is None:
+            data.pop("imputation", None)
         return data
 
 
@@ -126,6 +130,7 @@ class ResolvedTemporalConfig(TemporalConfig):
 class TemporalPlanFields(TemporalFields):
     temporal: ResolvedTemporalConfig | None = None
     derived: ResolvedDerivedConfig | None = None
+    imputation: ResolvedImputationConfig | None = None
 
 
 def validate_temporal(config, semantics, target):
