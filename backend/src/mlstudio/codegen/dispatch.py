@@ -47,9 +47,13 @@ def generate_for_version(plan):
         source = generate(resolved)
     from mlstudio.codegen.cleaning import extend_source as extend_cleaning
     from mlstudio.codegen.derived import extend_source as extend_derived
+    from mlstudio.codegen.feature_engineering import extend_source as extend_engineering
     from mlstudio.codegen.imputation import extend_source as extend_imputation
 
-    return extend_cleaning(
-        extend_imputation(extend_derived(extend_source(source, resolved), resolved), resolved),
+    return extend_engineering(
+        extend_cleaning(
+            extend_imputation(extend_derived(extend_source(source, resolved), resolved), resolved),
+            resolved,
+        ),
         resolved,
     )

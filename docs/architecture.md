@@ -215,6 +215,34 @@ fields are preserved. Historical plans without cleaning retain their old constra
 Frontend comparison rejects differing frozen cleaning contexts. See the
 [user contract](user-guide/explore-and-prepare.md#data-cleaning-selection-and-validation-v05-development).
 
+## Advanced feature engineering (v0.5 Commit 06)
+
+Optional `feature-engineering-v1` extends the existing task-specific IR/plan JSON;
+absent fields are omitted to preserve legacy hashes and source goldens. Typed bounded
+schemas live in `feature_engineering_schemas.py`; contextual source/derived typing,
+virtual output schema and preview admission live in `services/feature_engineering.py`.
+The existing preview endpoint serves stateless values and configuration-only fitted
+diagnostics. Fitted placeholder types are internal admission data and are never
+returned as source preview values.
+
+`EngineeringFeatures` appends named outputs after Advanced Imputation and before
+the existing ColumnTransformer branches. Stateless math delegates to `derived-v1`;
+explicit boundaries and typed ordinal mappings do not fit data. Power/quantile
+transforms, learned bin edges and rare retained sets fit only inside training
+`Pipeline.fit`. Missing values propagate. Per-output branch imputation/encoding/
+scaling remains authoritative. Earlier source quick imputers cannot affect this
+stage; direct input Advanced Imputation can. Engineering-output chaining and inputs
+from post-imputation indicators are rejected. Source/temporal/generalized dependencies
+remain raw model input requirements; prediction preserves input cardinality.
+
+`codegen/feature_engineering.py` embeds the exact versioned runtime after existing
+render extensions, freezes source dtypes, registers portable fitted classes and
+inserts the real transformer into all three task pipelines. Saved models use frozen
+training parameters, not Dataset access or inference-time refitting. No schema
+migration, dependency change or model family is introduced. Studio history and
+Applied Steps project this fixed stage order; comparison suppresses metric deltas
+when frozen engineering contexts differ. See the user guide for bounds/policies.
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

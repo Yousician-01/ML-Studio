@@ -494,3 +494,87 @@ predicate and 4,096 predicate nodes overall. Only source-column cleaning/validat
 and pre-imputation selection are supported; post-imputation cleaning, unrestricted
 regex, learned thresholds, row-wise rejection-result schemas and ordered time-series
 fills are deferred. No new dependency, database migration or separate workspace.
+
+## Advanced numeric and categorical features (v0.5 development)
+
+Use a column's context/ellipsis menu or searchable **Add Transformation**:
+**Transform Numeric**, **Bin Numeric**, **Group Rare Categories**, or **Encode
+Ordinal**. Compatible temporal and generalized outputs are also supported. The
+guided editor offers Preview / validate, Apply and Cancel. Apply changes the draft;
+Save persists it. Applied Steps supports editing, removal, reverting, undo/redo and
+reconstruction after reload. Outputs always create new named features; explicitly
+exclude the original if it should not enter the model. Renaming/removing upstream
+definitions retains stale downstream intent for explicit repair.
+
+### Mathematics and power/quantile transforms
+
+- Natural log requires values greater than zero; log1p requires greater than -1;
+  square root permits zero; reciprocal rejects zero. Choose reject or explicitly
+  mark invalid values as missing. Overflow/nonfinite math results never become
+  infinity. Existing missing values remain missing. These operations reuse the
+  generalized expression runtime and have actual source-value previews.
+- Yeo-Johnson accepts finite negative/zero/positive inputs. Box-Cox requires strictly
+  positive observed inputs, with no automatic offset. Both learn power parameters
+  from training rows and do not automatically standardize the output.
+- Quantile transformation supports uniform/normal output. Select 2–1,000 quantiles;
+  the actual count is capped to nonmissing training rows. Estimation uses all training
+  rows, deterministic settings and no random subsampling. Inference extremes map
+  to fitted distribution endpoints. All fitted numeric methods require at least two
+  distinct nonmissing training values; constant/all-missing inputs fail explicitly.
+
+### Bins, rare groups and ordinal mappings
+
+Explicit finite, strictly increasing boundaries are stateless. Intervals are
+left-closed/right-open; a value exactly on a boundary enters the higher bin.
+Underflow/overflow use open-ended outer bins. Output labels are `bin_0`, `bin_1`,
+etc.; missing remains missing. Equal-width binning learns training min/max;
+quantile binning learns training quantiles. Both are fitted, support 2–100 requested
+bins and reuse edges at inference. Duplicate quantile edges collapse; requested
+count is not guaranteed. The saved transform's `diagnostics_` contains requested
+and actual counts. No pretraining fitted-bin values are shown.
+
+Rare grouping uses exactly one threshold: absolute training count, or fraction
+of **all training rows**, including missing rows in the denominator. Categories
+meeting the threshold are retained. Known rare values map to the chosen label;
+unseen values explicitly map to rare, pass through for the encoder, or reject.
+Missing values remain missing. Typed comparisons distinguish boolean, numeric and
+string categories. Retained categories become encoder-safe strings, so numeric
+and boolean labels are textual in this categorical output. Ambiguous string-label
+collisions and a rare label matching a retained category are rejected. The training
+mapping is limited to 10,000 categories; high-cardinality inputs warn in diagnostics.
+
+Ordinal encoding uses explicitly typed category-to-integer rows, with unique keys
+and codes (no alphabetical inference). Unknowns reject, use a distinct explicit
+integer code, or become missing. Missing inputs remain missing. Ordinal outputs are
+continuous numeric features, without automatic one-hot encoding. Bin/rare outputs
+are categorical and get the existing one-hot encoder by default. Numeric outputs
+can use the existing scaling controls.
+
+### Execution and preview boundaries
+
+Execution order is raw cleaning → temporal/generalized derivation → training-only
+selection → split → Advanced Imputation → feature engineering → existing branch
+imputation/encoding/scaling → estimator. A quick source-column imputer is a later
+branch operation and does **not** fill engineering inputs. Use Advanced Imputation
+on a direct input, or quick imputation on an engineered output. Imputing a raw
+column cannot retroactively change a temporal/generalized value already computed.
+No transform silently imputes. Learned methods preserve missing inputs; configure
+compatible output imputation or expect a complete-input validation/error.
+
+Fitted-method previews show compatibility, missingness and domain diagnostics only;
+they never fit or fabricate transformed values. Stateless previews display actual
+source-derived samples (up to 20 rows), missing and invalid counts. With upstream
+Advanced Imputation, preview still shows pre-fit source values rather than invented
+fills. Input diagnostics describe current retained data, not a fitted training sample.
+Training determines final validity of degenerate subsets, rare-label collisions and
+actual bin counts. Saved models retain learned parameters and derive features from
+raw inference inputs without loading the training CSV or reducing row count.
+
+Limits: 64 engineering outputs, 99 explicit boundaries, 100 bins, 1,000 quantiles,
+1,000 ordinal entries, 10,000 training categories per rare mapping. Output names
+must be distinct and cannot replace source columns. Supervised labels, engineering
+outputs and post-imputation indicators cannot be inputs; fitted/stateless engineering
+chaining and back-references into earlier stages are unsupported. Branch imputation
+is available for outputs; earlier Advanced Imputation cannot consume them. No
+arbitrary reordering, replacement mode, signed-log variant or new estimator is added.
+Existing pipelines and historical Run artifacts remain unchanged.

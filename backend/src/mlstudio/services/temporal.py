@@ -66,7 +66,15 @@ class CleaningPreview(InputModel):
     diagnostics: list[CleaningDiagnostic]
 
 
+class EngineeringDiagnostic(InputModel):
+    fitted: bool
+    missing_count: int
+    invalid_count: int
+    message: str
+
+
 class TemporalPreview(InputModel):
+    feature_engineering: dict[str, EngineeringDiagnostic] = Field(default_factory=dict)
     revision: int
     cleaning: CleaningPreview | None = None
     imputation: dict[str, ImputationDiagnostics] = Field(default_factory=dict)
@@ -133,14 +141,23 @@ def features(ir, dataset, frame):
     from mlstudio.codegen.plan import operation
     from mlstudio.codegen.schemas import FeaturePlan
 
+    original_dataset, original_frame = dataset, frame
     if ir.temporal is not None or ir.derived is not None or ir.cleaning is not None:
         from mlstudio.services.derived import context as rowwise_context
 
         dataset, frame, _, _ = rowwise_context(ir, dataset, frame)
+    if ir.feature_engineering is not None and ir.cleaning is not None:
+        from mlstudio.services.cleaning import selection
+
+        frame, _ = selection(ir, original_dataset, original_frame, dataset, frame)
     if ir.imputation is not None:
         from mlstudio.services.imputation import context as imputation_context
 
         dataset, frame, _ = imputation_context(ir, dataset, frame)
+    if ir.feature_engineering is not None:
+        from mlstudio.services.feature_engineering import context as engineering_context
+
+        dataset, frame, _ = engineering_context(ir, dataset, frame)
     return tuple(
         FeaturePlan(
             name=c["name"],
@@ -192,6 +209,7 @@ def preview(session, project, settings, body):
         or ir.derived is not None
         or ir.imputation is not None
         or ir.cleaning is not None
+        or ir.feature_engineering is not None
     ):
         frame = parse_source(verified_source(settings.home, dataset))
         try:
@@ -224,6 +242,13 @@ def preview(session, project, settings, body):
                 result.imputation = {
                     name: ImputationDiagnostics(**value) for name, value in diagnostics.items()
                 }
+            if ir.feature_engineering is not None:
+                from mlstudio.services.feature_engineering import context as engineering_context
+
+                virtual, expanded, diagnostics = engineering_context(ir, virtual, expanded)
+                result.feature_engineering = {
+                    name: EngineeringDiagnostic(**info) for name, info in diagnostics.items()
+                }
             result.sources = {name: ParsingCounts(**value) for name, value in counts.items()}
             result.errors = errors
             result.warnings = (
@@ -240,7 +265,20 @@ def preview(session, project, settings, body):
                     "Predicate counts may overlap; missing groups and unknown conditions "
                     "do not guarantee a fill."
                 )
-            for c in virtual.columns[len(dataset.columns) :]:
+            preview_columns = virtual.columns[len(dataset.columns) :]
+            if ir.feature_engineering is not None:
+                needed_sources = {f.source for f in ir.feature_engineering.features}
+                preview_columns = [
+                    c
+                    for c in virtual.columns[: len(dataset.columns)]
+                    if c["name"] in needed_sources
+                ] + preview_columns
+            for c in preview_columns:
+                if (
+                    result.feature_engineering.get(c["name"])
+                    and result.feature_engineering[c["name"]].fitted
+                ):
+                    continue
                 series = expanded[c["name"]]
                 result.columns.append(
                     TemporalPreviewColumn(

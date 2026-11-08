@@ -1283,3 +1283,32 @@ Follow the committed [classification walkthrough](../examples/retention/README.m
 or [regression walkthrough](../examples/regression/README.md).
 Each uses existing controls and two local experiments. Use a disposable
 `MLSTUDIO_HOME` for validation; do not corrupt or delete real historical evidence.
+
+## Advanced feature engineering development (v0.5 Commit 06)
+
+`feature-engineering-v1` is an optional extension in existing Pipeline IR JSON, with
+no migration or dependency installation. The portable runtime reuses the installed
+NumPy/pandas/scikit-learn versions and `derived-v1` math. Generated Python embeds
+this exact runtime; saved models retain fitted training parameters. Do not replace
+configuration-only previews with full-Dataset fitting. Existing no-extension source
+goldens must remain unchanged.
+
+Focused checks from `backend`:
+
+```powershell
+.venv/Scripts/python.exe -m pytest tests/test_feature_engineering.py tests/test_codegen.py::test_source_goldens -q
+```
+
+From `frontend`, use the existing test harness:
+
+```powershell
+node --experimental-strip-types --test tests/feature-engineering.test.mjs tests/preparation.test.mjs tests/evaluation.test.mjs
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+See the [Studio guide](user-guide/explore-and-prepare.md#advanced-numeric-and-categorical-features-v05-development)
+for execution order, domains, bounds, bin semantics and unsupported chaining. The
+focused backend integration checks all three tasks and raw-input prediction in a
+fresh process with backend imports blocked; local test workspaces remain isolated.

@@ -11,6 +11,7 @@ from mlstudio.codegen.schemas import (
 )
 from mlstudio.services.cleaning import resolved as resolved_cleaning
 from mlstudio.services.derived import resolved as resolved_derived
+from mlstudio.services.feature_engineering import resolved as resolved_engineering
 from mlstudio.services.imputation import resolved as resolved_imputation
 from mlstudio.services.pipelines import validate
 from mlstudio.services.temporal import features as temporal_features
@@ -134,6 +135,7 @@ def resolve(ir, dataset, selected_target, frame):
         derived=resolved_derived(ir, dataset, frame),
         imputation=resolved_imputation(ir, dataset, frame),
         cleaning=resolved_cleaning(ir, dataset, frame),
+        feature_engineering=resolved_engineering(ir, dataset, frame),
         features=temporal_features(ir, dataset, frame),
         split=ResolvedSplit(**ir.split.model_dump()),
         model=classifier(ir),

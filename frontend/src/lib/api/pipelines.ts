@@ -21,6 +21,16 @@ export type ImputationFallback = { strategy: ImputationStrategy | "leave_missing
 export type ColumnImputation = { rules: ImputationRule[]; fallback: ImputationFallback; indicator: string | null; previous_strategy: "mean" | "median" | "most_frequent" | null };
 export type ImputationConfig = { version: "imputation-v1"; columns: Record<string, ColumnImputation> };
 export type ImputationDiagnostics = { missing_count: number; rule_matches: number[]; indicator_values: number[] };
+export type EngineeringFeature = { source: string; name: string } & (
+ { method: "log" | "log1p" | "sqrt" | "reciprocal"; invalid: "reject" | "coerce" }
+ | { method: "yeo_johnson" | "box_cox" }
+ | { method: "quantile"; quantiles: number; distribution: "uniform" | "normal" }
+ | { method: "boundaries"; boundaries: number[] }
+ | { method: "width" | "quantile_bins"; bins: number }
+ | { method: "rare"; min_count: number | null; min_frequency: number | null; rare_label: string; unknown: "rare" | "preserve" | "reject" }
+ | { method: "ordinal"; mapping: { value: string | number | boolean; code: number }[]; unknown: "reject" | "code" | "missing"; unknown_code: number | null });
+export type EngineeringConfig = { version: "feature-engineering-v1"; features: EngineeringFeature[] };
+export type EngineeringDiagnostic = { fitted: boolean; missing_count: number; invalid_count: number; message: string };
 export type CleaningPolicy = { format: string; naive: "utc" | "reject"; invalid: "reject" | "coerce" };
 export type CleaningScalar = string | number | boolean | null;
 export type CleaningStep = { id: string } & (
@@ -34,8 +44,8 @@ export type CleaningStep = { id: string } & (
  | { kind: "deduplicate"; columns: string[]; keep: "first" | "last" });
 export type CleaningConfig = { version: "cleaning-v1"; steps: CleaningStep[] };
 export type CleaningPreview = { columns: { name: string; physical_dtype: string; semantic_type: string; missing_count: number; unique_count: number }[]; rows: Scalar[][]; row_indices: number[]; source_rows: number; retained_rows: number; removed_rows: number; events: { id: string; kind: string; before: number; retained: number; removed: number }[]; diagnostics: { id: string; column?: string | null; invalid_count: number; status: string; message: string; examples: Scalar[] }[] };
-export type TemporalPreview = { cleaning?: CleaningPreview | null; imputation?: Record<string, ImputationDiagnostics>; revision: number; limit: number; columns: { name: string; semantic_type: string; missing_count: number; invalid_count?: number; physical_dtype?: string; values: (number | string | boolean | null)[] }[]; sources: Record<string, { missing_count: number; invalid_count: number; date_only_count: number }>; warnings: string[]; errors: string[] };
-type Recipe = { cleaning?: CleaningConfig | null; imputation?: ImputationConfig | null; derived?: DerivedConfig | null; temporal?: TemporalConfig | null; dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
+export type TemporalPreview = { feature_engineering?: Record<string, EngineeringDiagnostic>; cleaning?: CleaningPreview | null; imputation?: Record<string, ImputationDiagnostics>; revision: number; limit: number; columns: { name: string; semantic_type: string; missing_count: number; invalid_count?: number; physical_dtype?: string; values: (number | string | boolean | null)[] }[]; sources: Record<string, { missing_count: number; invalid_count: number; date_only_count: number }>; warnings: string[]; errors: string[] };
+type Recipe = { feature_engineering?: EngineeringConfig | null; cleaning?: CleaningConfig | null; imputation?: ImputationConfig | null; derived?: DerivedConfig | null; temporal?: TemporalConfig | null; dataset: { dataset_id: string; fingerprint: string } | null; features: Record<string, FeatureIntent>; model: ModelIntent | null; split: SplitIntent | null };
 export type PipelineIR = Recipe & (
  { ir_version: "0.1"; target: { column: string; positive_class: TypedScalar | null; missing_value_policy: "exclude_rows" } | null }
  | { ir_version: "0.2"; task: "regression"; target: { column: string; value_type: "numeric"; missing_value_policy: "exclude_rows" } | null }

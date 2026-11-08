@@ -8,6 +8,13 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Advanced preprocessing
 
+- Optional `feature-engineering-v1`: guided numeric transforms, train-fitted power/
+  quantile transforms, explicit/training-derived bins, rare-category grouping and
+  typed ordinal mappings for source and temporal/generalized features.
+- Shared preview/generated/saved-inference runtime, explicit domain/unknown policies,
+  training-only learned parameters, Studio Applied Steps and conservative Run
+  comparison. No new dependency, model family or database migration.
+
 - Declarative `cleaning-v1` source normalization, typed replacement/conversion,
   fixed UTC datetime filling and report/reject/coerce validation in the Studio.
 - Ordered missing/predicate row filters and deterministic duplicate removal before

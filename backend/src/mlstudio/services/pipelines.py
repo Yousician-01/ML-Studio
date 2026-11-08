@@ -32,6 +32,7 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    engineering_diagnostics = {}
     original_dataset, original_frame = dataset, frame
     if (
         (ir.temporal is not None or ir.derived is not None or ir.cleaning is not None)
@@ -113,6 +114,28 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 "no full-source fitted preview is available.",
             )
         )
+    if (
+        ir.feature_engineering is not None
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.feature_engineering import context as engineering_context
+
+        try:
+            dataset, frame, engineering_diagnostics = engineering_context(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="engineering_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid feature engineering references.",
+                )
+            )
+            return issues, [], 0, False
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
     task = (
@@ -314,6 +337,12 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         if feature.included and ir.model is not None and target_series is not None:
             observed = frame.loc[target_series.notna(), name]
             advanced = ir.imputation.columns.get(name) if ir.imputation else None
+            if advanced is None and ir.imputation and ir.feature_engineering:
+                upstream = next(
+                    (f.source for f in ir.feature_engineering.features if f.name == name), None
+                )
+                if engineering_diagnostics.get(name, {}).get("invalid_count", 0) == 0:
+                    advanced = ir.imputation.columns.get(upstream)
             if (
                 not observed.empty
                 and observed.count() == 0
@@ -410,6 +439,7 @@ def response(project, dataset, settings):
             or ir.derived is not None
             or ir.imputation is not None
             or ir.cleaning is not None
+            or ir.feature_engineering is not None
         )
         and dataset is not None
         and not stale
@@ -418,10 +448,18 @@ def response(project, dataset, settings):
 
         try:
             virtual, expanded, _, _ = context(ir, dataset, frame)
+            if ir.feature_engineering is not None and ir.cleaning is not None:
+                from mlstudio.services.cleaning import selection
+
+                expanded, _ = selection(ir, dataset, frame, virtual, expanded)
             if ir.imputation is not None:
                 from mlstudio.services.imputation import context as imputation_context
 
-                virtual, _, _ = imputation_context(ir, virtual, expanded)
+                virtual, expanded, _ = imputation_context(ir, virtual, expanded)
+            if ir.feature_engineering is not None:
+                from mlstudio.services.feature_engineering import context as engineering_context
+
+                virtual, expanded, _ = engineering_context(ir, virtual, expanded)
             if ir.cleaning is not None:
                 columns = [
                     {

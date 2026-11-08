@@ -7,6 +7,7 @@ from pydantic import Field, model_serializer, model_validator
 from mlstudio.cleaning_schemas import CleaningConfig, ResolvedCleaningConfig
 from mlstudio.datetime_policy import DatetimeSource
 from mlstudio.derived_schemas import DerivedConfig, ResolvedDerivedConfig
+from mlstudio.feature_engineering_schemas import EngineeringConfig, ResolvedEngineeringConfig
 from mlstudio.imputation_schemas import ImputationConfig, ResolvedImputationConfig
 from mlstudio.schemas import InputModel
 
@@ -91,6 +92,7 @@ class TemporalFields(InputModel):
     derived: DerivedConfig | None = None
     imputation: ImputationConfig | None = None
     cleaning: CleaningConfig | None = None
+    feature_engineering: EngineeringConfig | None = None
 
     @model_serializer(mode="wrap")
     def omit_absent_extension(self, handler):
@@ -104,6 +106,8 @@ class TemporalFields(InputModel):
             data.pop("imputation", None)
         if self.cleaning is None:
             data.pop("cleaning", None)
+        if self.feature_engineering is None:
+            data.pop("feature_engineering", None)
         return data
 
 
@@ -116,6 +120,7 @@ class TemporalPlanFields(TemporalFields):
     derived: ResolvedDerivedConfig | None = None
     imputation: ResolvedImputationConfig | None = None
     cleaning: ResolvedCleaningConfig | None = None
+    feature_engineering: ResolvedEngineeringConfig | None = None
 
 
 def validate_temporal(config, semantics, target):

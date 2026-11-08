@@ -11,7 +11,14 @@ def active_columns(ir):
     return {
         name: config
         for name, config in (ir.imputation.columns.items() if ir.imputation else [])
-        if ir.features.get(name) and ir.features[name].included
+        if ir.features.get(name)
+        and (
+            ir.features[name].included
+            or any(
+                f.source == name
+                for f in (ir.feature_engineering.features if ir.feature_engineering else [])
+            )
+        )
     }
 
 

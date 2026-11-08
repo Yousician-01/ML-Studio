@@ -80,3 +80,18 @@ acceptance thresholds. No ROC curve, threshold tuning, prediction table, AI advi
 is provided by this visual demonstration. Optional editable Code Mode is documented
 in the [Code workspace guide](../../docs/user-guide/code-workspace.md). Read [Security](../../SECURITY.md) and the local
 recovery/retention notes before handling sensitive real data.
+
+## Optional v0.5 feature engineering experiment
+
+In a disposable Project, select a continuous feature in Prepare and choose
+**Transform Numeric ? log1p**, give it a distinct output name, Preview / validate,
+Apply, and Save. Negative inputs at or below -1 must be cleaned or explicitly
+marked missing; add output imputation when needed. Review whether to exclude the
+original feature. Train normally and inspect the historical generated Python.
+
+For a learned alternative, choose **Bin Numeric ? quantile bins** with five
+requested bins and a distinct output name. The output uses the existing one-hot
+encoder. Its pretraining preview validates configuration without learning edges.
+Duplicate quantiles may produce fewer than five actual bins. Training learns the
+edges only from training rows; saved prediction reuses them from raw inputs.
+Comparisons across different frozen feature-engineering recipes suppress deltas.

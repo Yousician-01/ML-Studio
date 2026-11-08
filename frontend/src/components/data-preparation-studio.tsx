@@ -15,15 +15,17 @@ import { useLivePipeline } from "./live-pipeline";
 import { OperationSelect } from "./operation-select";
 import { PreparationMenu } from "./preparation-menu";
 import { PreparationProfile } from "./preparation-profile";
-import { removeAdvancedImputation } from "@/lib/imputation";
+import { imputationActive, removeAdvancedImputation } from "@/lib/imputation";
 import { AdvancedImputationEditor } from "./advanced-imputation";
 import { DerivedFeaturesEditor } from "./derived-features";
 import { TemporalFeaturesEditor } from "./temporal-features";
 
+import { EngineeringEditor } from "./feature-engineering-editor";
+import { engineeringFitted, engineeringCategorical } from "@/lib/feature-engineering";
 import { CleaningEditor } from "./cleaning-editor";
 
 type StudioColumn = Column & { derived: boolean; available: boolean };
-type Editor = { cleaningKind?: CleaningStep["kind"]; cleaningId?: string; keepMissing?: boolean; kind: "cleaning" | "source" | "diagnostics" | "add" | "profile" | "operation" | "temporal" | "derived" | "advanced" | "participation" | "target"; column?: string; action?: ColumnAction["id"]; family?: Operation["type"]; feature?: string };
+type Editor = { engineeringMethod?: import("@/lib/api/pipelines").EngineeringFeature["method"]; cleaningKind?: CleaningStep["kind"]; cleaningId?: string; keepMissing?: boolean; kind: "engineering" | "cleaning" | "source" | "diagnostics" | "add" | "profile" | "operation" | "temporal" | "derived" | "advanced" | "participation" | "target"; column?: string; action?: ColumnAction["id"]; family?: Operation["type"]; feature?: string };
 
 function OperationEditor({ column, feature, family, onApply, onCancel, onDirtyChange, advanced = false }: { advanced?: boolean; column: Column; feature: FeatureIntent; family: Operation["type"]; onApply: (feature: FeatureIntent) => void; onCancel: () => void; onDirtyChange: (dirty: boolean) => void }) {
   const [draft, setDraft] = useState(feature);
@@ -86,10 +88,10 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
     catch (err) { stageError = err instanceof Error ? err.message : "Stage unavailable."; }
   }
   const chosenIndex = steps.findIndex(step => step.id === previewStep);
-  const fittedStage = chosenIndex >= 0 && steps.slice(0, chosenIndex + 1).some(step => step.kind === "operation" || step.kind === "advanced" && ir?.features[step.column!]?.included);
+  const fittedStage = chosenIndex >= 0 && steps.slice(0, chosenIndex + 1).some(step => step.kind === "operation" || step.kind === "engineering" && ir?.feature_engineering?.features.some(f => f.name === step.column && engineeringFitted(f)) || step.kind === "advanced" && (ir && imputationActive(ir, step.column!)));
   const previewSignature = JSON.stringify(displayed ?? null);
   const previewKey = JSON.stringify([project.id, snapshot?.revision, previewSignature]);
-  const needsPreview = Boolean(dataset && (displayed?.cleaning || displayed?.temporal || displayed?.derived || displayed?.imputation) && !fittedStage && !stageError && !snapshot?.stale);
+  const needsPreview = Boolean(dataset && (displayed?.cleaning || displayed?.temporal || displayed?.derived || displayed?.imputation || displayed?.feature_engineering) && !fittedStage && !stageError && !snapshot?.stale);
   const currentPreview = preview?.key === previewKey ? preview : null;
   const previewPending = needsPreview && !currentPreview;
   const profileDataset = dataset && snapshot ? { ...dataset, revision: snapshot.revision } : dataset;
@@ -179,16 +181,22 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
     const stored = unchanged ? snapshot.columns.find(column => column.name === feature.name) : undefined;
     return { name: feature.name, source_order: dataset.columns.length + index, physical_dtype: fresh?.physical_dtype ?? stored?.physical_dtype ?? "float64", effective_semantic_type: fresh?.semantic_type as Column["effective_semantic_type"] ?? stored?.effective_semantic_type ?? "unknown", inferred_semantic_type: "unknown", semantic_override: null, missing_count: fresh?.missing_count ?? stored?.missing_count ?? 0, unique_count: stored?.unique_count ?? 0, role: "feature", inference_version: ir.derived?.features.some(item => item.name === feature.name) ? "derived-v1" : "temporal-v1", derived: true, available: Boolean(fresh || stored) };
   });
-  const indicators = Object.entries(ir.imputation?.columns ?? {}).filter(([name, config]) => config.indicator && ir.features[name]?.included);
+  const indicators = Object.entries(ir.imputation?.columns ?? {}).filter(([name, config]) => config.indicator && imputationActive(ir, name));
   const indicatorNames = new Set(indicators.map(([, config]) => config.indicator!));
   indicatorNames.forEach(name => derivedNames.add(name));
   const indicatorColumns: StudioColumn[] = indicators.map(([, config], index) => {
     const fresh = currentPreview?.value?.columns.find(column => column.name === config.indicator);
     return { name: config.indicator!, source_order: dataset.columns.length + draftDerivedColumns.length + index, physical_dtype: "float64", effective_semantic_type: "binary", inferred_semantic_type: "binary", semantic_override: null, missing_count: 0, unique_count: 2, role: "feature", inference_version: "imputation-v1", derived: true, available: Boolean(fresh) };
   });
+  const engineeringNames = new Set(ir.feature_engineering?.features.map(f => f.name));
+  engineeringNames.forEach(name => derivedNames.add(name));
+  const engineeringColumns: StudioColumn[] = (ir.feature_engineering?.features ?? []).map((feature, index) => {
+    const fresh = currentPreview?.value?.columns.find(c => c.name === feature.name);
+    return { name: feature.name, source_order: dataset.columns.length + draftDerivedColumns.length + indicatorColumns.length + index, physical_dtype: engineeringCategorical(feature) ? "object" : "float64", effective_semantic_type: engineeringCategorical(feature) ? "categorical" : "continuous", inferred_semantic_type: engineeringCategorical(feature) ? "categorical" : "continuous", semantic_override: null, missing_count: fresh?.missing_count ?? 0, unique_count: 0, role: ir.features[feature.name]?.included ? "feature" : "excluded", inference_version: "feature-engineering-v1", derived: true, available: !!fresh && !engineeringFitted(feature) };
+  });
   const derivedColumns = draftDerivedColumns.filter(column => [...(displayed?.temporal?.features ?? []), ...(displayed?.derived?.features ?? [])].some(feature => feature.name === column.name));
-  const columns = [...sourceColumns, ...derivedColumns, ...indicatorColumns.filter(column => Object.entries(displayed?.imputation?.columns ?? {}).some(([name, config]) => displayed?.features[name]?.included && config.indicator === column.name))];
-  const allColumns = [...sourceColumns, ...draftDerivedColumns, ...indicatorColumns];
+  const columns = [...sourceColumns, ...engineeringColumns.filter(c => displayed?.feature_engineering?.features.some(f => f.name === c.name)), ...derivedColumns, ...indicatorColumns.filter(column => Object.entries(displayed?.imputation?.columns ?? {}).some(([name, config]) => displayed && imputationActive(displayed, name) && config.indicator === column.name))];
+  const allColumns = [...sourceColumns, ...draftDerivedColumns, ...indicatorColumns, ...engineeringColumns];
   const activeColumn = columns.find(column => column.name === selected) ?? sourceColumns[0];
   const filtered = columns.filter(column => (!(sourceOnly || originalSource) || !column.derived) && column.name.toLocaleLowerCase().includes(search.toLocaleLowerCase()));
   const currentOffset = Math.min(offset, Math.max(0, Math.floor((filtered.length - 1) / 30) * 30));
@@ -198,7 +206,7 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
   const rowCount = Math.min(20, !originalSource && displayed?.cleaning ? cleaned?.rows.length ?? 0 : dataset.preview.length, dataset.preview_limit);
   const savedErrors = preparationErrors(snapshot.issues);
   const draftState = { ...snapshot, ir, columns: allColumns };
-  const actionsFor = (column: StudioColumn) => columnActions(column, column.name === ir.target?.column || indicatorNames.has(column.name), ir.features[column.name]?.included ?? false, !column.derived);
+  const actionsFor = (column: StudioColumn) => columnActions(column, column.name === ir.target?.column || indicatorNames.has(column.name), ir.features[column.name]?.included ?? false, !column.derived).filter(action => !engineeringNames.has(column.name) || ["profile", "impute", "scale", "encode", "participation"].includes(action.id));
   const menuColumn = allColumns.find(column => column.name === menu?.column);
   const editorColumn = allColumns.find(column => column.name === editor?.column) ?? (editor?.kind === "advanced" ? undefined : activeColumn);
   const editorFeature = editorColumn ? ir.features[editorColumn.name] ?? { included: false, operations: [] } : undefined;
@@ -210,6 +218,7 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
   function closeEditor() { if (editorDirty && !window.confirm("Discard unapplied editor changes?")) return; setEditorDirty(false); setEditor(null); }
   function runAction(column: StudioColumn, action: ColumnAction) {
     closeMenu(); setSelected(column.name);
+    if (action.id.startsWith("engineering-")) { openEditor({ kind: "engineering", column: column.name, engineeringMethod: action.id === "engineering-bin" ? "boundaries" : action.id === "engineering-rare" ? "rare" : action.id === "engineering-ordinal" ? "ordinal" : "log1p" }); return; }
     if (action.id.startsWith("cleaning-")) {
       const kind = action.id === "cleaning-keep-missing" ? "missing_filter" : action.id === "cleaning-replace-missing" ? "replace" : action.id.slice(9) as CleaningStep["kind"];
       openEditor({ kind: "cleaning", column: column.name, cleaningKind: kind, keepMissing: action.id === "cleaning-keep-missing" }); return;
@@ -217,7 +226,8 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
     openEditor(action.id === "advanced-imputation" ? { kind: "advanced", column: column.name } : action.id === "derived-create" ? { kind: "derived", column: column.name } : action.id === "profile" ? { kind: "profile", column: column.name } : action.id === "participation" ? { kind: "participation", column: column.name } : action.id.startsWith("temporal-") ? { kind: "temporal", column: column.name, action: action.id } : { kind: "operation", column: column.name, family: action.id as Operation["type"] });
   }
   function openStep(step: PrepStep) {
-    if (step.kind === "cleaning" || step.kind === "selection") openEditor({ kind: "cleaning", cleaningId: step.cleaningId, column: step.column });
+    if (step.kind === "engineering") openEditor({ kind: "engineering", feature: step.column });
+    else if (step.kind === "cleaning" || step.kind === "selection") openEditor({ kind: "cleaning", cleaningId: step.cleaningId, column: step.column });
     else if (step.kind === "advanced") openEditor({ kind: "advanced", column: step.column });
     else if (step.kind === "derived" || step.id === "derived-invalid") openEditor({ kind: "derived", feature: step.kind === "derived" ? step.column : ir!.derived?.features[0]?.name });
     else if (step.kind === "operation") openEditor({ kind: "operation", column: step.column, family: ir!.features[step.column!].operations[step.index!].type });
@@ -281,12 +291,13 @@ export function DataPreparationStudio({ project, dataset, onDatasetSaved, onRelo
     </div>
     <footer className="studio-status" role="status"><span>Selected: <strong>{activeColumn?.name ?? "None"}</strong> · {activeColumn?.effective_semantic_type ?? "Unknown"} · Missing: {activeColumn?.available ? activeColumn.missing_count : "Not previewed"}</span><span>{fittedStage ? "Fitted stage preview unavailable" : `Preview: ${rowCount} / ${dataset.row_count} source rows`} · {dirty ? "Unsaved changes" : "Saved"}</span></footer>
     {menu && menuColumn && <PreparationMenu key={menu.column} column={menu.column} actions={actionsFor(menuColumn).filter(action => !locked || action.id === "profile")} position={menu} onAction={action => runAction(menuColumn, action)} onClose={closeMenu} />}
-    {editor && <Dialog key={`${editor.kind}:${editor.column}:${editor.family}`} title={editor.kind === "source" ? "Source & target settings" : editor.kind === "diagnostics" ? "Dataset diagnostics" : editor.kind === "add" ? "Add Transformation" : editor.kind === "profile" ? `Column profile · ${editor.column}` : editor.kind === "advanced" ? "Advanced Imputation" : editor.kind === "derived" ? "Derived Feature Builder" : editor.kind === "temporal" ? "Datetime transformation" : editor.kind === "target" ? "Target orientation" : "Configure preparation"} className="studio-dialog" onClose={closeEditor} busy={busy}>
+    {editor && <Dialog key={`${editor.kind}:${editor.column}:${editor.family}`} title={editor.kind === "engineering" ? "Advanced feature engineering" : editor.kind === "source" ? "Source & target settings" : editor.kind === "diagnostics" ? "Dataset diagnostics" : editor.kind === "add" ? "Add Transformation" : editor.kind === "profile" ? `Column profile · ${editor.column}` : editor.kind === "advanced" ? "Advanced Imputation" : editor.kind === "derived" ? "Derived Feature Builder" : editor.kind === "temporal" ? "Datetime transformation" : editor.kind === "target" ? "Target orientation" : "Configure preparation"} className="studio-dialog" onClose={closeEditor} busy={busy}>
       {editor.kind === "source" && <><p className="muted">Source interpretation and target changes save immediately through the existing Dataset API. They are separate from transformation draft undo.</p>{ir.ir_version === "0.1" && ir.target && <Button disabled={readOnly} onClick={() => openEditor({ kind: "target" })}>Configure binary positive class</Button>}<DataView project={{ ...project, revision: snapshot.revision }} dataset={profileDataset} onSaved={source => { setEditor(null); onDatasetSaved(source); }} onReload={onReload} /></>}
       {editor.kind === "target" && ir.ir_version === "0.1" && ir.target && <><label>Positive class<select value={snapshot.target_classes.findIndex(value => JSON.stringify(value) === JSON.stringify(ir.target?.positive_class))} onChange={event => { const index = Number(event.target.value); apply({ ...ir, target: { ...ir.target!, positive_class: index < 0 ? null : snapshot.target_classes[index] } }); setEditor(null); }}><option value={-1}>Choose explicitly</option>{snapshot.target_classes.map((value, index) => <option key={index} value={index}>{String(value.value)} ({value.value_type})</option>)}</select></label><p>Selection updates the studio draft. Save before training.</p></>}
       {editor.kind === "diagnostics" && <Explore task={project.ml_objective} projectId={project.id} dataset={profileDataset} onReload={onReload} />}
       {editor.kind === "profile" && editorColumn && profileDataset && <PreparationProfile key={`${editorColumn.name}:${snapshot.revision}`} projectId={project.id} dataset={profileDataset} column={editorColumn} task={project.ml_objective} cache={profiles} derived={derivedNames.has(editorColumn.name)} available={editorColumn.available} onReload={onReload} />}
       {editor.kind === "add" && <><label>Search column or transformation<input autoFocus type="search" value={actionSearch} onChange={event => setActionSearch(event.target.value)} /></label><div className="studio-action-results">{([{ kind: "deduplicate", label: "Remove Duplicate Rows" }, { kind: "filter", label: "Filter Rows" }, { kind: "validate", label: "Data Quality Rules" }] as const).filter(action => action.label.toLocaleLowerCase().includes(actionSearch.toLocaleLowerCase())).map(action => <Button key={action.kind} disabled={locked} onClick={() => openEditor({ kind: "cleaning", cleaningKind: action.kind, column: activeColumn && !indicatorNames.has(activeColumn.name) && activeColumn.name !== ir.target?.column && (!activeColumn.derived || action.kind === "filter") ? activeColumn.name : undefined })}>{action.label}</Button>)}{"Create Derived Feature".toLocaleLowerCase().includes(actionSearch.toLocaleLowerCase()) && <Button disabled={locked} onClick={() => openEditor({ kind: "derived" })}>Create Derived Feature</Button>}{allColumns.flatMap(column => actionsFor(column).filter(action => `${column.name} ${action.label}`.toLocaleLowerCase().includes(actionSearch.toLocaleLowerCase())).map(action => ({ column, action }))).slice(0, 40).map(({ column, action }) => <Button key={`${column.name}:${action.id}`} onClick={() => runAction(column, action)}><strong>{column.name}</strong><span>{action.label}</span></Button>)}</div><p className="muted">Up to 40 matching actions. Search to narrow wide datasets. Only currently supported operations are listed.</p></>}
+      {editor.kind === "engineering" && <EngineeringEditor key={`${editor.feature}:${editor.column}`} projectId={project.id} state={draftState} initialSource={editor.column} initialFeature={editor.feature} initialMethod={editor.engineeringMethod} disabled={locked} onDirtyChange={setEditorDirty} onCancel={() => { setEditorDirty(false); setEditor(null); }} onApply={candidate => { apply(candidate); setSourceOnly(false); setEditorDirty(false); setEditor(null); }} />}
       {editor.kind === "cleaning" && <CleaningEditor key={`${editor.cleaningId}:${editor.cleaningKind}:${editor.column}`} projectId={project.id} state={draftState} sourceColumns={sourceColumns} initialKind={editor.cleaningKind} initialColumn={editor.column} initialStep={editor.cleaningId} initialKeepMissing={editor.keepMissing} disabled={locked} onDirtyChange={setEditorDirty} onCancel={() => { setEditorDirty(false); setEditor(null); }} onApply={candidate => { apply(candidate); setOriginalSource(false); setSourceOnly(false); setEditorDirty(false); setEditor(null); }} />}
       {editor.kind === "operation" && editorColumn && editorFeature && editor.family && <OperationEditor key={`${editor.column}:${editor.family}`} column={editorColumn} feature={editorFeature} family={editor.family} advanced={Boolean(ir.imputation?.columns[editorColumn.name])} onApply={feature => { const base = editor.family === "impute" ? removeAdvancedImputation(ir, editorColumn.name) : ir; apply({ ...base, features: { ...base.features, [editorColumn.name]: feature } }); setEditor(null); }} onCancel={closeEditor} onDirtyChange={setEditorDirty} />}
       {editor.kind === "participation" && <ParticipationEditor features={ir.features} column={editor.column} invalidNames={invalidNames} onApply={features => { apply({ ...ir, features }); setEditor(null); }} onCancel={closeEditor} onDirtyChange={setEditorDirty} />}
