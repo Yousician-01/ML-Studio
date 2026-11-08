@@ -73,7 +73,16 @@ class EngineeringDiagnostic(InputModel):
     message: str
 
 
+class OutlierDiagnostic(InputModel):
+    fitted: bool
+    missing_count: int
+    multiplier: float
+    message: str
+
+
 class TemporalPreview(InputModel):
+    outlier_treatment: dict[str, OutlierDiagnostic] = Field(default_factory=dict)
+    feature_selection: dict | None = None
     feature_engineering: dict[str, EngineeringDiagnostic] = Field(default_factory=dict)
     revision: int
     cleaning: CleaningPreview | None = None
@@ -158,6 +167,10 @@ def features(ir, dataset, frame):
         from mlstudio.services.feature_engineering import context as engineering_context
 
         dataset, frame, _ = engineering_context(ir, dataset, frame)
+    if ir.outlier_treatment is not None:
+        from mlstudio.services.outliers import context as outlier_context
+
+        dataset, frame, _ = outlier_context(ir, dataset, frame)
     return tuple(
         FeaturePlan(
             name=c["name"],
@@ -210,6 +223,8 @@ def preview(session, project, settings, body):
         or ir.imputation is not None
         or ir.cleaning is not None
         or ir.feature_engineering is not None
+        or ir.outlier_treatment is not None
+        or ir.feature_selection is not None
     ):
         frame = parse_source(verified_source(settings.home, dataset))
         try:
@@ -249,6 +264,22 @@ def preview(session, project, settings, body):
                 result.feature_engineering = {
                     name: EngineeringDiagnostic(**info) for name, info in diagnostics.items()
                 }
+            if ir.outlier_treatment is not None or ir.feature_selection is not None:
+                from mlstudio.services.outliers import (
+                    context as outlier_context,
+                )
+                from mlstudio.services.outliers import (
+                    validate_selection,
+                )
+
+                virtual, expanded, diagnostics = outlier_context(ir, virtual, expanded)
+                validate_selection(ir, virtual, expanded)
+                result.outlier_treatment = {
+                    name: OutlierDiagnostic(**info) for name, info in diagnostics.items()
+                }
+                result.feature_selection = (
+                    ir.feature_selection.model_dump(mode="json") if ir.feature_selection else None
+                )
             result.sources = {name: ParsingCounts(**value) for name, value in counts.items()}
             result.errors = errors
             result.warnings = (
@@ -274,6 +305,8 @@ def preview(session, project, settings, body):
                     if c["name"] in needed_sources
                 ] + preview_columns
             for c in preview_columns:
+                if c.get("inference_version") == "outlier-treatment-v1":
+                    continue
                 if (
                     result.feature_engineering.get(c["name"])
                     and result.feature_engineering[c["name"]].fitted

@@ -136,6 +136,30 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 )
             )
             return issues, [], 0, False
+    if (
+        (ir.outlier_treatment is not None or ir.feature_selection is not None)
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.outliers import context as outlier_context
+        from mlstudio.services.outliers import validate_selection
+
+        try:
+            dataset, frame, _ = outlier_context(ir, dataset, frame)
+            validate_selection(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="outlier_selection_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid outlier or selection references.",
+                )
+            )
+            return issues, [], 0, False
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
     task = (
@@ -440,6 +464,8 @@ def response(project, dataset, settings):
             or ir.imputation is not None
             or ir.cleaning is not None
             or ir.feature_engineering is not None
+            or ir.outlier_treatment is not None
+            or ir.feature_selection is not None
         )
         and dataset is not None
         and not stale
@@ -460,6 +486,10 @@ def response(project, dataset, settings):
                 from mlstudio.services.feature_engineering import context as engineering_context
 
                 virtual, expanded, _ = engineering_context(ir, virtual, expanded)
+            if ir.outlier_treatment is not None:
+                from mlstudio.services.outliers import context as outlier_context
+
+                virtual, expanded, _ = outlier_context(ir, virtual, expanded)
             if ir.cleaning is not None:
                 columns = [
                     {

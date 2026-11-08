@@ -243,6 +243,42 @@ migration, dependency change or model family is introduced. Studio history and
 Applied Steps project this fixed stage order; comparison suppresses metric deltas
 when frozen engineering contexts differ. See the user guide for bounds/policies.
 
+## Actionable EDA and fitted treatment (v0.5 Commit 07)
+
+The existing source profile endpoint accepts bounded `iqr_multiplier` (default
+1.5); `numeric_profile` adds IQR/variance/tail counts to existing distributions.
+`profile_column` extracts shared profile construction so regression can reuse it.
+Existing histograms, boxplots and bounded correlation computation are retained.
+All EDA remains read-only full-source evidence, revision-bound and separate from
+Studio's retained-row/stateless preview. No prepared/fitted distribution is inferred
+from a source profile. Source profile caching remains keyed by Dataset/revision;
+changing the exploratory multiplier triggers a fresh request rather than reusing a
+different parameter's evidence.
+
+`PreparationHandoff` is a typed local callback within the unified Studio, carrying
+Project, Dataset, revision, feature/action and optional multiplier. It validates
+scope and current draft compatibility before replacing the diagnostics dialog with
+the appropriate editor, preserving the same draft/history. No recipe URL, new page,
+global state framework or bypass of Save is introduced. `ColumnDetail` is extracted
+for reuse across classification/regression/source-profile surfaces.
+
+Optional `outlier-treatment-v1` freezes intent and raw dtype dependencies in existing
+IR/plan JSON. `OutlierFeatures` appends non-destructive numeric outputs after feature
+engineering. Its indicator shares training-fitted IQR fences and chosen tails.
+`feature-selection-v1` wraps the existing ColumnTransformer in `SelectedPreprocessor`:
+branches fit normally on training data; population variances are computed only on
+explicitly eligible numeric scalar branch slices **after their configured scaling**.
+Categorical slices stay in order and unmodified. The fitted mask is reused, not
+recalculated during prediction. No eligible survivors produces an explicit error.
+
+`outlier_runtime_v1.py` is embedded unchanged in standalone source for all three
+tasks and registered for portable joblib loading. Generated raw-input requirements
+exclude virtual outputs. Admission uses virtual types/configuration diagnostics;
+fitted placeholders never reach the preview response. No fences or selected mask
+are fitted for preview. Omitted extensions preserve legacy plan/source goldens.
+Comparison checks both frozen extensions. No dependency, migration, source CSV
+mutation, historical artifact rewrite or new model family is introduced.
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure

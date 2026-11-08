@@ -130,6 +130,7 @@ def profile(
         "text",
         "unknown",
     ] = "all",
+    iqr_multiplier: Annotated[float, Query(ge=0.1, le=10, allow_inf_nan=False)] = 1.5,
     observation: Literal[
         "all",
         "missing",
@@ -151,6 +152,7 @@ def profile(
         kind,
         observation,
         feature,
+        iqr_multiplier,
     )
 
 

@@ -168,10 +168,11 @@ export const api = {
     signal?: AbortSignal,
     filters: { query: string; kind: string; observation: string } = { query: "", kind: "all", observation: "all" },
     feature?: string,
+    iqrMultiplier = 1.5,
   ) =>
     request<SourceProfile>(
       projectPath(id) +
-        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}&${new URLSearchParams(filters)}${feature ? `&feature=${encodeURIComponent(feature)}` : ""}`,
+        `/dataset/profile?dataset_id=${encodeURIComponent(dataset.id)}&revision=${dataset.revision}&offset=${offset}&${new URLSearchParams(filters)}${feature ? `&feature=${encodeURIComponent(feature)}` : ""}&iqr_multiplier=${iqrMultiplier}`,
       { signal },
     ),
   projects: (signal?: AbortSignal) =>

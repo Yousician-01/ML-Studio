@@ -1312,3 +1312,26 @@ See the [Studio guide](user-guide/explore-and-prepare.md#advanced-numeric-and-ca
 for execution order, domains, bounds, bin semantics and unsupported chaining. The
 focused backend integration checks all three tasks and raw-input prediction in a
 fresh process with backend imports blocked; local test workspaces remain isolated.
+
+## Actionable EDA and fitted selection development (v0.5 Commit 07)
+
+No new dependencies or migrations. Extend the existing source profiling service and
+SVG charts, and keep exploratory evidence out of fitted plans. The profile API's
+`iqr_multiplier` is bounded to 0.1–10. Profile requests retain their Dataset/revision
+checks; multiplier changes invalidate the displayed exploratory evidence. Studio
+handoffs use typed callbacks with the same scope and preserve draft history.
+
+`outlier_runtime_v1.py` implements both the training-fitted IQR stage and the numeric
+branch selection wrapper. Variance is explicitly post-branch-imputation/scaling,
+not raw-source variance. Existing source/derived/engineered contracts are unchanged.
+Config previews must never invoke either fitter; saved masks/fences live in the
+existing complete model artifact. Focused checks from the repository root:
+
+```powershell
+backend/.venv/Scripts/python.exe -m pytest backend/tests/test_outliers_selection.py backend/tests/test_codegen.py::test_source_goldens -q
+node --experimental-strip-types --test frontend/tests/actionable-eda.test.mjs frontend/tests/preparation.test.mjs frontend/tests/regression-explore.test.mjs frontend/tests/evaluation.test.mjs
+```
+
+The new tests cover train-only fences/shared indicators, sparse mixed-branch mask
+ordering, all-task standalone execution/raw inference, no-fit preview/persistence,
+typed handoff, unsaved-draft preservation, editor validation and history repair.

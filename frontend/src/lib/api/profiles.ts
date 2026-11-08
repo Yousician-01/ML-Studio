@@ -8,6 +8,7 @@ export type Frequency = {
   label_truncated: boolean;
 };
 export type NumericProfile = {
+  iqr?: number | null; variance?: number | null; iqr_multiplier?: number; below_fence_count?: number | null; above_fence_count?: number | null;
   count: number;
   mean: number | null;
   standard_deviation: number | null;
@@ -105,6 +106,7 @@ export type TargetRelationship = {
   sampling: "evenly-spaced-source-order-v1"; scatter_unavailable_reason: string | null;
 };
 export type RegressionProfile = {
+  feature_profile?: ColumnProfile | null; correlation?: Profile["correlation"] | null;
   task: "regression"; profile_version: "regression-source-profile-v1"; population: "full_source";
   dataset_id: string; revision: number; fingerprint: string; original_filename: string;
   source_integrity: "verified"; row_count: number; column_count: number;

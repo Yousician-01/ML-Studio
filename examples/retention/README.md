@@ -95,3 +95,18 @@ encoder. Its pretraining preview validates configuration without learning edges.
 Duplicate quantiles may produce fewer than five actual bins. Training learns the
 edges only from training rows; saved prediction reuses them from raw inputs.
 Comparisons across different frozen feature-engineering recipes suppress deltas.
+
+## Optional v0.5 actionable EDA workflow
+
+Open Dataset diagnostics, select a continuous source column, and inspect the
+existing boxplot and IQR summary. Choose **Treat Outliers**, review multiplier/tails
+and distinct output name, optionally enable the shared indicator, and explicitly
+choose output participation. Validate, Apply and Save. These exploratory fences
+are never copied; training learns its own fences. Use a disposable Project when
+trying settings and preserve earlier Runs for comparison.
+
+From the output menu choose **Review Feature Selection**, select included continuous
+features, and start with threshold 0 to remove constants in the selected branch
+units. Scaling changes those units; review the editor explanation. Save and train.
+The saved model retains its fences and mask for raw-input prediction. Reload to
+check Applied Steps and inspect historical Code without rewriting earlier Runs.

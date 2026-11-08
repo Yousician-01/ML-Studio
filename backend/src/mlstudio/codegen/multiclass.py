@@ -12,6 +12,7 @@ from mlstudio.services.cleaning import resolved as resolved_cleaning
 from mlstudio.services.derived import resolved as resolved_derived
 from mlstudio.services.feature_engineering import resolved as resolved_engineering
 from mlstudio.services.imputation import resolved as resolved_imputation
+from mlstudio.services.outliers import resolved as resolved_outliers
 from mlstudio.services.temporal import features as temporal_features
 from mlstudio.services.temporal import resolved as resolved_temporal
 
@@ -79,6 +80,8 @@ def resolve(ir, dataset, selected_target, frame):
         imputation=resolved_imputation(ir, dataset, frame),
         cleaning=resolved_cleaning(ir, dataset, frame),
         feature_engineering=resolved_engineering(ir, dataset, frame),
+        outlier_treatment=resolved_outliers(ir, dataset, frame),
+        feature_selection=ir.feature_selection,
         features=temporal_features(ir, dataset, frame),
         split=ir.split.model_dump(),
         model=classifier(ir),

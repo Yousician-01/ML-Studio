@@ -8,6 +8,15 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Advanced preprocessing
 
+- Actionable source EDA: existing distributions/profiles now open Studio editors
+  through a Dataset/revision-checked handoff, preserving unsaved preparation.
+  Configurable exploratory IQR diagnostics, source variance, missingness thresholds
+  and strong-correlation summaries reuse the existing profiling and charting code.
+- Optional `outlier-treatment-v1` training-fitted IQR clipping/shared indicators,
+  and `feature-selection-v1` variance selection on explicitly eligible numeric
+  branches after configured imputation/scaling. Generated and saved raw-input
+  inference reuse fitted fences/masks. No dependency or migration added.
+
 - Optional `feature-engineering-v1`: guided numeric transforms, train-fitted power/
   quantile transforms, explicit/training-derived bins, rare-category grouping and
   typed ordinal mappings for source and temporal/generalized features.

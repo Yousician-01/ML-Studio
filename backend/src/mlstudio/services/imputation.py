@@ -16,6 +16,10 @@ def active_columns(ir):
             ir.features[name].included
             or any(
                 f.source == name
+                for f in (ir.outlier_treatment.features if ir.outlier_treatment else [])
+            )
+            or any(
+                f.source == name
                 for f in (ir.feature_engineering.features if ir.feature_engineering else [])
             )
         )

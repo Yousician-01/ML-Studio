@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
 import { api, type Dataset } from "@/lib/api/projects";
 import type { RegressionProfile, TargetRelationship } from "@/lib/api/profiles";
 import { displayScalar } from "@/lib/api/scalars";
-import { Histogram, compactNumber } from "./explore-charts";
+import { ColumnDetail } from "./column-detail";
+import { CorrelationDiagnostics } from "./eda-preparation-actions";
+import type { OnPrepare } from "@/lib/preparation-handoff";
+import { Heatmap, Histogram, compactNumber } from "./explore-charts";
 import { Alert, Button, EmptyState, Loading, Panel } from "./ui";
 
 export function TargetScatter({ relationship: r }: { relationship: TargetRelationship }) {
@@ -29,8 +32,8 @@ export function TargetScatter({ relationship: r }: { relationship: TargetRelatio
   </figure>;
 }
 
-export function RegressionProfileView({ profile: p, projectId, onFeature, onPage, pending = false, pagePending = false, selectedFeature }: {
-  profile: RegressionProfile; projectId: string; onFeature: (name: string) => void; onPage: (offset: number) => void; pending?: boolean; pagePending?: boolean; selectedFeature?: string;
+export function RegressionProfileView({ profile: p, projectId, onFeature, onPage, pending = false, pagePending = false, selectedFeature, onPrepare, onMultiplier }: {
+  onPrepare?: OnPrepare; onMultiplier?: (value: number) => void; profile: RegressionProfile; projectId: string; onFeature: (name: string) => void; onPage: (offset: number) => void; pending?: boolean; pagePending?: boolean; selectedFeature?: string;
 }) {
   const t = p.target, r = p.relationship;
   return <div className="explore-view visual-explore">
@@ -41,6 +44,8 @@ export function RegressionProfileView({ profile: p, projectId, onFeature, onPage
       <p className="muted">Source integrity: {p.source_integrity}. Missing target values are excluded from target summaries and pair calculations, never treated as zero.</p>
       <details><summary>Dataset identity</summary><p className="wrap">{p.dataset_id}<br /><code>{p.fingerprint}</code></p></details>
     </Panel>
+    {p.feature_profile && !pending && <Panel title="Selected feature distribution and quality"><ColumnDetail key={p.feature_profile.name} column={p.feature_profile} scope={{ projectId, datasetId: p.dataset_id, revision: p.revision }} onPrepare={onPrepare} onMultiplier={onMultiplier} /></Panel>}
+    {p.correlation && <Panel title="Numeric source correlations"><Heatmap correlation={p.correlation} /><CorrelationDiagnostics correlation={p.correlation} /></Panel>}
     {!t ? <Panel title="Select a numeric target"><EmptyState title="Select a numeric target in Data">A numeric target is needed for target summaries and feature relationships. <Link href={`/projects/${projectId}?view=data`}>Open Data</Link></EmptyState></Panel> : <>
       <Panel title="Target descriptive statistics" description="Non-missing source targets only; constant and two-valued numeric targets are valid.">
         {t.constant && <Alert tone="info">Constant target: one distinct observed value. This does not invalidate regression configuration.</Alert>}
@@ -58,27 +63,28 @@ export function RegressionProfileView({ profile: p, projectId, onFeature, onPage
   </div>;
 }
 
-export function RegressionExplore({ projectId, dataset, onReload }: {
-  projectId: string; dataset: Pick<Dataset, "id" | "revision"> | null; onReload: () => void;
+export function RegressionExplore({ projectId, dataset, onReload, onPrepare }: {
+  onPrepare?: OnPrepare; projectId: string; dataset: Pick<Dataset, "id" | "revision"> | null; onReload: () => void;
 }) {
   const [profile, setProfile] = useState<RegressionProfile | null>(null);
   const [feature, setFeature] = useState("");
   const [offset, setOffset] = useState(0);
   const [error, setError] = useState("");
+  const [multiplier, setMultiplier] = useState(1.5);
   const id = dataset?.id, revision = dataset?.revision;
   useEffect(() => {
     if (!id || revision === undefined) return;
     const controller = new AbortController();
-    api.profile(projectId, { id, revision }, offset, controller.signal, undefined, feature || undefined).then(next => {
+    api.profile(projectId, { id, revision }, offset, controller.signal, undefined, feature || undefined, multiplier).then(next => {
       if (controller.signal.aborted) return;
       if (next.task !== "regression") throw new Error("Profile task does not match this Project. Reload the workspace.");
       setProfile(next); setError("");
     }).catch(caught => { if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "Regression profile unavailable."); });
     return () => controller.abort();
-  }, [projectId, id, revision, feature, offset]);
+  }, [projectId, id, revision, feature, offset, multiplier]);
   if (!dataset) return <Panel title="Regression Explore"><EmptyState title="No Dataset">Upload a CSV in <Link href={`/projects/${projectId}?view=data`}>Data</Link> to explore regression source evidence.</EmptyState></Panel>;
   if (error) return <Panel title="Regression Explore unavailable"><Alert>{error} Invalid targets must be corrected in Data. No stale evidence is shown.</Alert><Button onClick={onReload}>Reload current Dataset</Button></Panel>;
   if (!profile || profile.dataset_id !== id || profile.revision !== revision) return <Panel title="Regression Explore"><Loading>Profiling verified regression source…</Loading></Panel>;
   const pending = profile.feature_offset !== offset || Boolean(feature && profile.relationship?.feature !== feature);
-  return <RegressionProfileView profile={profile} projectId={projectId} pending={pending} pagePending={profile.feature_offset !== offset} selectedFeature={feature} onFeature={name => { setFeature(name); setError(""); }} onPage={next => { setOffset(next); setFeature(""); setError(""); }} />;
+  return <RegressionProfileView onPrepare={onPrepare} onMultiplier={setMultiplier} profile={profile} projectId={projectId} pending={pending} pagePending={profile.feature_offset !== offset} selectedFeature={feature} onFeature={name => { setFeature(name); setError(""); }} onPage={next => { setOffset(next); setFeature(""); setError(""); }} />;
 }

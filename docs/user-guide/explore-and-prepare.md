@@ -578,3 +578,87 @@ chaining and back-references into earlier stages are unsupported. Branch imputat
 is available for outputs; earlier Advanced Imputation cannot consume them. No
 arbitrary reordering, replacement mode, signed-log variant or new estimator is added.
 Existing pipelines and historical Run artifacts remain unchanged.
+
+## Actionable EDA, outliers and feature selection (v0.5 development)
+
+Dataset diagnostics and source column profiles reuse the existing EDA Workbench:
+histograms, boxplots, categorical frequencies, missingness, quality observations
+and bounded Pearson heatmaps. Regression retains its target summary/scatter and
+now reuses the same selected-feature profile and source correlation components.
+These views describe the **original source Dataset**, before preparation, filtering
+or splitting. They do not describe current draft transformations or historical
+training partitions. Summary statistics use full-source observations, while the
+existing regression scatter shows at most 200 evenly spaced complete pairs.
+
+The column profile shows Q1/median/Q3, IQR, lower/upper fences, below/above/total
+potential outliers and percentage of nonmissing observations. The exploratory IQR
+multiplier defaults to 1.5 and accepts 0.1–10. Missing/all-missing, nonfinite and
+unsafe numeric ranges have explicit unavailable states. Constant/zero-IQR source
+profiles remain descriptive. Continuous profiles also show population variance
+(ddof=0), a configurable low-variance threshold, and insufficient-observation
+guidance. Integer-coded categorical features are not treated as continuous merely
+because they have numeric storage. Missingness thresholds reuse observed counts.
+Strong-correlation summaries use a configurable absolute threshold (default 0.90)
+over the existing first-12-feature matrix, never unbounded pairwise analysis.
+Correlation is diagnostic and never removes a feature automatically.
+
+Use **Treat Outliers**, **Add Outlier Indicator**, **Review Feature Selection**,
+**Exclude Feature**, **Handle Missing Values**, **Transform Numeric**, or **Group
+Rare Categories** from compatible profiles. These open the existing Studio editors;
+only outlier and variance configuration have new editors. Target labels have no
+predictor actions. A typed handoff checks Project/Dataset/revision and current
+draft compatibility. It carries the action/feature and optionally the configured
+multiplier, never learned fences, a mask or a full recipe. The Studio remains open
+with unsaved edits and undo history preserved. Apply changes the draft; Save is
+still required. Stale evidence or incompatible draft semantics are rejected.
+
+### IQR clipping and indicators
+
+Select a compatible continuous source, temporal, generalized or numeric engineered
+feature. Configure the multiplier (0.1–10), both/lower/upper tails, new output name,
+optional indicator, and explicit participation for each output. The original column
+is unchanged; review its participation separately. Add Outlier Indicator starts with
+the clipped output excluded and the indicator included. No row deletion occurs.
+
+Q1/Q3 use linear quantiles from **training rows only**. Fences are Q1 − multiplier
+× IQR and Q3 + multiplier × IQR. The clipped output and numeric 0/1 indicator share
+these exact stored fences and selected tails. Values on a fence are not outliers.
+At least two valid observations are required. Zero IQR gives coincident fences;
+off-fence values are clipped to that point in the configured tails, and the saved
+transform records `zero_iqr` diagnostics. All-missing/too-small subsets and numeric
+overflow fail explicitly. Missing values are preserved in output and indicator,
+or rejected by explicit policy. Nonfinite inputs reject or explicitly become
+missing. There is no silent imputation.
+
+Outlier treatment runs after shared Advanced Imputation and feature engineering,
+before per-feature branch imputation/encoding/scaling. A direct input's Advanced
+Imputation can fill it; a source quick imputer runs later and cannot affect it.
+Engineering outputs that need filling can use output branch imputation after
+clipping. Outlier outputs cannot feed earlier stages or another outlier transform.
+Configuration diagnostics never fit source fences or invent output preview values.
+
+### Variance threshold selection
+
+Choose 1–128 included continuous numeric features and a finite threshold from 0 to
+1e12. Selection fits population variance on the training partition **after each
+eligible branch's configured imputation/scaling**, and retains variance strictly
+greater than the threshold. Standard-scaled nonconstant features generally have
+variance near 1; the editor lists scaled eligible features and explains these units.
+This is not necessarily raw-source variance. Encoded categories and other numeric
+branches remain untouched and retain their deterministic order. Missing/nonfinite
+eligible training outputs require explicit imputation/cleaning. If no eligible
+numeric feature survives, training fails with guidance; no fake selected mask is
+shown before training. Manual participation remains authoritative and is not a
+second exclusion list.
+
+Applied Steps groups each clipping output with its shared indicator, and shows
+variance selection after branch preprocessing. Edit/remove/revert, undo/redo and
+save/reload use the existing workflow. Removing a producer removes its directly
+dependent outlier treatments and deleted-output variance eligibility; confirmation
+explains this and Undo restores the draft. Other older expression dependency repair
+behavior remains unchanged. Maximum 64 outlier treatments, no in-place replacement
+or arbitrary reordering. Source/prepared distribution comparisons and fitted Run
+parameter display are deferred. Saved model artifacts retain fences, variances and
+the selected mask, derive from raw prediction inputs without the training CSV, and
+preserve one prediction per accepted input row. Historical Runs are unchanged;
+different frozen treatment/selection contexts suppress comparison deltas.

@@ -9,6 +9,7 @@ from mlstudio.datetime_policy import DatetimeSource
 from mlstudio.derived_schemas import DerivedConfig, ResolvedDerivedConfig
 from mlstudio.feature_engineering_schemas import EngineeringConfig, ResolvedEngineeringConfig
 from mlstudio.imputation_schemas import ImputationConfig, ResolvedImputationConfig
+from mlstudio.outlier_schemas import FeatureSelection, OutlierConfig, ResolvedOutlierConfig
 from mlstudio.schemas import InputModel
 
 
@@ -93,6 +94,8 @@ class TemporalFields(InputModel):
     imputation: ImputationConfig | None = None
     cleaning: CleaningConfig | None = None
     feature_engineering: EngineeringConfig | None = None
+    outlier_treatment: OutlierConfig | None = None
+    feature_selection: FeatureSelection | None = None
 
     @model_serializer(mode="wrap")
     def omit_absent_extension(self, handler):
@@ -108,6 +111,10 @@ class TemporalFields(InputModel):
             data.pop("cleaning", None)
         if self.feature_engineering is None:
             data.pop("feature_engineering", None)
+        if self.outlier_treatment is None:
+            data.pop("outlier_treatment", None)
+        if self.feature_selection is None:
+            data.pop("feature_selection", None)
         return data
 
 
@@ -121,6 +128,7 @@ class TemporalPlanFields(TemporalFields):
     imputation: ResolvedImputationConfig | None = None
     cleaning: ResolvedCleaningConfig | None = None
     feature_engineering: ResolvedEngineeringConfig | None = None
+    outlier_treatment: ResolvedOutlierConfig | None = None
 
 
 def validate_temporal(config, semantics, target):

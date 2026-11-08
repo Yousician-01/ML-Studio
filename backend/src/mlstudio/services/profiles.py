@@ -55,10 +55,13 @@ def frequencies(
     return result, total - sum(item.count for item in result)
 
 
-def numeric_profile(series: pd.Series) -> NumericProfile:
+def numeric_profile(series: pd.Series, iqr_multiplier: float = 1.5) -> NumericProfile:
+    if not math.isfinite(iqr_multiplier) or not 0.1 <= iqr_multiplier <= 10:
+        raise ValueError("IQR multiplier must be between 0.1 and 10.")
     observed = series.dropna()
     base = dict(
         count=len(observed),
+        iqr_multiplier=iqr_multiplier,
         mean=None,
         standard_deviation=None,
         minimum=None,
@@ -73,6 +76,11 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
     )
     if observed.empty:
         return NumericProfile(**base, unavailable_reason="No non-missing numeric values.")
+    if not np.isfinite(observed.to_numpy(dtype=float)).all():
+        return NumericProfile(
+            **base,
+            unavailable_reason="Nonfinite observations cannot be summarized; review the source.",
+        )
     base.update(minimum=json_scalar(observed.min()), maximum=json_scalar(observed.max()))
     # Exact scalar extrema remain inspectable; do not draw rounded/merged integer bins.
     if is_integer_dtype(observed.dtype) and any(
@@ -91,7 +99,7 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
         std = float(np.std(values, ddof=1)) if len(values) > 1 else None
         lo, hi = float(values.min()), float(values.max())
         iqr = q3 - q1
-        lower, upper = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+        lower, upper = q1 - iqr_multiplier * iqr, q3 + iqr_multiplier * iqr
         if not all(
             math.isfinite(v)
             for v in [q1, median, q3, mean, lo, hi, hi - lo, lower, upper, std or 0]
@@ -117,6 +125,12 @@ def numeric_profile(series: pd.Series) -> NumericProfile:
             **base,
             "mean": mean,
             "standard_deviation": std,
+            "iqr": float(iqr),
+            "variance": float(np.var(values, ddof=0))
+            if math.isfinite(float(np.var(values, ddof=0)))
+            else None,
+            "below_fence_count": int(np.sum(values < lower)),
+            "above_fence_count": int(np.sum(values > upper)),
             "q1": float(q1),
             "median": float(median),
             "q3": float(q3),
@@ -232,6 +246,51 @@ def correlations(frame: pd.DataFrame, dataset: Dataset, project: Project) -> Cor
     )
 
 
+def profile_column(frame, dataset, project, column, iqr_multiplier=1.5, quality=None):
+    rows = len(frame)
+    quality = quality or {column["name"]: column_quality(frame[column["name"]], effective(column))}
+    name, semantic = column["name"], effective(column)
+    series = frame[name]
+    count, unique, missing = (
+        int(series.count()),
+        int(series.nunique()),
+        int(series.isna().sum()),
+    )
+    numeric = (
+        numeric_profile(series, iqr_multiplier) if numeric_applicable(series, semantic) else None
+    )
+    freq, other = (
+        frequencies(series, CATEGORY_LIMIT) if semantic in {"categorical", "binary"} else (None, 0)
+    )
+    reason = (
+        None
+        if numeric or freq
+        else "No distribution for this semantic/physical type. "
+        "Source observations remain available."
+    )
+    if count == 0:
+        reason = "All values are missing."
+    return ColumnProfile(
+        name=name,
+        physical_dtype=column["physical_dtype"],
+        semantic_type=semantic,
+        inferred_semantic_type=column["inferred_semantic_type"],
+        semantic_override=column["semantic_override"],
+        role=column_role(project, dataset, name),
+        non_missing_count=count,
+        missing_count=missing,
+        missing_percentage=percentage(missing, rows),
+        distinct_count=unique,
+        uniqueness_percentage=percentage(unique, count),
+        **quality[name],
+        identifier=semantic == "identifier",
+        numeric=numeric,
+        frequencies=freq,
+        other_count=other,
+        unavailable_reason=reason,
+    )
+
+
 def build_profile(
     frame: pd.DataFrame,
     dataset: Dataset,
@@ -240,6 +299,7 @@ def build_profile(
     query: str = "",
     kind: str = "all",
     observation: str = "all",
+    iqr_multiplier: float = 1.5,
 ) -> ProfileResponse:
     rows = len(frame)
     quality = {c["name"]: column_quality(frame[c["name"]], effective(c)) for c in dataset.columns}
@@ -265,50 +325,10 @@ def build_profile(
         )
 
     matching = [c for c in dataset.columns if matches(c)]
-    columns = []
-    for column in matching[offset : offset + COLUMN_LIMIT]:
-        name, semantic = column["name"], effective(column)
-        series = frame[name]
-        count, unique, missing = (
-            int(series.count()),
-            int(series.nunique()),
-            int(series.isna().sum()),
-        )
-        numeric = numeric_profile(series) if numeric_applicable(series, semantic) else None
-        freq, other = (
-            frequencies(series, CATEGORY_LIMIT)
-            if semantic in {"categorical", "binary"}
-            else (None, 0)
-        )
-        reason = (
-            None
-            if numeric or freq
-            else "No distribution for this semantic/physical type. "
-            "Source observations remain available."
-        )
-        if count == 0:
-            reason = "All values are missing."
-        columns.append(
-            ColumnProfile(
-                name=name,
-                physical_dtype=column["physical_dtype"],
-                semantic_type=semantic,
-                inferred_semantic_type=column["inferred_semantic_type"],
-                semantic_override=column["semantic_override"],
-                role=column_role(project, dataset, name),
-                non_missing_count=count,
-                missing_count=missing,
-                missing_percentage=percentage(missing, rows),
-                distinct_count=unique,
-                uniqueness_percentage=percentage(unique, count),
-                **quality[name],
-                identifier=semantic == "identifier",
-                numeric=numeric,
-                frequencies=freq,
-                other_count=other,
-                unavailable_reason=reason,
-            )
-        )
+    columns = [
+        profile_column(frame, dataset, project, column, iqr_multiplier, quality)
+        for column in matching[offset : offset + COLUMN_LIMIT]
+    ]
     target = None
     if project.target_column:
         series = frame[project.target_column]
@@ -395,6 +415,7 @@ def read_profile(
     kind: str = "all",
     observation: str = "all",
     feature: str | None = None,
+    iqr_multiplier: float = 1.5,
 ):
     snapshot = session.execute(
         select(Project, Dataset)
@@ -428,10 +449,12 @@ def read_profile(
             raise DomainError(
                 "Managed source is missing, corrupt or unreadable. Reload Data.", 409
             ) from None
-        result = build_regression_profile(frame, dataset, project, offset, feature)
+        result = build_regression_profile(frame, dataset, project, offset, feature, iqr_multiplier)
     else:
         frame = parse_source(verified_source(settings.home, dataset))
-        result = build_profile(frame, dataset, project, offset, query, kind, observation)
+        result = build_profile(
+            frame, dataset, project, offset, query, kind, observation, iqr_multiplier
+        )
     # A concurrent replacement during computation cannot be presented as current.
     latest = session.execute(
         select(Project.active_dataset_id, Project.revision).where(Project.id == project_id)

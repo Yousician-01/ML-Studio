@@ -1,11 +1,12 @@
+import { removeOutlier, repairNewStages } from "./outliers";
 import { engineeringFitted, engineeringLabel, engineeringCategorical } from "./feature-engineering";
 import { cleaningLabel, selectionStep } from "./cleaning";
 import { imputationActive, removeAdvancedImputation } from "./imputation";
 import type { Column } from "./api/projects";
 import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, TemporalExpression, DerivedExpression } from "./api/pipelines";
 
-export type PrepStep = { id: string; cleaningId?: string; kind: "engineering" | "cleaning" | "selection" | "source" | "parse" | "temporal" | "derived" | "advanced" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
-export type ColumnAction = { id: "engineering-numeric" | "engineering-bin" | "engineering-rare" | "engineering-ordinal" | "cleaning-normalize" | "cleaning-convert" | "cleaning-replace" | "cleaning-replace-missing" | "cleaning-datetime_fill" | "cleaning-validate" | "cleaning-missing_filter" | "cleaning-keep-missing" | "cleaning-filter" | "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
+export type PrepStep = { id: string; cleaningId?: string; kind: "outlier" | "variance" | "engineering" | "cleaning" | "selection" | "source" | "parse" | "temporal" | "derived" | "advanced" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
+export type ColumnAction = { id: "outliers" | "outlier-indicator" | "variance" | "engineering-numeric" | "engineering-bin" | "engineering-rare" | "engineering-ordinal" | "cleaning-normalize" | "cleaning-convert" | "cleaning-replace" | "cleaning-replace-missing" | "cleaning-datetime_fill" | "cleaning-validate" | "cleaning-missing_filter" | "cleaning-keep-missing" | "cleaning-filter" | "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
 const clone = <T,>(value: T): T => structuredClone(value);
 
 export function references(expression: TemporalExpression | DerivedExpression, kind: "reference" | "column" = "reference"): string[] {
@@ -31,6 +32,7 @@ export function columnActions(column: Pick<Column, "effective_semantic_type" | "
   const numeric = type === "continuous" && /^(u?int|float)\d+$/i.test(column.physical_dtype);
   const categorical = type === "categorical" || type === "binary";
   if (numeric || categorical) actions.push({ id: "impute", label: "Configure Imputation" }, { id: "advanced-imputation", label: "Advanced Imputation" });
+  if (numeric) actions.push({ id: "outliers", label: "Treat Outliers" }, { id: "outlier-indicator", label: "Add Outlier Indicator" }, { id: "variance", label: "Review Feature Selection" });
   if (numeric) actions.push({ id: "engineering-numeric", label: "Transform Numeric" }, { id: "engineering-bin", label: "Bin Numeric" });
   if (categorical) actions.push({ id: "engineering-rare", label: "Group Rare Categories" }, { id: "engineering-ordinal", label: "Encode Ordinal" });
   if (numeric) actions.push({ id: "scale", label: "Configure Scaling" });
@@ -84,7 +86,7 @@ export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "sou
     steps.push({ id: "derived-invalid", kind: "legacy", label: "Invalid derived dependency group", stage: "Blocked ? repair retained definitions", inputs: [], outputs: [...general.keys()], invalid: true });
   }
   steps.push(...cleaningSteps.filter(step => step.kind === "selection"));
-  const names = [...columns.filter(c => c.name !== ir.target?.column).sort((a, b) => a.source_order - b.source_order).map(c => c.name), ...definitions.keys(), ...general.keys(), ...(ir.feature_engineering?.features ?? []).map(f => f.name)];
+  const names = [...columns.filter(c => c.name !== ir.target?.column).sort((a, b) => a.source_order - b.source_order).map(c => c.name), ...definitions.keys(), ...general.keys(), ...(ir.feature_engineering?.features ?? []).map(f => f.name), ...(ir.outlier_treatment?.features ?? []).flatMap(f => [f.name, ...(f.indicator ? [f.indicator] : [])])];
   if (Object.values(ir.features).some(feature => !feature.included) || names.some(name => !ir.features[name])) steps.push({ id: "participation", kind: "participation", label: "Feature Participation", stage: "Model input selection", inputs: [...new Set([...names, ...Object.keys(ir.features)])], outputs: Object.keys(ir.features).filter(name => ir.features[name].included), invalid: names.some(name => !ir.features[name]) });
   const usableNames = new Set(names);
   for (const [name, config] of Object.entries(ir.imputation?.columns ?? {})) {
@@ -95,6 +97,7 @@ export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "sou
 
   for (const feature of ir.feature_engineering?.features ?? []) steps.push({ id: `engineering:${feature.name}`, kind: "engineering", label: engineeringLabel(feature), stage: `${engineeringFitted(feature) ? "Train-fitted" : "Stateless"} feature engineering - ${engineeringCategorical(feature) ? "categorical" : "numeric"} output; ${"bins" in feature ? `${feature.bins} requested bins` : "quantiles" in feature ? `${feature.quantiles} quantiles (${feature.distribution})` : "boundaries" in feature ? `boundaries: ${feature.boundaries.join(", ")}` : "invalid" in feature ? `invalid: ${feature.invalid}` : feature.method === "rare" ? `threshold: ${feature.min_count ?? feature.min_frequency}; unknown: ${feature.unknown}` : feature.method === "ordinal" ? `${feature.mapping.length} mappings; unknown: ${feature.unknown}` : "training parameters"}`, column: feature.name, inputs: [feature.source], outputs: [feature.name] });
 
+  for (const feature of ir.outlier_treatment?.features ?? []) steps.push({ id: `outlier:${feature.name}`, kind: "outlier", label: `IQR clipping: ${feature.source} -> ${feature.name}${feature.indicator ? ` + indicator ${feature.indicator}` : ""}`, stage: `Train-fitted; multiplier ${feature.multiplier}; ${feature.tails} tails; missing: ${feature.missing}; invalid: ${feature.invalid}`, column: feature.name, inputs: [feature.source], outputs: [feature.name, ...(feature.indicator ? [feature.indicator] : [])] });
   const orphaned = Object.keys(ir.features).filter(name => !usableNames.has(name));
   for (const name of [...new Set([...names, ...Object.keys(ir.features)])]) {
     const feature = ir.features[name];
@@ -108,6 +111,7 @@ export function appliedSteps(ir: PipelineIR, columns: Pick<Column, "name" | "sou
   const dormant = Object.keys(ir.features).filter(name => usableNames.has(name) && !ir.features[name].included && ir.features[name].operations.length);
   if (dormant.length) steps.push({ id: "dormant", kind: "dormant", label: "Stored Dormant Preparation", stage: "Not executed · excluded features", inputs: dormant, outputs: [] });
   if (orphaned.length) steps.push({ id: "legacy-features", kind: "legacy", label: "Absent or Invalid Feature Entries", stage: "Blocked · review legacy intent", inputs: orphaned, outputs: [], invalid: true });
+  if (ir.feature_selection) steps.push({ id: "variance", kind: "variance", label: "Variance threshold selection", stage: `Train-fitted after branch imputation/scaling; variance > ${ir.feature_selection.threshold}`, inputs: [...ir.feature_selection.features], outputs: [] });
   return steps;
 }
 
@@ -117,6 +121,8 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
   const result = clone(ir);
   result.cleaning = null;
   result.feature_engineering = null;
+  result.outlier_treatment = null;
+  result.feature_selection = null;
   result.features = Object.fromEntries(columns.filter(c => c.name !== ir.target?.column).map(c => [c.name, { included: true, operations: [] }]));
   result.imputation = ir.imputation ? { version: "imputation-v1", columns: {} } : null;
   result.derived = ir.derived ? { ...clone(ir.derived), features: [] } : null;
@@ -146,6 +152,13 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
       result.feature_engineering.features.push(clone(ir.feature_engineering!.features.find(f => f.name === step.column)!));
       result.features[step.column!] = { included: ir.features[step.column!]?.included ?? true, operations: [] };
     }
+    if (step.kind === "outlier") {
+      const feature = clone(ir.outlier_treatment!.features.find(f => f.name === step.column)!);
+      result.outlier_treatment ??= { version: "outlier-treatment-v1", features: [] };
+      result.outlier_treatment.features.push(feature);
+      for (const name of step.outputs) result.features[name] = { included: ir.features[name]?.included ?? false, operations: [] };
+    }
+    if (step.kind === "variance") result.feature_selection = clone(ir.feature_selection);
     if (step.kind === "operation") result.features[step.column!].operations.push(clone(ir.features[step.column!].operations[step.index!]));
     if (step.kind === "dormant") for (const name of step.inputs) result.features[name].operations = clone(ir.features[name].operations);
   }
@@ -157,6 +170,8 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
 
 export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
   if (step.kind === "source") throw new Error("The Source step is immutable.");
+  if (step.kind === "outlier") return removeOutlier(ir, step.column!);
+  if (step.kind === "variance") return { ...ir, feature_selection: null };
   if (step.kind === "advanced") return removeAdvancedImputation(ir, step.column!);
   const next = clone(ir);
   if (step.kind === "cleaning" || step.kind === "selection") {
@@ -194,7 +209,7 @@ export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
     for (const feature of next.temporal?.features ?? []) delete next.features[feature.name];
     next.temporal = null;
   }
-  return next;
+  return repairNewStages(next, Object.keys(ir.features).filter(name => !(name in next.features)));
 }
 
 export function setOperation(feature: FeatureIntent, family: Operation["type"], value: string): FeatureIntent {

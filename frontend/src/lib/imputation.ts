@@ -79,4 +79,4 @@ export function removeAdvancedImputation(ir: PipelineIR, name: string): Pipeline
 }
 
 /** Shared stage remains active for direct inputs consumed by engineering. */
-export const imputationActive = (ir: PipelineIR, name: string) => Boolean(ir.features[name]?.included || ir.feature_engineering?.features.some(feature => feature.source === name));
+export const imputationActive = (ir: PipelineIR, name: string) => Boolean(ir.features[name]?.included || ir.feature_engineering?.features.some(feature => feature.source === name) || ir.outlier_treatment?.features.some(feature => feature.source === name));
