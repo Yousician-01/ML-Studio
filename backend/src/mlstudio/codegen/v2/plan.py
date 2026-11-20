@@ -8,6 +8,7 @@ from mlstudio.codegen.v2.schemas import (
     RegressionPlan,
     RegressionSplit,
 )
+from mlstudio.lineage import contract_intent
 from mlstudio.model_catalog import descriptor_for
 from mlstudio.pipeline_schemas import RegressionPipelineIR
 from mlstudio.services.cleaning import resolved as resolved_cleaning
@@ -35,6 +36,7 @@ def resolve(ir, dataset, selected_target, frame):
     }
     return RegressionPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=NumericTarget(
             column=ir.target.column,

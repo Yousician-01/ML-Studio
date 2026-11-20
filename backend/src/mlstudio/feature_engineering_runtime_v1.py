@@ -52,6 +52,7 @@ def engineering_semantic(feature):
 
 
 def engineering_validate(config, types, target=None):
+    types = dict(types)
     names = set(types)
     outputs = set()
     for feature in config.get("features", []):
@@ -63,13 +64,15 @@ def engineering_validate(config, types, target=None):
         if source == target or source not in types:
             raise EngineeringValidationError(
                 "Choose an existing non-target source or temporal/derived feature; "
-                "engineering-output chaining is unsupported."
+                "only earlier stateless engineering outputs may be chained."
             )
         if method not in {"rare", "ordinal"} and types[source] != "numeric":
             raise EngineeringValidationError("Numeric transformation requires a numeric input.")
         if method in {"rare", "ordinal"} and types[source] not in {"string", "numeric", "boolean"}:
             raise EngineeringValidationError("Choose a supported categorical input.")
         outputs.add(name)
+        if not engineering_fitted(feature):
+            types[name] = "string" if engineering_semantic(feature) == "categorical" else "numeric"
 
 
 def engineering_numeric(series, coerce=False):
@@ -163,7 +166,7 @@ def engineering_preview(frame, config):
     diagnostics = {}
     for feature in config.get("features", []):
         source, name, method = feature["source"], feature["name"], feature["method"]
-        series = frame[source]
+        series = result[source]
         info = {
             "fitted": engineering_fitted(feature),
             "missing_count": int(series.isna().sum()),
@@ -190,7 +193,7 @@ def engineering_preview(frame, config):
                         )
             # Compatibility facts only, never estimate boundaries/frequencies/parameters.
         else:
-            result[name], info["invalid_count"] = engineering_stateless(frame, feature)
+            result[name], info["invalid_count"] = engineering_stateless(result, feature)
             info["missing_count"] = int(result[name].isna().sum())
         diagnostics[name] = info
     return result, diagnostics
@@ -203,11 +206,12 @@ class EngineeringFeatures(TransformerMixin, BaseEstimator):
     def fit(self, X, y=None):
         self.feature_names_in_ = np.asarray(X.columns, dtype=object)
         self.fitted_, self.diagnostics_ = {}, {}
+        working = X.copy()
         for feature in self.config.get("features", []):
             name, method = feature["name"], feature["method"]
-            series = X[feature["source"]]
+            series = working[feature["source"]]
             if not engineering_fitted(feature):
-                engineering_stateless(X, feature)
+                working[name], _ = engineering_stateless(working, feature)
                 continue
             if method == "rare":
                 counts = {}
@@ -284,9 +288,9 @@ class EngineeringFeatures(TransformerMixin, BaseEstimator):
         result = X.copy()
         for feature in self.config.get("features", []):
             name, method, source = feature["name"], feature["method"], feature["source"]
-            series = X[source]
+            series = result[source]
             if not engineering_fitted(feature):
-                result[name], _ = engineering_stateless(X, feature)
+                result[name], _ = engineering_stateless(result, feature)
             elif method == "rare":
                 state = self.fitted_[name]
                 batch_labels = {text: key for key, text in state["labels"].items()}

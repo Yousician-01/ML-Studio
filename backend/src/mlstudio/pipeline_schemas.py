@@ -250,6 +250,7 @@ class ModelDescriptor(InputModel):
 
 
 class PipelineResponse(InputModel):
+    lineage: dict | None = None
     revision: int
     ir: VersionedPipelineIR
     columns: list[ColumnResponse]

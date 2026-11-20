@@ -290,3 +290,34 @@ metadata/logs; code and class labels may still be sensitive. Models are trusted
 local joblib files. No cloud, PostgreSQL, Docker, queue, automatic GC or continuous
 backup service is required. See [Security](../SECURITY.md), [CLI](cli.md) and
 [Development](development.md) for configuration/recovery and concrete module paths.
+
+## Computed lineage and schema contracts (v0.5 Commit 08)
+
+`lineage.py` computes a source/temporal/derived/indicator/engineering/outlier registry
+from IR and column metadata. It exposes feature producers, fixed stages, ancestors,
+consumers, participation and raw requirements; in-place imputation provenance is
+recorded separately from original raw-value dependencies. Existing extension-specific
+typing and runtime validation are retained. Central structured errors gate readiness
+and compilation, without scheduling operations or adding a database table.
+
+The Studio derives draft dependency checks from its existing Applied Steps. Producer
+removal is blocked by consumers rather than cascading, and edits cannot silently
+remove dependencies. Explicit confirmed bulk reverts are separate from single-step
+edits. Sequential stateless engineering outputs may feed later engineering operations;
+the runtime evaluates precisely this stored order. Learned engineering outputs cannot
+feed other engineering operations. Transitive imputation admission follows these
+safe edges, stopping at introduced invalid values. Existing fixed stage order and
+training-only fit/row-selection boundaries remain unchanged.
+
+New plan resolution attaches optional `schema_contract`; old plan serialization omits
+it. `codegen/contracts.py` runs after current compiler extensions and derives exact
+raw columns from the emitted fixed constants. It embeds `schema_runtime_v1.py`.
+`RawInputs` projects required names and ignores extras without parsing/coercing values.
+`ContractPreprocessor` wraps the existing ColumnTransformer/variance wrapper, freezes
+scikit-learn names/count/representation and selection mask, and checks inference
+compatibility/cardinality. Learned preprocessing is still fit only by the existing
+training Pipeline. Contracts are stored in the existing trusted model.joblib as
+`pipeline.schema_contract_` and the fitted wrapper's `contract_`; no new artifact
+protocol, prediction API or migration is required. Old frozen source/models remain
+readable with their original behavior. These guards do not constrain arbitrary
+manual Python or claim domain-level leakage detection.

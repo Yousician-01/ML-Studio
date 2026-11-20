@@ -20,7 +20,10 @@ export function engineeringRecipe(ir: PipelineIR, feature: EngineeringFeature, c
   if (!/^[A-Za-z][A-Za-z0-9_]{0,199}$/.test(feature.name)) throw new Error("Output name must start with a letter and contain letters, numbers or underscores (200 maximum).");
   const existing = ir.feature_engineering?.features ?? [];
   const outputNames = new Set(existing.map(f => f.name));
-  if (feature.source === ir.target?.column || outputNames.has(feature.source) || !columns.some(c => c.name === feature.source) || Object.values(ir.imputation?.columns ?? {}).some(c => c.indicator === feature.source)) throw new Error("Choose an existing non-target source, temporal or generalized feature. Engineering outputs and missingness indicators cannot be inputs.");
+  const sourceProducer = existing.find(f => f.name === feature.source);
+  const sourceIndex = existing.findIndex(f => f.name === feature.source), destinationIndex = previous ? existing.findIndex(f => f.name === previous) : existing.length;
+  if (sourceProducer && (engineeringFitted(sourceProducer) || sourceIndex >= destinationIndex)) throw new Error("Engineering chaining requires an earlier stateless output; fitted/forward chains are unsupported.");
+  if (feature.source === ir.target?.column || !columns.some(c => c.name === feature.source) || Object.values(ir.imputation?.columns ?? {}).some(c => c.indicator === feature.source)) throw new Error("Choose an existing non-target source, temporal or generalized feature. Only earlier stateless engineering outputs may be chained; missingness indicators cannot be inputs.");
   if ((columns.some(c => c.name === feature.name) || feature.name in ir.features || outputNames.has(feature.name)) && feature.name !== previous) throw new Error("Output name collides with an existing column or feature.");
   if (!previous && existing.length >= 64) throw new Error("At most 64 advanced features are supported.");
   if ("boundaries" in feature && (!feature.boundaries.length || feature.boundaries.length > 99 || feature.boundaries.some((v, i, values) => !Number.isFinite(v) || i > 0 && values[i - 1] >= v))) throw new Error("Provide 1–99 finite, strictly increasing boundaries.");

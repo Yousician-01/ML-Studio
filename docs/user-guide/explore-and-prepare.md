@@ -572,9 +572,10 @@ raw inference inputs without loading the training CSV or reducing row count.
 
 Limits: 64 engineering outputs, 99 explicit boundaries, 100 bins, 1,000 quantiles,
 1,000 ordinal entries, 10,000 training categories per rare mapping. Output names
-must be distinct and cannot replace source columns. Supervised labels, engineering
-outputs and post-imputation indicators cannot be inputs; fitted/stateless engineering
-chaining and back-references into earlier stages are unsupported. Branch imputation
+must be distinct and cannot replace source columns. Supervised labels and
+post-imputation indicators cannot be inputs. Only earlier stateless engineering
+outputs may feed later engineering operations; fitted-output chains and backward
+stage references remain unsupported. Branch imputation
 is available for outputs; earlier Advanced Imputation cannot consume them. No
 arbitrary reordering, replacement mode, signed-log variant or new estimator is added.
 Existing pipelines and historical Run artifacts remain unchanged.
@@ -653,12 +654,62 @@ second exclusion list.
 
 Applied Steps groups each clipping output with its shared indicator, and shows
 variance selection after branch preprocessing. Edit/remove/revert, undo/redo and
-save/reload use the existing workflow. Removing a producer removes its directly
-dependent outlier treatments and deleted-output variance eligibility; confirmation
-explains this and Undo restores the draft. Other older expression dependency repair
-behavior remains unchanged. Maximum 64 outlier treatments, no in-place replacement
+save/reload use the existing workflow. Removing a producer is blocked while dependent transformations or variance
+eligibility still reference its outputs. Remove consumers first. Explicit bulk
+revert remains available with confirmation; Undo restores the draft. Maximum 64 outlier treatments, no in-place replacement
 or arbitrary reordering. Source/prepared distribution comparisons and fitted Run
 parameter display are deferred. Saved model artifacts retain fences, variances and
 the selected mask, derive from raw prediction inputs without the training CSV, and
 preserve one prediction per accepted input row. Historical Runs are unchanged;
 different frozen treatment/selection contexts suppress comparison deltas.
+
+## Lineage, dependency safety and inference schemas (v0.5 development)
+
+Choose **Inspect Feature Lineage** from a column menu or Add Transformation search.
+The existing Studio dialog shows the producer, stage, semantic/physical type,
+model participation, direct/transitive inputs and downstream consumers. Shared
+Advanced Imputation is identified as fitted, with group/condition inputs. Source
+values and intermediate outputs may be excluded from the estimator while remaining
+required for reconstruction. The pipeline API returns a computed `lineage-v1`
+registry; it is not another persisted recipe or execution graph.
+
+Structural validation rejects missing/colliding outputs, target predictor use,
+cycles and stage-invalid dependencies. Temporal/generalized expressions retain
+existing topological resolution. Engineering operations run in stored order: an
+**earlier stateless engineering output** may feed another stateless or fitted
+operation. An engineering output that requires fitted state cannot feed another
+engineering operation. Numeric engineered outputs can already feed the later
+outlier stage; outlier outputs can use later branch imputation/scaling and variance
+selection. Outlier-to-outlier chains, earlier-stage consumers of later outputs,
+post-imputation indicator inputs and arbitrary fitted graphs remain unsupported.
+
+Removal explains direct and transitive affected steps and blocks until consumers
+are removed. Output-renaming edits cannot silently delete their consumers. Removing
+a source parsing policy is blocked if temporal features still use it. Unrelated
+settings and undo/redo remain intact. Explicit confirmed bulk revert/reset may
+remove a whole suffix/recipe. Previously invalid saved drafts remain inspectable
+for repair; backend readiness and compilation reject structural errors.
+
+Newly compiled visual models freeze `schema-contract-v1`. Raw requirements are
+resolved from actual compiler inputs: intermediate dependencies count, but the
+supervised label, generated outputs, unrelated source columns and selection-only
+keys are not requested merely because they existed in the training CSV. Harmless
+extra columns are ignored **before** derivation, so they cannot shadow generated
+outputs. Required names must be present and unique. Raw scalar values are left
+unchanged: existing normalizers, conversions, datetime parsers, unknown-category
+and missing-value policies remain authoritative. There is no duplicate parser or
+silent imputation in the schema guard.
+
+The fitted preprocessor records actual scikit-learn feature names/order, count,
+numeric matrix representation and variance mask when present. Prediction checks
+these names/counts, numeric/finite completeness and row cardinality before the
+estimator receives the matrix. Invalid input fails as a batch with actionable
+errors; no partial-row response, refitting or training-CSV lookup is introduced.
+No full-source estimator schema or learned encoded expansion is fabricated before
+training. Structural safeguards cannot identify future-information leakage,
+proxy-label leakage or a statistically unsuitable split automatically.
+
+See the [Training guide](training.md#saved-model-schema-contracts-v05-development)
+for inspection. Historical Runs/source files are untouched. Older plans without a
+schema contract retain their original generated source and inference behavior;
+they are not retroactively upgraded. Manually edited Python remains user-controlled.

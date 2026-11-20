@@ -7,6 +7,7 @@ from pydantic import Field
 from mlstudio.codegen.compatibility import library_versions, python_version
 from mlstudio.codegen.plan import classifier
 from mlstudio.codegen.schemas import EffectiveExecutionPlan, PlanModel, SourceContract
+from mlstudio.lineage import contract_intent
 from mlstudio.pipeline_schemas import TypedScalar
 from mlstudio.services.cleaning import resolved as resolved_cleaning
 from mlstudio.services.derived import resolved as resolved_derived
@@ -68,6 +69,7 @@ def resolve(ir, dataset, selected_target, frame):
     target = next(c for c in columns if c["name"] == ir.target.column)
     return MulticlassPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=MulticlassTarget(
             column=ir.target.column,

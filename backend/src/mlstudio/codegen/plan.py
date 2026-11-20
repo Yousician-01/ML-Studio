@@ -9,6 +9,7 @@ from mlstudio.codegen.schemas import (
     SourceContract,
     TargetPlan,
 )
+from mlstudio.lineage import contract_intent
 from mlstudio.services.cleaning import resolved as resolved_cleaning
 from mlstudio.services.derived import resolved as resolved_derived
 from mlstudio.services.feature_engineering import resolved as resolved_engineering
@@ -124,6 +125,7 @@ def resolve(ir, dataset, selected_target, frame):
     target = next(c for c in columns if c["name"] == ir.target.column)
     plan = EffectiveExecutionPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=TargetPlan(
             column=ir.target.column,

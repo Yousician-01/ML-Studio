@@ -35,7 +35,8 @@ test("outlier and variance Applied Steps survive history, save/reload and explic
   assert.deepEqual(undoDraft(history).present, base); assert.deepEqual(redoDraft(undoDraft(history)).present, stored);
   const upstream = { ...stored, derived: { version: "derived-v1", features: [{ name: "derived_x", expression: { kind: "column", name: "x" } }] }, features: { ...stored.features, derived_x: { included: true, operations: [] } }, outlier_treatment: { ...stored.outlier_treatment, features: [{ ...stored.outlier_treatment.features[0], source: "derived_x" }] } };
   const producer = appliedSteps(upstream, columns).find(s => s.kind === "derived");
-  const removed = removeStep(upstream, producer);
+  assert.throws(() => removeStep(upstream, producer), /dependent/);
+  const removed = removeOutlier({ ...upstream, feature_selection: null }, "capped");
   assert.equal(removed.outlier_treatment, null);
   assert.equal(removed.feature_selection, null);
   assert.equal(removed.features.capped, undefined);

@@ -14,6 +14,22 @@ from mlstudio.feature_engineering_schemas import ResolvedEngineeringConfig
 from mlstudio.services.imputation import input_types
 
 
+def upstream_imputation(ir, name, diagnostics):
+    """Follow only admitted engineering edges; introduced nulls are not upstream fills."""
+    definitions = {
+        f.name: f for f in (ir.feature_engineering.features if ir.feature_engineering else [])
+    }
+    seen = set()
+    while name not in seen:
+        seen.add(name)
+        if ir.imputation and name in ir.imputation.columns:
+            return ir.imputation.columns[name]
+        if name not in definitions or diagnostics.get(name, {}).get("invalid_count", 0):
+            return None
+        name = definitions[name].source
+    return None
+
+
 def context(ir, dataset, frame):
     if ir.feature_engineering is None:
         return dataset, frame, {}
@@ -45,6 +61,7 @@ def context(ir, dataset, frame):
             and semantics[feature["source"]] != "continuous"
         ):
             raise ValueError("Numeric transformations require continuous semantics.")
+        semantics[feature["name"]] = engineering_semantic(feature)
         if ir.imputation and feature["name"] in ir.imputation.columns:
             raise ValueError(
                 "Engineering outputs cannot feed the earlier advanced imputation stage. "
@@ -60,9 +77,9 @@ def context(ir, dataset, frame):
             expanded[name] = "unfitted" if semantic == "categorical" else 0.0
             # Preserve observable missingness for admission, unless the input has
             # an earlier advanced imputer whose actual fit/transform verifies fills.
-            upstream = ir.imputation and feature["source"] in ir.imputation.columns
+            upstream = upstream_imputation(ir, feature["source"], diagnostics)
             if not upstream:
-                expanded[name] = expanded[name].where(frame[feature["source"]].notna(), np.nan)
+                expanded[name] = expanded[name].where(expanded[feature["source"]].notna(), np.nan)
         columns.append(
             {
                 "name": name,
@@ -83,6 +100,7 @@ def context(ir, dataset, frame):
                 if hasattr(dataset, key)
             },
             columns=columns,
+            engineering_diagnostics=diagnostics,
         ),
         expanded,
         diagnostics,

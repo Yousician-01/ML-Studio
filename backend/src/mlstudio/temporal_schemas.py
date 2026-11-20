@@ -115,6 +115,8 @@ class TemporalFields(InputModel):
             data.pop("outlier_treatment", None)
         if self.feature_selection is None:
             data.pop("feature_selection", None)
+        if getattr(self, "schema_contract", None) is None:
+            data.pop("schema_contract", None)
         return data
 
 
@@ -123,6 +125,7 @@ class ResolvedTemporalConfig(TemporalConfig):
 
 
 class TemporalPlanFields(TemporalFields):
+    schema_contract: dict | None = None
     temporal: ResolvedTemporalConfig | None = None
     derived: ResolvedDerivedConfig | None = None
     imputation: ResolvedImputationConfig | None = None

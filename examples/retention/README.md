@@ -110,3 +110,16 @@ features, and start with threshold 0 to remove constants in the selected branch
 units. Scaling changes those units; review the editor explanation. Save and train.
 The saved model retains its fences and mask for raw-input prediction. Reload to
 check Applied Steps and inspect historical Code without rewriting earlier Runs.
+
+## Optional v0.5 lineage and contract review
+
+Inspect Feature Lineage for an engineered/clipped output. Verify its source chain,
+participation and fitted stage. Attempt to remove its producer: the Studio should
+name the consumers and block removal. Remove consumers first, or explicitly revert
+a suffix and use Undo to restore it. Save/reload keeps the same recipe.
+
+After a new visual Run, use its frozen Python and trusted saved model to inspect
+`pipeline.schema_contract_`. Prediction requires raw dependencies, not precomputed
+outputs or the label. Extra columns are ignored; missing required inputs fail.
+Compare the fitted estimator names/count/mask with the recorded contract. This is
+structural evidence, not proof that the source features contain no future information.

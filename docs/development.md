@@ -1335,3 +1335,24 @@ node --experimental-strip-types --test frontend/tests/actionable-eda.test.mjs fr
 The new tests cover train-only fences/shared indicators, sparse mixed-branch mask
 ordering, all-task standalone execution/raw inference, no-fit preview/persistence,
 typed handoff, unsaved-draft preservation, editor validation and history repair.
+
+## Lineage and inference contracts development (v0.5 Commit 08)
+
+No migration/dependency change. Central lineage complements extension-specific typing;
+it must never become a second executor or fit exploratory data. Newly resolved plans
+opt into schema guards; plans without `schema_contract` must preserve source goldens.
+Generated source embeds the same runtime used by portable saved model classes. Raw
+validation must not parse or coerce values before existing cleaning policies run.
+
+Focused checks from repository root:
+
+```powershell
+backend/.venv/Scripts/python.exe -m pytest backend/tests/test_lineage_contracts.py backend/tests/test_codegen.py::test_source_goldens -q
+node --experimental-strip-types --test frontend/tests/lineage.test.mjs frontend/tests/preparation.test.mjs frontend/tests/actionable-eda.test.mjs frontend/tests/feature-engineering.test.mjs
+```
+
+Coverage includes computed dependencies, target/stage/cycle rejection, raw projection,
+fitted sklearn names/order/width, cleaning-compatible inputs, all-task standalone
+inference, stateless-to-fitted chaining, transitive imputation admission and blocked
+producer removal with retained history. Run the existing frontend typecheck/lint/build
+and Ruff checks; avoid retraining unrelated models or rewriting historical artifacts.

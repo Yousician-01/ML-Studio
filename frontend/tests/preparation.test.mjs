@@ -14,7 +14,7 @@ test("column menus expose compatible editors and use one action policy for every
   assert.ok(columnActions(columns[0], false, true).some(action => action.id === "temporal-cycle"));
   assert.ok(!columnActions(columns[0], false, true).some(action => action.id === "scale"));
   assert.ok(columnActions(columns[1], false, true).some(action => action.id === "scale"));
-  assert.deepEqual(columnActions(columns[1], true, false).map(action => action.id), ["profile"]);
+  assert.deepEqual(columnActions(columns[1], true, false).map(action => action.id), ["profile", "lineage"]);
 });
 
 test("column menu groups missing-value actions in a keyboard-accessible submenu", () => {
@@ -88,9 +88,9 @@ test("generalized features follow temporal dependencies and retain exact stage p
   assert.deepEqual(prefix.derived.features.map(feature => feature.name), ["years"]);
   assert.deepEqual(prefix.temporal, ir.temporal);
   assert.equal(atStep(ir, columns, "source").derived, null);
-  const removed = removeStep(ir, steps.find(step => step.id === "derived:years"));
-  assert.equal(removed.derived.features[0].name, "long_term", "dependent retained for repair");
-  assert.ok(appliedSteps(removed, columns).some(step => step.id === "derived-invalid"));
+  assert.throws(() => removeStep(ir, steps.find(step => step.id === "derived:years")), /dependent/);
+  const removed = removeStep(ir, steps.find(step => step.id === "derived:long_term"));
+  assert.equal(removed.derived.features[0].name, "years");
   const history = changeDraft(draftHistory(ir), removed);
   assert.deepEqual(undoDraft(history).present.derived, ir.derived);
   assert.deepEqual(appliedSteps(JSON.parse(JSON.stringify(ir)), columns), steps);
@@ -133,9 +133,9 @@ test("saved temporal-v1 intent reconstructs its steps after reload; removal reta
   const loaded = JSON.parse(JSON.stringify(saved));
   const steps = appliedSteps(loaded, columns);
   assert.deepEqual(steps.filter(step => step.kind === "temporal").map(step => step.column), ["month", "sin"]);
-  const next = removeStep(loaded, steps.find(step => step.column === "month" && step.kind === "temporal"));
-  assert.equal(next.temporal.features[0].name, "sin");
-  assert.equal(appliedSteps(next, columns).find(step => step.kind === "legacy").invalid, true);
+  assert.throws(() => removeStep(loaded, steps.find(step => step.column === "month" && step.kind === "temporal")), /dependent/);
+  const next = removeStep(loaded, steps.find(step => step.column === "sin" && step.kind === "temporal"));
+  assert.equal(next.temporal.features[0].name, "month");
   assert.deepEqual(preparationErrors([{ severity: "blocking", scope: "train", code: "model_missing", message: "Choose a model" }]), []);
   assert.deepEqual(preparationErrors([{ severity: "blocking", scope: "feature", code: "operation_incompatible", message: "Fix scaling" }]), ["Fix scaling"]);
   const history = changeDraft(draftHistory(saved), next);

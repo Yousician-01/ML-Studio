@@ -1,3 +1,4 @@
+import { removalError } from "./lineage";
 import { removeOutlier, repairNewStages } from "./outliers";
 import { engineeringFitted, engineeringLabel, engineeringCategorical } from "./feature-engineering";
 import { cleaningLabel, selectionStep } from "./cleaning";
@@ -6,7 +7,7 @@ import type { Column } from "./api/projects";
 import type { FeatureIntent, Operation, PipelineIR, PipelineIssue, TemporalExpression, DerivedExpression } from "./api/pipelines";
 
 export type PrepStep = { id: string; cleaningId?: string; kind: "outlier" | "variance" | "engineering" | "cleaning" | "selection" | "source" | "parse" | "temporal" | "derived" | "advanced" | "participation" | "operation" | "legacy" | "dormant"; label: string; stage: string; column?: string; index?: number; inputs: string[]; outputs: string[]; invalid?: boolean };
-export type ColumnAction = { id: "outliers" | "outlier-indicator" | "variance" | "engineering-numeric" | "engineering-bin" | "engineering-rare" | "engineering-ordinal" | "cleaning-normalize" | "cleaning-convert" | "cleaning-replace" | "cleaning-replace-missing" | "cleaning-datetime_fill" | "cleaning-validate" | "cleaning-missing_filter" | "cleaning-keep-missing" | "cleaning-filter" | "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
+export type ColumnAction = { id: "lineage" | "outliers" | "outlier-indicator" | "variance" | "engineering-numeric" | "engineering-bin" | "engineering-rare" | "engineering-ordinal" | "cleaning-normalize" | "cleaning-convert" | "cleaning-replace" | "cleaning-replace-missing" | "cleaning-datetime_fill" | "cleaning-validate" | "cleaning-missing_filter" | "cleaning-keep-missing" | "cleaning-filter" | "advanced-imputation" | "derived-create" | "profile" | "impute" | "scale" | "encode" | "participation" | "temporal-extract" | "temporal-cycle" | "temporal-difference" | "temporal-age" | "temporal-expression"; label: string };
 const clone = <T,>(value: T): T => structuredClone(value);
 
 export function references(expression: TemporalExpression | DerivedExpression, kind: "reference" | "column" = "reference"): string[] {
@@ -15,7 +16,7 @@ export function references(expression: TemporalExpression | DerivedExpression, k
 }
 
 export function columnActions(column: Pick<Column, "effective_semantic_type" | "physical_dtype">, target: boolean, included: boolean, raw = true): ColumnAction[] {
-  const actions: ColumnAction[] = [{ id: "profile", label: "View Column Profile" }];
+  const actions: ColumnAction[] = [{ id: "profile", label: "View Column Profile" }, { id: "lineage", label: "Inspect Feature Lineage" }];
   if (target) return actions;
   if (raw) actions.push(
     { id: "cleaning-missing_filter", label: "Remove Rows Where This Column Is Missing" }, { id: "cleaning-keep-missing", label: "Keep Rows Where This Column Is Missing" },
@@ -170,6 +171,11 @@ export function atStep(ir: PipelineIR, columns: Pick<Column, "name" | "source_or
 
 export function removeStep(ir: PipelineIR, step: PrepStep): PipelineIR {
   if (step.kind === "source") throw new Error("The Source step is immutable.");
+  const produced = new Set([...(ir.temporal?.features ?? []), ...(ir.derived?.features ?? []), ...(ir.feature_engineering?.features ?? []), ...(ir.outlier_treatment?.features ?? [])].map(f => f.name));
+  for (const f of ir.outlier_treatment?.features ?? []) if (f.indicator) produced.add(f.indicator);
+  const raw = [...new Set([...Object.keys(ir.features).filter(name => !produced.has(name)), ...Object.keys(ir.temporal?.sources ?? {})])].map((name, source_order) => ({ name, source_order }));
+  const blocked = removalError(appliedSteps(ir, raw), step.id);
+  if (blocked) throw new Error(blocked);
   if (step.kind === "outlier") return removeOutlier(ir, step.column!);
   if (step.kind === "variance") return { ...ir, feature_selection: null };
   if (step.kind === "advanced") return removeAdvancedImputation(ir, step.column!);

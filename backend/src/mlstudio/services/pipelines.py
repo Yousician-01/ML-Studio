@@ -32,6 +32,13 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    if dataset is not None:
+        from mlstudio.lineage import registry
+
+        structural = registry(ir, dataset.columns)
+        issues.extend(PipelineIssue(scope="pipeline", **item) for item in structural["issues"])
+        if structural["issues"]:
+            return issues, [], 0, False
     engineering_diagnostics = {}
     original_dataset, original_frame = dataset, frame
     if (
@@ -361,12 +368,10 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         if feature.included and ir.model is not None and target_series is not None:
             observed = frame.loc[target_series.notna(), name]
             advanced = ir.imputation.columns.get(name) if ir.imputation else None
-            if advanced is None and ir.imputation and ir.feature_engineering:
-                upstream = next(
-                    (f.source for f in ir.feature_engineering.features if f.name == name), None
-                )
-                if engineering_diagnostics.get(name, {}).get("invalid_count", 0) == 0:
-                    advanced = ir.imputation.columns.get(upstream)
+            if advanced is None and ir.feature_engineering:
+                from mlstudio.services.feature_engineering import upstream_imputation
+
+                advanced = upstream_imputation(ir, name, engineering_diagnostics)
             if (
                 not observed.empty
                 and observed.count() == 0
@@ -528,7 +533,10 @@ def response(project, dataset, settings):
     if regression and stale:
         eligible, train_rows, test_rows = 0, None, None
     configuration_ready = not any(i.severity == "blocking" for i in issues)
+    from mlstudio.lineage import registry
+
     return PipelineResponse(
+        lineage=registry(ir, columns),
         revision=project.revision,
         ir=ir,
         columns=columns,

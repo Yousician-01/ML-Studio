@@ -49,7 +49,11 @@ def context(ir, dataset, frame):
                     "use branch imputation."
                 )
             produced.add(name)
-            upstream = ir.imputation and feature.source in ir.imputation.columns
+            from mlstudio.services.feature_engineering import upstream_imputation
+
+            upstream = upstream_imputation(
+                ir, feature.source, getattr(dataset, "engineering_diagnostics", {})
+            )
             expanded[name] = (
                 0.0 if upstream else np.where(frame[feature.source].notna(), 0.0, np.nan)
             )

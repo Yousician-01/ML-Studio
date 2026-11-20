@@ -8,6 +8,14 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ### v0.5.0 - Advanced preprocessing
 
+- Computed feature lineage, central structural leakage/stage checks, Studio lineage
+  inspection and dependency-aware editing/removal without implicit cascading.
+- Sequential stateless engineering chaining, including safe stateless inputs to
+  fitted methods; fitted-output graphs remain unsupported.
+- New visual model raw-input and fitted estimator schemas, embedded in standalone
+  Python and existing saved-model artifacts. Historical source/models are unchanged.
+
+
 - Actionable source EDA: existing distributions/profiles now open Studio editors
   through a Dataset/revision-checked handoff, preserving unsaved preparation.
   Configurable exploratory IQR diagnostics, source variance, missingness thresholds
