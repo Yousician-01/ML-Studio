@@ -74,4 +74,3 @@ export function derivedPreviewRecipe(ir: PipelineIR, name: string): PipelineIR {
   for (const feature of definitions) if (!selected.has(feature.name)) delete features[feature.name];
   return { ...ir, features, derived: { version: "derived-v1", features: definitions.filter(feature => selected.has(feature.name)) } };
 }
-

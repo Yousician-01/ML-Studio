@@ -60,4 +60,3 @@ export function ColumnDetail({ column, scope, onPrepare, onMultiplier }: { colum
     </dl><p className="muted">Change semantic interpretation in Data. Explore does not edit your preparation.</p></details>
   </article>;
 }
-

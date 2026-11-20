@@ -120,4 +120,3 @@ export function DerivedFeaturesEditor({ projectId, state, disabled, initialColum
     </>}
   </Panel>;
 }
-
