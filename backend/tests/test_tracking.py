@@ -3,6 +3,7 @@
 import json
 import sys
 import traceback
+from datetime import datetime
 from pathlib import Path
 
 import joblib
@@ -29,6 +30,16 @@ def joined(client):
 
 
 def test_local_success_tracking_and_frozen_history(client, settings, monkeypatch, tmp_path):
+    from mlflow.tracking import MlflowClient
+
+    batches = []
+    original_batch = MlflowClient.log_batch
+
+    def record_batch(self, run_id, **kwargs):
+        batches.append(kwargs)
+        return original_batch(self, run_id, **kwargs)
+
+    monkeypatch.setattr(MlflowClient, "log_batch", record_batch)
     monkeypatch.setenv("MLFLOW_TRACKING_URI", "https://invalid.example/private")
     monkeypatch.setenv("MLFLOW_REGISTRY_URI", "https://invalid.example/private")
     monkeypatch.setenv("_MLFLOW_SERVER_ARTIFACT_ROOT", "s3://not-authorized")
@@ -40,6 +51,16 @@ def test_local_success_tracking_and_frozen_history(client, settings, monkeypatch
     run = client.get(f"{url}/{run['id']}").json()
     assert run["state"] == "SUCCEEDED"
     assert run["tracking_status"] == "SYNCHRONIZED", run
+    assert len(batches) == 1
+    assert batches[0]["synchronous"] is True
+    assert {metric.key: metric.value for metric in batches[0]["metrics"]} == run["result"][
+        "metrics"
+    ]
+    assert all(metric.step == 0 for metric in batches[0]["metrics"])
+    assert all(
+        metric.timestamp == int(datetime.fromisoformat(run["finished_at"]).timestamp() * 1000)
+        for metric in batches[0]["metrics"]
+    )
     ml = tracking.client_for(settings)
     external = ml.get_run(run["mlflow_run_id"])
     assert external.info.status == "FINISHED"
@@ -159,11 +180,26 @@ def test_success_remains_success_when_tracking_fails(client, settings, monkeypat
     from mlstudio.execution import process
 
     monkeypatch.setattr(process, "launch", forbidden)
+    from mlflow.tracking import MlflowClient
+
+    original_batch = MlflowClient.log_batch
+
+    def lose_batch_response(self, *args, **kwargs):
+        original_batch(self, *args, **kwargs)
+        raise OSError("Simulated lost response after metadata committed")
+
+    monkeypatch.setattr(MlflowClient, "log_batch", lose_batch_response)
+    tracking.reconcile(settings, client.app.state.session_factory)
+    assert client.get(f"{url}/{run['id']}").json()["tracking_status"] == "FAILED"
+    monkeypatch.setattr(MlflowClient, "log_batch", original_batch)
     tracking.reconcile(settings, client.app.state.session_factory)
     after = client.get(f"{url}/{run['id']}").json()
     assert after["tracking_status"] == "SYNCHRONIZED"
     for key in ("state", "result", "artifacts", "pipeline_ir", "execution_plan", "finished_at"):
         assert after[key] == before[key]
+    ml = original(settings)
+    for key in after["result"]["metrics"]:
+        assert len(ml.get_metric_history(after["mlflow_run_id"], key)) == 1
 
 
 @pytest.mark.parametrize(

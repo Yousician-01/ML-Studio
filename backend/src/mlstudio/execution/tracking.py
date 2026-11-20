@@ -146,8 +146,6 @@ def synchronize(settings, sessions, run_id):
             if not update(sessions, run.id, mlflow_run_id=external_id):
                 return
         local_artifact_location(settings.home, client.get_run(external_id).info.artifact_uri)
-        for key, value in tags.items():
-            client.set_tag(external_id, key, value, synchronous=True)
         params = {
             "model": plan["model"]["estimator"] if regression else plan["model"]["name"],
             **{f"model.{k}": canonical(v).decode() for k, v in plan["model"]["parameters"].items()},
@@ -167,21 +165,33 @@ def synchronize(settings, sessions, run_id):
         # MLflow's parameter-value limit is finite; the full plan is always an artifact.
         if len(params["preprocessing"]) > 500:
             params["preprocessing"] = f"{len(plan['features'])} features; see execution_plan.json"
-        for key, value in params.items():
-            client.log_param(external_id, key, value, synchronous=True)
+        from mlflow.entities import Metric, Param, RunTag
+
+        metrics = []
         if run.state == "SUCCEEDED":
             if run.result["schema_version"] != resolved.runtime.result_schema:
                 raise ValueError("Unsupported tracking result protocol")
             for key, value in run.result["metrics"].items():
                 if value is not None:
-                    client.log_metric(
-                        external_id,
-                        key,
-                        value,
-                        timestamp=int(datetime.fromisoformat(run.finished_at).timestamp() * 1000),
-                        step=0,
-                        synchronous=True,
+                    metrics.append(
+                        Metric(
+                            key,
+                            value,
+                            timestamp=int(
+                                datetime.fromisoformat(run.finished_at).timestamp() * 1000
+                            ),
+                            step=0,
+                        )
                     )
+        # Per-value synchronous calls each commit SQLite writes. Batch by category
+        # to avoid dozens of durable commits on slow Windows/CI storage.
+        client.log_batch(
+            external_id,
+            params=[Param(key, value) for key, value in params.items()],
+            tags=[RunTag(key, value) for key, value in tags.items()],
+            metrics=metrics,
+            synchronous=True,
+        )
         names = ["pipeline_ir.json", "execution_plan.json", "package.json", "generated_run.py"]
         if run.state == "SUCCEEDED":
             names.append("result.json")
