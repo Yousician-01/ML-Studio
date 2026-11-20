@@ -1,5 +1,16 @@
 # Synthetic customer-retention demonstration
 
+For the v0.5 checkout, upload completion opens **Data Preparation**. Use
+**Source & target** for the Data controls below, **Dataset diagnostics** for Explore,
+and column menus for the preparation choices. Apply editors, then **Save preparation**
+and **Continue to Train**. Legacy Prepare/Explore URLs remain supported.
+
+Optional v0.5 cleaning exercise: open `monthly_spend`'s column menu and choose
+**Remove Rows Where This Column Is Missing**. Preview the actual retained count,
+then Apply and Save in a separate experiment. This selects training/evaluation
+rows, whereas imputation fills cells. Saved inference does not drop rows. Use
+Undo/Discard to retain this walkthrough's original experiment configuration.
+
 `customers.csv` contains 120 entirely synthetic customers, three candidate features,
 an identifier and a binary `churn` outcome. Blank cells are missing observations,
 including four missing targets. No row represents a real person. Scores illustrate
@@ -29,7 +40,7 @@ Alembic and starting the backend. Never damage real Run evidence for this demo.
    | `monthly_spend` | Median | Standard |
    | `plan` | Most frequent | One-hot |
 
-   Changes save immediately. Source data is immutable; transformations are learned
+   Apply the column editors and Save preparation. Source data is immutable; transformations are learned
    only when the experiment trains. Four missing-target rows are excluded before
    splitting; the target is never imputed.
 5. In **Train**, click **Configure 80 / 20 split** if not configured. Keep test size
@@ -69,3 +80,46 @@ acceptance thresholds. No ROC curve, threshold tuning, prediction table, AI advi
 is provided by this visual demonstration. Optional editable Code Mode is documented
 in the [Code workspace guide](../../docs/user-guide/code-workspace.md). Read [Security](../../SECURITY.md) and the local
 recovery/retention notes before handling sensitive real data.
+
+## Optional v0.5 feature engineering experiment
+
+In a disposable Project, select a continuous feature in Prepare and choose
+**Transform Numeric ? log1p**, give it a distinct output name, Preview / validate,
+Apply, and Save. Negative inputs at or below -1 must be cleaned or explicitly
+marked missing; add output imputation when needed. Review whether to exclude the
+original feature. Train normally and inspect the historical generated Python.
+
+For a learned alternative, choose **Bin Numeric ? quantile bins** with five
+requested bins and a distinct output name. The output uses the existing one-hot
+encoder. Its pretraining preview validates configuration without learning edges.
+Duplicate quantiles may produce fewer than five actual bins. Training learns the
+edges only from training rows; saved prediction reuses them from raw inputs.
+Comparisons across different frozen feature-engineering recipes suppress deltas.
+
+## Optional v0.5 actionable EDA workflow
+
+Open Dataset diagnostics, select a continuous source column, and inspect the
+existing boxplot and IQR summary. Choose **Treat Outliers**, review multiplier/tails
+and distinct output name, optionally enable the shared indicator, and explicitly
+choose output participation. Validate, Apply and Save. These exploratory fences
+are never copied; training learns its own fences. Use a disposable Project when
+trying settings and preserve earlier Runs for comparison.
+
+From the output menu choose **Review Feature Selection**, select included continuous
+features, and start with threshold 0 to remove constants in the selected branch
+units. Scaling changes those units; review the editor explanation. Save and train.
+The saved model retains its fences and mask for raw-input prediction. Reload to
+check Applied Steps and inspect historical Code without rewriting earlier Runs.
+
+## Optional v0.5 lineage and contract review
+
+Inspect Feature Lineage for an engineered/clipped output. Verify its source chain,
+participation and fitted stage. Attempt to remove its producer: the Studio should
+name the consumers and block removal. Remove consumers first, or explicitly revert
+a suffix and use Undo to restore it. Save/reload keeps the same recipe.
+
+After a new visual Run, use its frozen Python and trusted saved model to inspect
+`pipeline.schema_contract_`. Prediction requires raw dependencies, not precomputed
+outputs or the label. Extra columns are ignored; missing required inputs fail.
+Compare the fitted estimator names/count/mask with the recorded contract. This is
+structural evidence, not proof that the source features contain no future information.

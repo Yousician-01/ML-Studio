@@ -32,6 +32,141 @@ def typed_scalar(value) -> TypedScalar:
 
 def validate(ir: PipelineIR, dataset, selected_target, frame):
     issues = []
+    if dataset is not None:
+        from mlstudio.lineage import registry
+
+        structural = registry(ir, dataset.columns)
+        issues.extend(PipelineIssue(scope="pipeline", **item) for item in structural["issues"])
+        if structural["issues"]:
+            return issues, [], 0, False
+    engineering_diagnostics = {}
+    original_dataset, original_frame = dataset, frame
+    if (
+        (ir.temporal is not None or ir.derived is not None or ir.cleaning is not None)
+        and dataset is not None
+        and ir.dataset is not None
+        and (ir.dataset.dataset_id == dataset.id and ir.dataset.fingerprint == dataset.fingerprint)
+    ):
+        from mlstudio.services.derived import context
+        from mlstudio.services.temporal import warnings
+
+        try:
+            dataset, frame, _, errors = context(ir, dataset, frame)
+            if ir.cleaning is not None and not errors:
+                from mlstudio.services.cleaning import selection
+
+                frame, _ = selection(ir, original_dataset, original_frame, dataset, frame)
+        except (ValueError, KeyError, TypeError):
+            errors = [
+                "Invalid cleaning, temporal or derived expressions, "
+                "references or parsing policies. "
+                "Review the feature preview."
+            ]
+        issues.extend(
+            PipelineIssue(
+                scope="pipeline",
+                code="cleaning_invalid"
+                if ir.cleaning is not None
+                else "derived_invalid"
+                if ir.derived is not None
+                else "temporal_invalid",
+                message=message,
+            )
+            for message in errors
+        )
+        if errors:
+            return issues, [], 0, False
+        issues.extend(
+            PipelineIssue(
+                scope="pipeline", code="temporal_leakage", message=message, severity="non_blocking"
+            )
+            for message in (
+                warnings()
+                if ir.temporal is not None
+                else [
+                    "Confirm expression inputs are available at prediction time. "
+                    "Row-wise validation cannot detect all semantic leakage."
+                ]
+            )
+        )
+    if (
+        ir.imputation is not None
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.imputation import context as imputation_context
+
+        try:
+            dataset, frame, _ = imputation_context(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="imputation_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid advanced imputation references.",
+                )
+            )
+            return issues, [], 0, False
+        issues.append(
+            PipelineIssue(
+                scope="pipeline",
+                code="imputation_fitted",
+                severity="non_blocking",
+                message="Advanced statistics fit training rows only. "
+                "Unresolved missing values fail training; "
+                "no full-source fitted preview is available.",
+            )
+        )
+    if (
+        ir.feature_engineering is not None
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.feature_engineering import context as engineering_context
+
+        try:
+            dataset, frame, engineering_diagnostics = engineering_context(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="engineering_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid feature engineering references.",
+                )
+            )
+            return issues, [], 0, False
+    if (
+        (ir.outlier_treatment is not None or ir.feature_selection is not None)
+        and dataset is not None
+        and ir.dataset is not None
+        and ir.dataset.dataset_id == dataset.id
+        and ir.dataset.fingerprint == dataset.fingerprint
+    ):
+        from mlstudio.services.outliers import context as outlier_context
+        from mlstudio.services.outliers import validate_selection
+
+        try:
+            dataset, frame, _ = outlier_context(ir, dataset, frame)
+            validate_selection(ir, dataset, frame)
+        except (ValueError, KeyError, TypeError) as error:
+            issues.append(
+                PipelineIssue(
+                    scope="pipeline",
+                    code="outlier_selection_invalid",
+                    message=str(error)
+                    if isinstance(error, ValueError)
+                    else "Invalid outlier or selection references.",
+                )
+            )
+            return issues, [], 0, False
     regression = ir.ir_version == "0.2"
     multiclass = ir.ir_version == "0.3"
     task = (
@@ -154,7 +289,11 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
                 )
     target = ir.target.column if ir.target else None
     for name in columns:
-        if name != target and name not in ir.features:
+        if (
+            name != target
+            and name not in ir.features
+            and columns[name].get("inference_version") != "imputation-v1"
+        ):
             issue(
                 "feature_missing",
                 "Column is missing from the feature map. Reset or restore its configuration.",
@@ -177,6 +316,14 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         if name == target or name == selected_target:
             issue(
                 "target_feature", "The target must be absent from the feature map.", "feature", name
+            )
+        if columns[name].get("inference_version") == "imputation-v1":
+            issue(
+                "indicator_stage",
+                "Missingness indicators are automatic advanced-stage outputs; "
+                "do not configure earlier feature operations for them.",
+                "feature",
+                name,
             )
         semantic = columns[name]["semantic_override"] or columns[name]["inferred_semantic_type"]
         numeric = is_numeric_dtype(frame[name].dtype) and not is_bool_dtype(frame[name].dtype)
@@ -220,7 +367,16 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
         # Inspect eligible source facts only; never fit or split feature matrices.
         if feature.included and ir.model is not None and target_series is not None:
             observed = frame.loc[target_series.notna(), name]
-            if not observed.empty and observed.count() == 0:
+            advanced = ir.imputation.columns.get(name) if ir.imputation else None
+            if advanced is None and ir.feature_engineering:
+                from mlstudio.services.feature_engineering import upstream_imputation
+
+                advanced = upstream_imputation(ir, name, engineering_diagnostics)
+            if (
+                not observed.empty
+                and observed.count() == 0
+                and not (advanced and advanced.fallback.strategy == "constant")
+            ):
                 issue(
                     "feature_all_missing",
                     "No observed feature values remain after target "
@@ -231,6 +387,7 @@ def validate(ir: PipelineIR, dataset, selected_target, frame):
             elif (
                 observed.isna().any()
                 and "impute" not in families
+                and advanced is None
                 and descriptor
                 and descriptor.feature_requirements.requires_complete_features
             ):
@@ -305,15 +462,81 @@ def response(project, dataset, settings):
         if dataset
         else []
     )
+    if (
+        (
+            ir.temporal is not None
+            or ir.derived is not None
+            or ir.imputation is not None
+            or ir.cleaning is not None
+            or ir.feature_engineering is not None
+            or ir.outlier_treatment is not None
+            or ir.feature_selection is not None
+        )
+        and dataset is not None
+        and not stale
+    ):
+        from mlstudio.services.derived import context
+
+        try:
+            virtual, expanded, _, _ = context(ir, dataset, frame)
+            if ir.feature_engineering is not None and ir.cleaning is not None:
+                from mlstudio.services.cleaning import selection
+
+                expanded, _ = selection(ir, dataset, frame, virtual, expanded)
+            if ir.imputation is not None:
+                from mlstudio.services.imputation import context as imputation_context
+
+                virtual, expanded, _ = imputation_context(ir, virtual, expanded)
+            if ir.feature_engineering is not None:
+                from mlstudio.services.feature_engineering import context as engineering_context
+
+                virtual, expanded, _ = engineering_context(ir, virtual, expanded)
+            if ir.outlier_treatment is not None:
+                from mlstudio.services.outliers import context as outlier_context
+
+                virtual, expanded, _ = outlier_context(ir, virtual, expanded)
+            if ir.cleaning is not None:
+                columns = [
+                    {
+                        **c,
+                        "effective_semantic_type": c["semantic_override"]
+                        or c["inferred_semantic_type"],
+                        "role": column_role(project, dataset, c["name"]),
+                    }
+                    for c in virtual.columns[: len(dataset.columns)]
+                ]
+            columns.extend(
+                {
+                    **c,
+                    "effective_semantic_type": c["inferred_semantic_type"],
+                    "role": "feature"
+                    if c.get("inference_version") == "imputation-v1"
+                    or (ir.features.get(c["name"]) and ir.features[c["name"]].included)
+                    else "excluded",
+                }
+                for c in virtual.columns[len(dataset.columns) :]
+            )
+        except (ValueError, KeyError, TypeError):
+            pass  # The invalid definitions remain persisted and carry blocking issues.
     eligible = (
         int(frame[ir.target.column].count()) if ir.target and ir.target.column in frame else 0
     )
+    if ir.cleaning is not None and dataset is not None and not stale and ir.target:
+        from mlstudio.services.cleaning import population
+
+        try:
+            eligible = population(ir, dataset, frame)["eligible"]
+        except (ValueError, KeyError, TypeError):
+            eligible = 0
     train_rows, test_rows = partition_sizes(eligible, ir.split)
     regression = ir.ir_version == "0.2"
     if regression and stale:
         eligible, train_rows, test_rows = 0, None, None
     configuration_ready = not any(i.severity == "blocking" for i in issues)
+    from mlstudio.lineage import registry
+
     return PipelineResponse(
+        lineage=registry(ir, columns),
         revision=project.revision,
         ir=ir,
         columns=columns,

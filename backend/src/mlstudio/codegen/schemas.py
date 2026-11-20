@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from mlstudio.pipeline_schemas import DatasetBinding, PipelineIssue, TypedScalar
+from mlstudio.temporal_schemas import TemporalPlanFields
 
 GENERATOR = "mlstudio-python-v1"
 
@@ -91,7 +92,7 @@ class EvaluationContract(PlanModel):
     roc_auc: Literal["positive-score-or-unavailable"] = "positive-score-or-unavailable"
 
 
-class EffectiveExecutionPlan(PlanModel):
+class EffectiveExecutionPlan(TemporalPlanFields, PlanModel):
     plan_version: Literal["0.1"] = "0.1"
     ir_version: Literal["0.1"] = "0.1"
     generator: Literal["mlstudio-python-v1"] = GENERATOR

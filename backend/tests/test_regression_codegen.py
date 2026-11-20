@@ -30,6 +30,8 @@ def regression_golden_plan(case):
         "ridge" if case == "ridge_sparse" else "linear_regression", mixed=case == "ridge_sparse"
     )
     payload = plan.model_dump(mode="json")
+    # Preserve the original v2 source fixtures; current plans are exercised below.
+    payload.pop("schema_contract", None)
     payload["implementation"].update(libraries=FIXED_LIBRARIES, python="3.14.2")
     return load_plan(payload)
 
@@ -123,15 +125,13 @@ def test_real_generated_numeric_dense_and_mixed_sparse(tmp_path, model, mixed):
     )
     transformed = fitted.named_steps["preprocessor"].transform(X_test)
     assert sparse.issparse(transformed) == mixed
-    branch = fitted.named_steps["preprocessor"].named_transformers_["feature_000"]
+    # New plans guard the fitted ColumnTransformer without changing its statistics.
+    preprocessor = fitted.named_steps["preprocessor"].preprocessor_
+    branch = preprocessor.named_transformers_["feature_000"]
     assert branch.named_steps["step_0"].statistics_[0] == pytest.approx(X_train.x.mean())
     assert branch.named_steps["step_1"].mean_[0] == pytest.approx(X_train.x.mean())
     if mixed:
-        encoder = (
-            fitted.named_steps["preprocessor"]
-            .named_transformers_["feature_001"]
-            .named_steps["step_0"]
-        )
+        encoder = preprocessor.named_transformers_["feature_001"].named_steps["step_0"]
         assert set(encoder.categories_[0]) == set(X_train.city)
         assert set(X_test.city).isdisjoint(encoder.categories_[0])
     predictions = fitted.predict(X_test)
@@ -192,6 +192,9 @@ def test_dispatch_purity_order_literals_and_versions(monkeypatch):
         n.targets[0].id: ast.literal_eval(n.value)
         for n in ast.parse(safe).body
         if isinstance(n, ast.Assign)
+        and len(n.targets) == 1
+        and isinstance(n.targets[0], ast.Name)
+        and n.targets[0].id == "FEATURES"
     }
     assert constants["FEATURES"] == [payload["features"][0]["name"]]
     compile(safe, "generated", "exec")

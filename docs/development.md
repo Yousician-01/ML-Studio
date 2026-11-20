@@ -1,5 +1,207 @@
 # Development
 
+Current release candidate: **v0.5.0**. See [release validation and notes](development/v0.5.0-release-readiness.md). Phase records below retain their historical context; their older test counts are not the current release gate.
+
+## Declarative cleaning (v0.5 Commit 05)
+
+`cleaning_schemas.py` / `cleaning_runtime_v1.py` provide bounded `cleaning-v1`
+intent, raw stateless transformation and training-only selection. Predicate logic
+reuses derived evaluation; timestamp handling reuses the temporal parser. The exact
+existing `DatetimeSource` policy now lives in `datetime_policy.py` and remains
+re-exported from `temporal_schemas.py`. Runtime helpers are embedded verbatim by
+`codegen/cleaning.py`, with fixed imports and literal configuration serialization.
+
+`services/cleaning.py` composes virtual types, diagnostics and row eligibility.
+Pipeline validation sees corrected/selected features before existing train checks.
+Run manifests and strict result checks use original source count and actual eligible
+count; multiclass retains original class-universe/missing-label safeguards. Model
+transformers never run source selection, preserving prediction cardinality.
+
+`cleaning.ts` and `cleaning-editor.tsx` reuse the Studio and expression controls.
+Raw and selection Applied Steps reflect fixed stages and recompute real prefixes.
+Explicit source preview remains separate from cleaned/retained rows. Coercion needs
+acknowledgment; diagnostics are transient preview evidence, not SQLite/log rows.
+No dependency or migration is added. Policies/limits are in the
+[guide](user-guide/explore-and-prepare.md#data-cleaning-selection-and-validation-v05-development).
+
+Focused checks from `backend` include
+`python -m pytest tests/test_cleaning.py tests/test_temporal.py tests/test_derived.py tests/test_imputation.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+From `frontend`, run existing tests/lint/typecheck/build; the focused UI files are
+`tests/cleaning.test.mjs` and `tests/preparation.test.mjs`. Generated Run integration
+also verifies finalization and fresh-process raw-input inference for all three tasks.
+
+## Advanced imputation (v0.5 Commit 04)
+
+`imputation_schemas.py` adds optional bounded `imputation-v1` intent and resolved
+input types/dtypes. `imputation_runtime_v1.py` reuses derived predicate evaluation
+and implements train-only global/group statistics, ordered missing-only fills and
+automatic original-missingness indicators. `services/imputation.py` never fits:
+it validates stage inputs and returns bounded diagnostics/virtual metadata through
+the existing preview API. `codegen/imputation.py` embeds the runtime and retains
+raw predicate/group dependencies even when excluded as estimator features.
+
+The existing split/filter logic and ColumnTransformer branches are preserved.
+Advanced fit/transform handles completeness errors explicitly; it neither drops
+rows nor computes inference statistics. Grouped numeric aggregation uses pandas;
+typed keys, deterministic mode ties and bounded fitted mappings preserve repeatable
+inference. Live Code, Code Drafts and frozen Run evidence keep their existing paths.
+
+Frontend `advanced-imputation.tsx` reuses exported derived-expression controls;
+`imputation.ts` handles draft replacement/restoration. Applied Steps mirrors the
+actual shared fitted stage before scaling/encoding, not click history. Preview
+validation does not imply that a future training partition has usable group donors.
+See [policies and limits](user-guide/explore-and-prepare.md#advanced-imputation-v05-development).
+
+Focused backend checks from `backend`:
+`python -m pytest tests/test_imputation.py tests/test_temporal.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+Frontend checks from `frontend`:
+`node --experimental-strip-types --test tests/imputation.test.mjs tests/preparation.test.mjs tests/derived.test.mjs tests/evaluation.test.mjs`.
+Use existing Ruff, lint, typecheck, build and whitespace gates; no new test framework
+or dependency is required.
+
+## Generalized feature builder (v0.5 Commit 03)
+
+Contracts/runtime live in `derived_schemas.py` / `derived_runtime_v1.py`, composition
+in `services/derived.py`, and standalone embedding in `codegen/derived.py`. All three
+compiler plans share feature resolution. `derived` is optional versioned JSON,
+omitted when absent. No dependency or migration is required. Execution order is
+temporal, generalized, training-fitted ColumnTransformer, estimator. Numeric/binary
+temporal outputs may feed general expressions; the reverse direction is unsupported.
+
+Frontend `derived.ts` owns structural helpers and dependency-closure preview intent;
+`derived-features.tsx` owns Guided/Expression controls. There is no frontend
+evaluator. Existing preview transport adds string/boolean scalar samples and
+aggregate invalid counts. Browser samples remain bounded to 20; managed source is
+evaluated server-side without fitting. Apply, Save, Code Mode ownership and draft
+history remain separate. Per-definition repair previews omit unrelated invalid
+definitions, never dependencies; complete invalid preparation still blocks training.
+
+Exact integers beyond the safe range are rejected before float conversion. Boolean
+expression types remain distinct though model outputs use float 0/1/missing.
+Numeric categorical codes use numeric operand typing; string categories never
+receive implicit numeric conversion. Unhandled missing model inputs remain
+validation failures. Bounds/null/domain behavior are documented in the
+[user guide](user-guide/explore-and-prepare.md#generalized-derived-feature-builder-v05-development).
+
+Focused backend validation from `backend`:
+`python -m pytest tests/test_derived.py tests/test_temporal.py tests/test_pipelines.py tests/test_codegen.py::test_source_goldens`.
+From `frontend`:
+`node --experimental-strip-types --test tests/derived.test.mjs tests/preparation.test.mjs tests/evaluation.test.mjs`.
+Use existing Ruff, frontend lint/typecheck/build and `git diff --check` gates. No
+additional browser or test framework was introduced.
+
+## Data Preparation Studio (v0.5 Commit 02)
+
+`DataPreparationStudio` replaces primary Prepare/Explore navigation with a
+table-first workspace. `view=prepare` is canonical; Explore deep links open the
+existing task-aware diagnostics. Upload completion enters the studio; plain Project
+URLs default to it. Dataset management and Train/Runs/Evaluate retain their APIs.
+
+`lib/preparation.ts` projects Applied Steps and prefix IR without executing values.
+Temporal definitions follow dependencies; fitted operations follow actual branch
+and within-branch order. Invalid/missing/orphan intent stays visible rather than
+silently repaired. Select is read-only; remove/revert produce a draft, with
+dependency warnings and revert confirmation. Source artifacts remain immutable.
+Reverting before participation explicitly restores included source candidates.
+
+`OperationSelect` shares existing preprocessing controls with retained Prepare.
+The existing temporal editor's managed mode applies to the studio draft rather
+than independently saving. Its existing preview endpoint computes real prefixes.
+No backend, IR schema, migration, algorithm or execution changes are needed.
+Fitted previews are unavailable rather than learned on full-source rows.
+
+Limits: 20 source rows, 30 visible columns per page, 20 cached source profiles,
+8 row-wise previews, 30 undo/redo configurations and 5 tab-memory draft buffers.
+Search/selection does not regenerate row-wise outputs. Session recovery is keyed
+by Project/Dataset, checked against saved IR/columns and blocked on conflicts.
+Save/reset/discard clears recovery. Buffers store configuration, not rows, and are
+not durable across full reload. Cancellable history traversal is guarded; applied
+IR recovery also protects non-cancellable traversal. Unapplied forms have leave
+warnings and are not persisted transformations.
+
+Continue to Train saves or re-reads intent and checks backend preparation issues;
+Train-only model/split omissions do not trap users outside Train. Source/target
+changes still save immediately through the reused Dataset UI, outside undo history.
+Focused frontend tests cover menus/editor routing, stage projections, dependencies,
+undo/revert, save/reload/Train, temporal compatibility and tab recovery. Backend
+tests are not required for this UI-only integration.
+
+## Temporal feature extension (v0.5)
+
+`temporal_schemas.py` extends existing Pipeline IR with optional `temporal-v1`
+declarative sources/features. Source expressions reference configured datetime
+columns; fixed ISO literals and references to other derived features compose with
+typed calls. Validation bounds 32 sources, 128 named outputs, nesting depth 8 and
+1024 visited expression nodes. Cycles, collisions, unresolved/type-incompatible
+references and target-derived leakage are rejected. No arithmetic/Python language
+is added. Existing feature intent controls participation and downstream operations.
+
+Example partial working recipe (retain the Project's existing task/target/binding,
+model, split and other feature intent):
+
+```json
+{
+  "temporal": {
+    "version": "temporal-v1",
+    "sources": {
+      "signup_date": {"format": "ISO8601", "naive": "utc", "invalid": "reject"},
+      "prediction_date": {"format": "ISO8601", "naive": "utc", "invalid": "reject"}
+    },
+    "features": [{
+      "name": "tenure_days",
+      "expression": {
+        "kind": "call", "operation": "date_diff",
+        "arguments": [{"kind": "column", "name": "prediction_date"}, {"kind": "column", "name": "signup_date"}],
+        "parameters": {"unit": "days"}
+      }
+    }]
+  },
+  "features": {
+    "signup_date": {"included": false, "operations": []},
+    "prediction_date": {"included": false, "operations": []},
+    "tenure_days": {"included": true, "operations": [{"type": "impute", "strategy": "median"}, {"type": "scale", "method": "standard"}]}
+  }
+}
+```
+
+`POST /api/v1/projects/{id}/pipeline/temporal-preview` takes the existing
+`PipelineUpdate` body (`revision`, proposed `ir`). It is read-only and binding/
+revision guarded; it returns up to 20 derived values per output, inferred output
+types, source-wide missing/invalid counts and warnings/errors. It stores no rows.
+Use existing pipeline PATCH to persist after preview. Invalid/incomplete intent
+can still be retained by that established PATCH contract with blocking issues.
+
+The shared `temporal_runtime_v1.py` implements parsing and evaluation. Generated
+source embeds its fixed functions/class, uses source-bound physical dtypes and
+prepends `TemporalFeatures` to the complete fitted sklearn pipeline. The feature
+validator uses transient derived observations for ordinary numeric/binary grammar;
+raw source/Dataset schema stays immutable. Only explicitly declared outputs are generated.
+The source extension checks template integration points and applies only when the
+versioned capability is present. No new dependencies or schema migration.
+
+For trusted local model loading in the backend environment, joblib resolves the
+stable `mlstudio.temporal_runtime_v1.TemporalFeatures` class. Standalone consumers
+must first import the Run's frozen generated source (using importlib and without
+calling main), then load its trusted model. That source registers the same frozen
+versioned class when the package is absent. The serialized transformer stores its
+explicit config; it needs no active Project state or clock. Supply a DataFrame of
+the original raw input columns, not precomputed derived columns. As with all
+joblib models, never load untrusted artifacts. Keep this runtime version stable;
+semantic changes require a new capability/runtime version.
+
+Existing IR/plan versions and result protocols are preserved; the optional field
+is omitted when absent, preserving legacy source goldens and canonical hashes.
+Code Draft origin snapshots naturally include proposed temporal intent and never
+reverse-translate edited Python. Historical Runs keep original artifacts. Evaluate
+conservatively excludes deltas across differing frozen temporal definitions or
+parsing policies. This does not introduce a prediction/inference service.
+
+Focused validation: from backend run `python -m pytest tests/test_temporal.py`,
+plus existing pipeline/source-golden and one legacy execution test. Frontend uses
+`node --experimental-strip-types --test tests/temporal.test.mjs`, normal typecheck,
+lint and production build. See the [user guide](user-guide/explore-and-prepare.md)
+for the operation catalogue, UTC/calendar policies, examples and deferred work.
+
 For users: [Installation](installation.md), [Getting started](getting-started.md)
 and [user guides](README.md). For this release: [fresh beta readiness evidence](development/beta-release-readiness.md).
 
@@ -92,7 +294,7 @@ bounded reporting from Code Runs to the shared Evaluate bench.
 Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
 execution. Explicit snapshot-save or discard restores the preserved visual recipe;
 historical Runs and compiler/IR versions remain unchanged. Public/CLI release
-identity is 0.4.0-beta.1; frontend/backend package versions remain independently
+identity is 0.5.0; frontend/backend package versions remain independently
 versioned at 0.2.0. IR/result identities are separate. See the linked guide for
 setup and limitations.
 
@@ -1083,3 +1285,93 @@ Follow the committed [classification walkthrough](../examples/retention/README.m
 or [regression walkthrough](../examples/regression/README.md).
 Each uses existing controls and two local experiments. Use a disposable
 `MLSTUDIO_HOME` for validation; do not corrupt or delete real historical evidence.
+
+## Advanced feature engineering development (v0.5 Commit 06)
+
+`feature-engineering-v1` is an optional extension in existing Pipeline IR JSON, with
+no migration or dependency installation. The portable runtime reuses the installed
+NumPy/pandas/scikit-learn versions and `derived-v1` math. Generated Python embeds
+this exact runtime; saved models retain fitted training parameters. Do not replace
+configuration-only previews with full-Dataset fitting. Existing no-extension source
+goldens must remain unchanged.
+
+Focused checks from `backend`:
+
+```powershell
+.venv/Scripts/python.exe -m pytest tests/test_feature_engineering.py tests/test_codegen.py::test_source_goldens -q
+```
+
+From `frontend`, use the existing test harness:
+
+```powershell
+node --experimental-strip-types --test tests/feature-engineering.test.mjs tests/preparation.test.mjs tests/evaluation.test.mjs
+npm.cmd run lint
+npm.cmd run typecheck
+npm.cmd run build
+```
+
+See the [Studio guide](user-guide/explore-and-prepare.md#advanced-numeric-and-categorical-features-v05-development)
+for execution order, domains, bounds, bin semantics and unsupported chaining. The
+focused backend integration checks all three tasks and raw-input prediction in a
+fresh process with backend imports blocked; local test workspaces remain isolated.
+
+## Actionable EDA and fitted selection development (v0.5 Commit 07)
+
+No new dependencies or migrations. Extend the existing source profiling service and
+SVG charts, and keep exploratory evidence out of fitted plans. The profile API's
+`iqr_multiplier` is bounded to 0.1–10. Profile requests retain their Dataset/revision
+checks; multiplier changes invalidate the displayed exploratory evidence. Studio
+handoffs use typed callbacks with the same scope and preserve draft history.
+
+`outlier_runtime_v1.py` implements both the training-fitted IQR stage and the numeric
+branch selection wrapper. Variance is explicitly post-branch-imputation/scaling,
+not raw-source variance. Existing source/derived/engineered contracts are unchanged.
+Config previews must never invoke either fitter; saved masks/fences live in the
+existing complete model artifact. Focused checks from the repository root:
+
+```powershell
+backend/.venv/Scripts/python.exe -m pytest backend/tests/test_outliers_selection.py backend/tests/test_codegen.py::test_source_goldens -q
+node --experimental-strip-types --test frontend/tests/actionable-eda.test.mjs frontend/tests/preparation.test.mjs frontend/tests/regression-explore.test.mjs frontend/tests/evaluation.test.mjs
+```
+
+The new tests cover train-only fences/shared indicators, sparse mixed-branch mask
+ordering, all-task standalone execution/raw inference, no-fit preview/persistence,
+typed handoff, unsaved-draft preservation, editor validation and history repair.
+
+## Lineage and inference contracts development (v0.5 Commit 08)
+
+No migration/dependency change. Central lineage complements extension-specific typing;
+it must never become a second executor or fit exploratory data. Newly resolved plans
+opt into schema guards; plans without `schema_contract` must preserve source goldens.
+Generated source embeds the same runtime used by portable saved model classes. Raw
+validation must not parse or coerce values before existing cleaning policies run.
+
+Focused checks from repository root:
+
+```powershell
+backend/.venv/Scripts/python.exe -m pytest backend/tests/test_lineage_contracts.py backend/tests/test_codegen.py::test_source_goldens -q
+node --experimental-strip-types --test frontend/tests/lineage.test.mjs frontend/tests/preparation.test.mjs frontend/tests/actionable-eda.test.mjs frontend/tests/feature-engineering.test.mjs
+```
+
+Coverage includes computed dependencies, target/stage/cycle rejection, raw projection,
+fitted sklearn names/order/width, cleaning-compatible inputs, all-task standalone
+inference, stateless-to-fitted chaining, transitive imputation admission and blocked
+producer removal with retained history. Run the existing frontend typecheck/lint/build
+and Ruff checks; avoid retraining unrelated models or rewriting historical artifacts.
+
+## v0.5.0 release integration
+
+Current candidate evidence and proposed release notes are in
+[v0.5.0 readiness](development/v0.5.0-release-readiness.md). The older beta report
+is historical evidence, not the current acceptance result. Public/CLI version is
+0.5.0; Python/frontend packages remain independently versioned at 0.2.0. Frozen IR,
+generator, runtime and result identifiers are not release-number substitutes.
+
+The optional v0.5 extensions are carried by the existing task-specific Pipeline IR:
+`temporal`, `derived`, `imputation`, `cleaning`, `feature_engineering`,
+`outlier_treatment`, and `feature_selection`, each with its own version field.
+They do not change `ir_version` or add a migration. See the Studio guide for actual
+parameters, stage ordering, null policies and supported chains. Omitted extensions
+preserve historical serialization/source goldens. The resolved `schema_contract`
+belongs to the execution plan, not a second editable IR; exact fitted schema lives
+in the complete model artifact. No frozen specification has been rewritten.

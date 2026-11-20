@@ -94,6 +94,12 @@ export function compareContext(projectId: string, runs: Run[]) {
   check(same(a.summary.target, b.summary.target) && ((runTask(a) === "regression" && runTask(b) === "regression") || (a.result?.schema_version === "mlstudio-result-v3" && b.result?.schema_version === "mlstudio-result-v3" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels)) || (a.result?.schema_version === "mlstudio-result-v1" && b.result?.schema_version === "mlstudio-result-v1" && same(a.result.confusion_matrix.labels, b.result.confusion_matrix.labels))), "Target or typed positive/negative class orientation differs.");
   const pa = a.execution_plan, pb = b.execution_plan;
   check(same(pa?.source, pb?.source) && same(pa?.target, pb?.target), "Frozen source/target interpretation differs or is unavailable.");
+  check(same(pa?.temporal ?? "absent", pb?.temporal ?? "absent"), "Frozen temporal definitions or parsing policies differ; metric deltas are suppressed.");
+  check(same(pa?.derived ?? "absent", pb?.derived ?? "absent"), "Frozen derived definitions or input interpretation differ; metric deltas are suppressed.");
+  check(same(pa?.imputation ?? "absent", pb?.imputation ?? "absent"), "Frozen advanced imputation rules or input interpretation differ; metric deltas are suppressed.");
+  check(same(pa?.outlier_treatment ?? "absent", pb?.outlier_treatment ?? "absent") && same(pa?.feature_selection ?? "absent", pb?.feature_selection ?? "absent"), "Frozen outlier treatment or feature selection differs; metric deltas are suppressed.");
+  check(same(pa?.feature_engineering ?? "absent", pb?.feature_engineering ?? "absent"), "Frozen feature-engineering definitions or inputs differ; metric deltas are suppressed.");
+  check(same(pa?.cleaning ?? "absent", pb?.cleaning ?? "absent"), "Frozen cleaning, selection or validation rules differ; metric deltas are suppressed.");
   check(same(pa?.split, pb?.split), "Frozen test size, seed or stratification differs or is unavailable.");
   const versions = (run: Run) => {
     const plan = run.execution_plan;

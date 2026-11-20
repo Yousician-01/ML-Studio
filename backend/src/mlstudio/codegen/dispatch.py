@@ -37,8 +37,33 @@ def resolve_for_version(ir, dataset, selected_target, frame):
 def generate_for_version(plan):
     payload = plan if isinstance(plan, dict) else plan.model_dump(mode="json")
     resolved = load_plan(payload)
-    if isinstance(resolved, EffectiveExecutionPlan):
-        return binary_generate(resolved)
-    from mlstudio.codegen.v2.render import generate
+    from mlstudio.codegen.temporal import extend_source
 
-    return generate(resolved)
+    if isinstance(resolved, EffectiveExecutionPlan):
+        source = binary_generate(resolved)
+    else:
+        from mlstudio.codegen.v2.render import generate
+
+        source = generate(resolved)
+    from mlstudio.codegen.cleaning import extend_source as extend_cleaning
+    from mlstudio.codegen.contracts import extend_source as extend_contracts
+    from mlstudio.codegen.derived import extend_source as extend_derived
+    from mlstudio.codegen.feature_engineering import extend_source as extend_engineering
+    from mlstudio.codegen.imputation import extend_source as extend_imputation
+    from mlstudio.codegen.outliers import extend_source as extend_outliers
+
+    return extend_contracts(
+        extend_outliers(
+            extend_engineering(
+                extend_cleaning(
+                    extend_imputation(
+                        extend_derived(extend_source(source, resolved), resolved), resolved
+                    ),
+                    resolved,
+                ),
+                resolved,
+            ),
+            resolved,
+        ),
+        resolved,
+    )

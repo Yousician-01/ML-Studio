@@ -79,6 +79,18 @@ See [execution/tracking](development/v0.2-phase-5-execution.md).
 
 ## Frontend and Code Mode
 
+The v0.5 Data Preparation Studio unifies existing exploration and preparation
+around a bounded table. `lib/preparation.ts` derives fixed Applied Steps and prefix
+IR: parsing, temporal dependencies, participation and per-feature fitted branches.
+UI keys reconstruct from intent; no step/event-log schema is persisted. Temporal
+prefixes use the existing preview service; fitted stage values remain explicitly
+unavailable. No frontend fitting or second transformation engine is introduced.
+
+Bounded undo/redo and revision-checked tab recovery hold copies of the same IR.
+Existing PATCH remains authoritative SQLite persistence. Legacy configurations
+load without rewrite, and invalid entries remain editable. Prepare/Explore links
+enter the studio; Code Mode continues to suspend visual writes.
+
 The App Router Project workspace keeps typed API calls at the existing API
 boundary. Browser state/recovery buffers are not authoritative domain persistence.
 Explore shows bounded source profiles, not held-out predictions. Regression source
@@ -96,6 +108,177 @@ See [unified workspace](development/unified-code-workspace.md),
 [execution](development/v0.3-phase-2a-execution.md) and
 [reporting](development/v0.3-phase-2b-evaluation.md).
 
+## Typed temporal extension (v0.5 development)
+
+The existing task-specific IR gains an optional `temporal` object explicitly
+versioned `temporal-v1`. Structured source/literal/derived references and a small
+typed operation catalogue produce numeric/binary columns. Bounded dependency/type
+validation rejects cycles, unresolved references, target dependencies and name
+collisions. This extends the existing configuration authority; no parallel recipe
+or database migration is introduced.
+
+`temporal_schemas.py` owns contracts. `temporal_runtime_v1.py` owns stateless UTC
+parsing/calculation and the sklearn transformer. The source-bound service supplies
+virtual column metadata and bounded preview without changing Dataset metadata.
+All task resolvers reuse the same feature resolution. Generated source embeds the
+fixed runtime, explicit config and source dtypes; the saved model performs temporal
+transformation before its existing ColumnTransformer. Splitting remains before
+learned imputation/scaling. No expression uses eval/exec or the clock.
+
+Absent extensions are omitted from serialized IR/plans, preserving legacy hashes
+and byte-for-byte source goldens. New temporal plans freeze the capability version,
+definitions/policies and input dtypes; historical evidence is never regenerated.
+Existing compiler/result task identities remain unchanged, with this explicit
+versioned optional capability. Older applications cannot read temporal intent;
+use the compatible checkout instead of stripping it from frozen evidence.
+
+The Live Viewer and Code Drafts reuse existing preview/snapshot paths. Comparison
+conservatively suppresses deltas when frozen temporal definitions/policies differ.
+See the [user contract](user-guide/explore-and-prepare.md#datetime-feature-engineering-v05-development)
+and [developer details](development.md#temporal-feature-extension-v05).
+
+## Generalized derived extension (v0.5 Commit 03)
+
+Existing task-specific IR/plan objects gain optional `derived` with version
+`derived-v1`; absent extensions are omitted, preserving legacy plan bytes and
+source goldens. JSON persistence and Project revisions are unchanged; no database
+migration or endpoint is added. `derived_schemas.py` bounds untrusted trees before
+recursive parsing and delegates type/dependency validation to portable helpers.
+
+`derived_runtime_v1.py` contains the fixed stateless interpreter and sklearn
+`DerivedFeatures` transformer. `services/derived.py` composes temporal then general
+stages into virtual columns, separate from immutable Dataset metadata. The existing
+`pipeline/temporal-preview` transport returns both kinds of row-wise outputs with
+JSON-safe samples and diagnostics. All task resolvers freeze raw dtypes, input/output
+types and definitions into existing execution plans. Generated source embeds that
+exact runtime; the saved model retains it before the existing ColumnTransformer
+and estimator. Raw dependency columns remain required even when excluded as direct
+estimator inputs. Training-partition guards inspect actual derived model inputs.
+No user expression becomes Python source or learns full-source statistics.
+
+The Studio sends the selected dependency closure for repair previews while Apply
+retains complete intent. Applied Steps emits temporal then dependency-ordered
+generalized prefixes. Saved-model inference repeats calculation from raw inputs;
+historical Run source/model evidence is never rewritten. See the
+[feature guide](user-guide/explore-and-prepare.md#generalized-derived-feature-builder-v05-development).
+
+## Advanced imputation extension (v0.5 Commit 04)
+
+Optional `imputation-v1` JSON intent configures a single shared DataFrame transformer
+after stateless temporal/generalized derivation and before existing feature branches.
+`imputation_schemas.py` and `imputation_runtime_v1.py` own bounded admission and the
+sklearn transformer. Predicates normalize source/derived references and reuse the
+existing typed derived interpreter. They always read pre-imputation inputs.
+`services/imputation.py` supplies validation, non-fitted diagnostics, indicator
+metadata and resolved raw dependencies through the existing Pipeline/preview APIs.
+
+Every compiler embeds the same fixed runtime. The existing split happens first;
+only `model_pipeline.fit(X_train, y_train)` estimates global/group donors. Transform
+uses stored mappings and never relearns on held-out/inference rows. Included
+indicator outputs are explicit model columns. Earlier feature guards remain for
+unhandled columns; advanced fit/transform owns its actionable completeness checks.
+Generated failure messages allow only the runtime's sanitized validation exception.
+
+Quick and advanced imputers cannot be active together on one column. The former
+quick strategy is restoration metadata, not a second executed configuration.
+Excluded targets retain dormant settings. Omitted extensions preserve old IR/plan
+serialization and source goldens. There is no database migration, dependency,
+second workflow engine or historical artifact rewrite. See the
+[user guide](user-guide/explore-and-prepare.md#advanced-imputation-v05-development).
+
+## Declarative cleaning and selection (v0.5 Commit 05)
+
+Optional `cleaning-v1` extends existing IR/plan JSON without changing legacy
+serialization. Raw operations execute before temporal/generalized derivation;
+Dataset-only filters/deduplication execute afterward, before splitting. Raw quality
+rules use report/reject/coerce behavior; they never implicitly remove rows. Source
+columns, label identity and historical artifacts retain their existing ownership.
+
+`cleaning_runtime_v1.py` reuses typed derived predicates and the frozen temporal
+parser. `CleaningFeatures` is a stateless, cardinality-preserving model transformer;
+`cleaning_select` is a separate training-only runtime entry point. Fixed datetime
+fills emit canonical UTC values, with downstream resolved temporal policies adapted
+to ISO without rewriting original temporal intent. `datetime_policy.py` shares the
+unchanged policy model between schemas, avoiding circular imports/duplicate grammar.
+
+`services/cleaning.py` supplies virtual corrected schema, bounded diagnostics,
+retained preview indices and deterministic population counts. All task compilers
+embed the same row-wise/runtime selection code. Generated training selects original
+raw row indices after evaluating cleaned/derived features, then fits the complete
+pipeline on its training partition. Selection-only inputs are not hidden inference
+requirements. Learned imputation remains after the split.
+
+Run admission freezes original-source and filtered-eligible counts in the existing
+manifest. Multiclass finalization permits their difference only for cleaning plans
+and computes held-out denominators from eligible rows. Existing result protocol
+fields are preserved. Historical plans without cleaning retain their old constraints.
+Frontend comparison rejects differing frozen cleaning contexts. See the
+[user contract](user-guide/explore-and-prepare.md#data-cleaning-selection-and-validation-v05-development).
+
+## Advanced feature engineering (v0.5 Commit 06)
+
+Optional `feature-engineering-v1` extends the existing task-specific IR/plan JSON;
+absent fields are omitted to preserve legacy hashes and source goldens. Typed bounded
+schemas live in `feature_engineering_schemas.py`; contextual source/derived typing,
+virtual output schema and preview admission live in `services/feature_engineering.py`.
+The existing preview endpoint serves stateless values and configuration-only fitted
+diagnostics. Fitted placeholder types are internal admission data and are never
+returned as source preview values.
+
+`EngineeringFeatures` appends named outputs after Advanced Imputation and before
+the existing ColumnTransformer branches. Stateless math delegates to `derived-v1`;
+explicit boundaries and typed ordinal mappings do not fit data. Power/quantile
+transforms, learned bin edges and rare retained sets fit only inside training
+`Pipeline.fit`. Missing values propagate. Per-output branch imputation/encoding/
+scaling remains authoritative. Earlier source quick imputers cannot affect this
+stage; direct input Advanced Imputation can. Engineering-output chaining and inputs
+from post-imputation indicators are rejected. Source/temporal/generalized dependencies
+remain raw model input requirements; prediction preserves input cardinality.
+
+`codegen/feature_engineering.py` embeds the exact versioned runtime after existing
+render extensions, freezes source dtypes, registers portable fitted classes and
+inserts the real transformer into all three task pipelines. Saved models use frozen
+training parameters, not Dataset access or inference-time refitting. No schema
+migration, dependency change or model family is introduced. Studio history and
+Applied Steps project this fixed stage order; comparison suppresses metric deltas
+when frozen engineering contexts differ. See the user guide for bounds/policies.
+
+## Actionable EDA and fitted treatment (v0.5 Commit 07)
+
+The existing source profile endpoint accepts bounded `iqr_multiplier` (default
+1.5); `numeric_profile` adds IQR/variance/tail counts to existing distributions.
+`profile_column` extracts shared profile construction so regression can reuse it.
+Existing histograms, boxplots and bounded correlation computation are retained.
+All EDA remains read-only full-source evidence, revision-bound and separate from
+Studio's retained-row/stateless preview. No prepared/fitted distribution is inferred
+from a source profile. Source profile caching remains keyed by Dataset/revision;
+changing the exploratory multiplier triggers a fresh request rather than reusing a
+different parameter's evidence.
+
+`PreparationHandoff` is a typed local callback within the unified Studio, carrying
+Project, Dataset, revision, feature/action and optional multiplier. It validates
+scope and current draft compatibility before replacing the diagnostics dialog with
+the appropriate editor, preserving the same draft/history. No recipe URL, new page,
+global state framework or bypass of Save is introduced. `ColumnDetail` is extracted
+for reuse across classification/regression/source-profile surfaces.
+
+Optional `outlier-treatment-v1` freezes intent and raw dtype dependencies in existing
+IR/plan JSON. `OutlierFeatures` appends non-destructive numeric outputs after feature
+engineering. Its indicator shares training-fitted IQR fences and chosen tails.
+`feature-selection-v1` wraps the existing ColumnTransformer in `SelectedPreprocessor`:
+branches fit normally on training data; population variances are computed only on
+explicitly eligible numeric scalar branch slices **after their configured scaling**.
+Categorical slices stay in order and unmodified. The fitted mask is reused, not
+recalculated during prediction. No eligible survivors produces an explicit error.
+
+`outlier_runtime_v1.py` is embedded unchanged in standalone source for all three
+tasks and registered for portable joblib loading. Generated raw-input requirements
+exclude virtual outputs. Admission uses virtual types/configuration diagnostics;
+fitted placeholders never reach the preview response. No fences or selected mask
+are fitted for preview. Omitted extensions preserve legacy plan/source goldens.
+Comparison checks both frozen extensions. No dependency, migration, source CSV
+mutation, historical artifact rewrite or new model family is introduced.
+
 ## Operational limits
 
 Single trusted local user; no authentication, remote execution service or secure
@@ -107,3 +290,36 @@ metadata/logs; code and class labels may still be sensitive. Models are trusted
 local joblib files. No cloud, PostgreSQL, Docker, queue, automatic GC or continuous
 backup service is required. See [Security](../SECURITY.md), [CLI](cli.md) and
 [Development](development.md) for configuration/recovery and concrete module paths.
+
+## Computed lineage and schema contracts (v0.5 Commit 08)
+
+`lineage.py` computes a source/temporal/derived/indicator/engineering/outlier registry
+from IR and column metadata. It exposes feature producers, fixed stages, ancestors,
+consumers, participation and raw requirements; in-place imputation provenance is
+recorded separately from original raw-value dependencies. Existing extension-specific
+typing and runtime validation are retained. Central structured errors gate readiness
+and compilation, without scheduling operations or adding a database table.
+
+The Studio derives draft dependency checks from its existing Applied Steps. Producer
+removal is blocked by consumers rather than cascading, and edits cannot silently
+remove dependencies. Explicit confirmed bulk reverts are separate from single-step
+edits. Sequential stateless engineering outputs may feed later engineering operations;
+the runtime evaluates precisely this stored order. Learned engineering outputs cannot
+feed other engineering operations. Transitive imputation admission follows these
+safe edges, stopping at introduced invalid values. Existing fixed stage order and
+training-only fit/row-selection boundaries remain unchanged.
+
+New plan resolution attaches optional `schema_contract`; old plan serialization omits
+it. `codegen/contracts.py` runs after current compiler extensions and derives exact
+raw columns from the emitted fixed constants. It embeds `schema_runtime_v1.py`.
+`RawInputs` projects required names and ignores extras without parsing/coercing values.
+`ContractPreprocessor` wraps the existing ColumnTransformer/variance wrapper, freezes
+scikit-learn names/count/representation and selection mask, and checks inference
+compatibility/cardinality. Learned preprocessing is still fit only by the existing
+training Pipeline. The raw guard records standard fitted input names/count so
+scikit-learn also recognizes fitted preprocessing prefixes. Contracts are stored
+in the existing trusted model.joblib as
+`pipeline.schema_contract_` and the fitted wrapper's `contract_`; no new artifact
+protocol, prediction API or migration is required. Old frozen source/models remain
+readable with their original behavior. These guards do not constrain arbitrary
+manual Python or claim domain-level leakage detection.

@@ -18,6 +18,13 @@ export type RunResult = BinaryResult | RegressionResult | MulticlassResult;
 export type FrozenModel = { name?: string; estimator?: string; type?: string; parameters: Constructor["parameters"] };
 export type FrozenTarget = { column: string; positive_class?: TypedScalar; negative_class?: TypedScalar; classes?: TypedScalar[]; physical_dtype?: string; semantic_type?: string; missing_value_policy?: string; value_type?: string };
 export type FrozenPlan = {
+  outlier_treatment?: import("./pipelines").OutlierConfig & { input_dtypes: Record<string, string> };
+  feature_selection?: import("./pipelines").FeatureSelection;
+  feature_engineering?: import("./pipelines").EngineeringConfig & { input_dtypes: Record<string, string>; input_types: Record<string, string> };
+  cleaning?: import("./pipelines").CleaningConfig & { input_dtypes: Record<string, string>; input_types: Record<string, string>; selection_types: Record<string, string>; target: string };
+  imputation?: import("./pipelines").ImputationConfig & { input_dtypes: Record<string, string>; input_types: Record<string, string> };
+  derived?: import("./pipelines").DerivedConfig & { input_dtypes: Record<string, string>; input_types: Record<string, string>; output_types: Record<string, string> };
+  temporal?: import("./pipelines").TemporalConfig & { input_dtypes: Record<string, string> };
   plan_version: string; ir_version: string; task?: "regression" | "multiclass_classification";
   generator: string;
   source: { parser: string; size_bytes: number; encoding: string; missing_values: string; integer_policy: string };

@@ -5,9 +5,17 @@ from typing import Literal
 from pydantic import Field
 
 from mlstudio.codegen.compatibility import library_versions, python_version
-from mlstudio.codegen.plan import classifier, operation
-from mlstudio.codegen.schemas import EffectiveExecutionPlan, FeaturePlan, PlanModel, SourceContract
+from mlstudio.codegen.plan import classifier
+from mlstudio.codegen.schemas import EffectiveExecutionPlan, PlanModel, SourceContract
+from mlstudio.lineage import contract_intent
 from mlstudio.pipeline_schemas import TypedScalar
+from mlstudio.services.cleaning import resolved as resolved_cleaning
+from mlstudio.services.derived import resolved as resolved_derived
+from mlstudio.services.feature_engineering import resolved as resolved_engineering
+from mlstudio.services.imputation import resolved as resolved_imputation
+from mlstudio.services.outliers import resolved as resolved_outliers
+from mlstudio.services.temporal import features as temporal_features
+from mlstudio.services.temporal import resolved as resolved_temporal
 
 
 class MulticlassTarget(PlanModel):
@@ -61,6 +69,7 @@ def resolve(ir, dataset, selected_target, frame):
     target = next(c for c in columns if c["name"] == ir.target.column)
     return MulticlassPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=MulticlassTarget(
             column=ir.target.column,
@@ -68,16 +77,14 @@ def resolve(ir, dataset, selected_target, frame):
             semantic_type=target["semantic_override"] or target["inferred_semantic_type"],
             classes=tuple(classes),
         ),
-        features=tuple(
-            FeaturePlan(
-                name=c["name"],
-                physical_dtype=str(frame[c["name"]].dtype),
-                semantic_type=c["semantic_override"] or c["inferred_semantic_type"],
-                operations=tuple(operation(op) for op in ir.features[c["name"]].operations),
-            )
-            for c in columns
-            if c["name"] in ir.features and ir.features[c["name"]].included
-        ),
+        temporal=resolved_temporal(ir, dataset, frame),
+        derived=resolved_derived(ir, dataset, frame),
+        imputation=resolved_imputation(ir, dataset, frame),
+        cleaning=resolved_cleaning(ir, dataset, frame),
+        feature_engineering=resolved_engineering(ir, dataset, frame),
+        outlier_treatment=resolved_outliers(ir, dataset, frame),
+        feature_selection=ir.feature_selection,
+        features=temporal_features(ir, dataset, frame),
         split=ir.split.model_dump(),
         model=classifier(ir),
         implementation={"python": python_version(), "libraries": library_versions()},

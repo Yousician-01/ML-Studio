@@ -102,7 +102,7 @@ def relationship(frame, feature, target):
     )
 
 
-def build_regression_profile(frame, dataset, project, offset=0, feature=None):
+def build_regression_profile(frame, dataset, project, offset=0, feature=None, iqr_multiplier=1.5):
     target_name = project.target_column
     target = None
     if target_name is not None:
@@ -129,7 +129,19 @@ def build_regression_profile(frame, dataset, project, offset=0, feature=None):
         raise DomainError("Choose an available numeric source feature.", 422)
     page = candidates[offset : offset + COLUMN_LIMIT]
     selected = feature if feature is not None else (page[0]["name"] if page else None)
+    from mlstudio.services.profiles import correlations, profile_column
+
     return RegressionProfileResponse(
+        feature_profile=profile_column(
+            frame,
+            dataset,
+            project,
+            next(c for c in candidates if c["name"] == selected),
+            iqr_multiplier,
+        )
+        if selected
+        else None,
+        correlation=correlations(frame, dataset, project),
         dataset_id=dataset.id,
         revision=project.revision,
         fingerprint=dataset.fingerprint,

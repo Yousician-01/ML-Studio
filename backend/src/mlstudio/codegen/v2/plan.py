@@ -1,17 +1,24 @@
 """Resolve regression intent using existing preparation grammar, without execution."""
 
 from mlstudio.codegen.compatibility import library_versions, python_version
-from mlstudio.codegen.plan import operation
-from mlstudio.codegen.schemas import FeaturePlan, SourceContract
+from mlstudio.codegen.schemas import SourceContract
 from mlstudio.codegen.v2.schemas import (
     Implementation,
     NumericTarget,
     RegressionPlan,
     RegressionSplit,
 )
+from mlstudio.lineage import contract_intent
 from mlstudio.model_catalog import descriptor_for
 from mlstudio.pipeline_schemas import RegressionPipelineIR
+from mlstudio.services.cleaning import resolved as resolved_cleaning
+from mlstudio.services.derived import resolved as resolved_derived
+from mlstudio.services.feature_engineering import resolved as resolved_engineering
+from mlstudio.services.imputation import resolved as resolved_imputation
+from mlstudio.services.outliers import resolved as resolved_outliers
 from mlstudio.services.pipelines import validate
+from mlstudio.services.temporal import features as temporal_features
+from mlstudio.services.temporal import resolved as resolved_temporal
 
 
 def resolve(ir, dataset, selected_target, frame):
@@ -29,22 +36,21 @@ def resolve(ir, dataset, selected_target, frame):
     }
     return RegressionPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=NumericTarget(
             column=ir.target.column,
             physical_dtype=str(frame[ir.target.column].dtype),
             semantic_type=target["semantic_override"] or target["inferred_semantic_type"],
         ),
-        features=tuple(
-            FeaturePlan(
-                name=c["name"],
-                physical_dtype=str(frame[c["name"]].dtype),
-                semantic_type=c["semantic_override"] or c["inferred_semantic_type"],
-                operations=tuple(operation(op) for op in ir.features[c["name"]].operations),
-            )
-            for c in columns
-            if c["name"] in ir.features and ir.features[c["name"]].included
-        ),
+        temporal=resolved_temporal(ir, dataset, frame),
+        derived=resolved_derived(ir, dataset, frame),
+        imputation=resolved_imputation(ir, dataset, frame),
+        cleaning=resolved_cleaning(ir, dataset, frame),
+        feature_engineering=resolved_engineering(ir, dataset, frame),
+        outlier_treatment=resolved_outliers(ir, dataset, frame),
+        feature_selection=ir.feature_selection,
+        features=temporal_features(ir, dataset, frame),
         split=RegressionSplit(**ir.split.model_dump()),
         model=model,
         implementation=Implementation(python=python_version(), libraries=library_versions()),

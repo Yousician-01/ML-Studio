@@ -1,7 +1,7 @@
 # ML Studio local CLI (beta)
 
 For OS-specific setup, use [Installation](installation.md). Current local validation
-and remote/platform limits are in [beta readiness](development/beta-release-readiness.md).
+and remote/platform limits are in [v0.5.0 readiness](development/v0.5.0-release-readiness.md).
 
 `mls` installs this checkout and supervises **two independent real servers**:
 Python FastAPI and production Node.js Next.js. Rust does not serve the application,
@@ -230,3 +230,12 @@ from a second terminal. Follow logs and Ctrl+C (app must stay running). Abort an
 verify both ports close. Start again and Ctrl+C the supervisor. Check occupied ports,
 stale session safety, startup failure cleanup, and an existing-workspace upgrade
 backup before accepting each platform. Never intentionally damage your real data.
+
+## v0.5.0 candidate identity
+
+The public release and CLI identity is `0.5.0`. Python and frontend packages remain
+independently versioned at `0.2.0`; that is also the backend OpenAPI package version.
+IR, generator, parser and result versions are separate compatibility identifiers.
+No application-server replacement accompanies this identity change. The release
+also patches Next.js and its ESLint configuration to 16.4.6; backend dependency pins
+are unchanged. This candidate has not been tagged, published or distributed automatically.

@@ -20,7 +20,7 @@ synthetic reproduction. Redact credentials, private paths and Dataset contents.
 
 ## Supported boundary: trusted local development
 
-ML Studio v0.4.0-beta.1 is a source-installed local beta supporting binary
+ML Studio v0.5.0 release candidate is a source-installed local beta supporting binary
 classification, multiclass classification and regression.
 Its verified acceptance environment is Windows, Python 3.14.2 and Node.js 24.13.0. Other platforms
 and runtime versions are not acceptance-verified. It is not a production service.
@@ -72,13 +72,15 @@ fixes should preserve immutable experiment evidence and avoid expanding scope.
 
 ## Dependency audit evidence
 
-The 2026-11-03 release preparation audit reported zero npm production
-vulnerabilities and 14 moderate development-tooling entries (no high/critical).
+The historical 2026-11-03 release preparation audit reported zero npm production
+vulnerabilities. On 2026-11-20, v0.5.0 integration patched Next.js and its ESLint
+configuration from 16.4.1 to 16.4.6 after moderate advisories were reported.
+`npm audit --omit=dev` then reported zero vulnerabilities; installation still
+reported seven moderate entries when development tooling was included.
 Advisory results change over time and do not establish absence of vulnerabilities.
 Do not process untrusted repositories/patterns as though developer tools were
 sandboxed. Python `pip-audit` and Rust `cargo-audit` were unavailable locally;
 `pip check` verifies dependency consistency, not vulnerability status.
 
-See [beta readiness](docs/development/beta-release-readiness.md) for exact commands,
-validation limits and outstanding maintainer checks. No dependency upgrades were
-made as part of the documentation release pass.
+See [v0.5.0 readiness](docs/development/v0.5.0-release-readiness.md) for exact
+commands, validation limits and outstanding maintainer checks.

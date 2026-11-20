@@ -8,8 +8,7 @@ import { confirmTrainLeave } from "@/lib/train-drafts";
 import { taskLabel } from "@/lib/api/task-policy";
 import { ProjectForm } from "./project-form";
 import { DataView } from "./data-view";
-import { Explore } from "./explore";
-import { Prepare } from "./prepare";
+import { DataPreparationStudio } from "./data-preparation-studio";
 import { Train } from "./train";
 import { LiveCodeViewer } from "./live-code-viewer";
 import { LivePipelineProvider, useLivePipeline } from "./live-pipeline";
@@ -34,11 +33,11 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
   const mode = useCodeMode();
   const router = useRouter();
   const search = useSearchParams();
-  const view = search.get("view") === "evaluate" ? "evaluate" : search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "data";
+  const view = search.get("view") === "data" ? "data" : search.get("view") === "evaluate" ? "evaluate" : search.get("view") === "runs" ? "runs" : search.get("view") === "code" ? "code" : search.get("view") === "train" ? "train" : search.get("view") === "prepare" ? "prepare" : search.get("view") === "explore" ? "explore" : "prepare";
   const live = useLivePipeline()!;
-  const [returnQuery, setReturnQuery] = useState(search.get("return_to") ?? "view=data");
+  const [returnQuery, setReturnQuery] = useState(search.get("return_to") ?? "view=prepare");
   const returnSearch = new URLSearchParams(returnQuery);
-  const returnBench = ["data", "explore", "prepare", "train", "runs", "evaluate"].includes(returnSearch.get("view") ?? "") ? returnSearch.get("view")! : "data";
+  const returnBench = ["data", "explore", "prepare", "train", "runs", "evaluate"].includes(returnSearch.get("view") ?? "") ? returnSearch.get("view")! : "prepare";
   const benchSearch = view === "code" ? returnSearch : search;
   const bench = view === "code" ? returnBench : view;
   const fullScreen = view === "code" && Boolean(mode.draft);
@@ -76,7 +75,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
     if (await mode.exit(action)) {
       setReturning(false); live.refresh();
       window.dispatchEvent(new Event("mlstudio:visual-refresh"));
-      router.push(`/projects/${projectId}?${returnQuery || "view=data"}`);
+      router.push(`/projects/${projectId}?${returnQuery || "view=prepare"}`);
     }
   }
   const [project, setProject] = useState<Project | null>(null);
@@ -99,7 +98,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
       try {
         const current = await api.project(projectId, controller.signal);
         const source =
-          bench === "data" && current.active_dataset_id
+          ["data", "prepare", "explore"].includes(bench) && current.active_dataset_id
             ? await api.dataset(projectId, controller.signal)
             : null;
         if (!controller.signal.aborted) {
@@ -125,7 +124,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
     // Revalidate on return from another tab; no polling or background profile computation.
     function focus() {
       // Data may be returning from the native file picker; preserve its selection.
-      if (view === "explore" && !settingsOpen && !deleting) {
+      if (view === "runs" && !settingsOpen && !deleting) {
         setLoading(true);
         setError("");
         setAttempt((v) => v + 1);
@@ -135,6 +134,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
     return () => window.removeEventListener("focus", focus);
   }, [view, settingsOpen, deleting]);
   function saved(source: Dataset) {
+    if (source.id !== project?.active_dataset_id) router.push(`/projects/${projectId}?view=prepare`);
     live.refresh();
     setDataset(source);
     setProject((current) =>
@@ -149,7 +149,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
     );
   }
   return (
-    <AppShell project={project ?? { id: projectId, name: "Project workspace" }} view={view} onNavigate={name => { if (view !== name && !fullScreen) setLoading(true); }} toolbar={<Button title="Show Code" aria-label="Show Code" aria-pressed={preference.presentation !== "closed"} onClick={() => prefer({ ...preference, presentation: preference.presentation === "closed" ? "docked" : "closed" })}><Icon name="code" /><span>Code</span></Button>}>
+    <AppShell project={project ?? { id: projectId, name: "Project workspace" }} view={view === "explore" ? "prepare" : view} onNavigate={name => { if (view !== name && !fullScreen) setLoading(true); }} toolbar={<Button title="Show Code" aria-label="Show Code" aria-pressed={preference.presentation !== "closed"} onClick={() => prefer({ ...preference, presentation: preference.presentation === "closed" ? "docked" : "closed" })}><Icon name="code" /><span>Code</span></Button>}>
     <div className={`code-companion-layout ${preference.presentation === "docked" && !fullScreen ? "has-code-dock" : ""}`} style={{ "--live-code-width": `${preference.width}%` } as CSSProperties}>
     <main className="workspace" id={fullScreen ? "visual-main-content" : "main-content"} tabIndex={-1} hidden={fullScreen}>
       <div className="breadcrumb">
@@ -174,7 +174,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
           </div>
         )}
       </div>
-      <WorkflowRail view={view} hasDataset={Boolean(project?.active_dataset_id)} codeMode={!fullScreen && Boolean(mode.draft)} />
+      <WorkflowRail view={view === "explore" ? "prepare" : view} hasDataset={Boolean(project?.active_dataset_id)} codeMode={!fullScreen && Boolean(mode.draft)} />
       {mode.error && <Alert>{mode.error}<Button disabled={mode.busy} onClick={() => void mode.reopen()}>Reopen saved Code</Button></Alert>}
       {mode.notice && <Alert tone="info">{mode.notice}</Alert>}
       {mode.recovery && <Alert tone="info">Unsaved text from an earlier Code revision is retained below. It has not been rebased onto the saved draft. Copy it before explicitly discarding this recovery buffer to continue.
@@ -182,7 +182,7 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
         <Button onClick={mode.dropRecovery}>Use saved state and discard recovered text</Button>
       </Alert>}
 
-      {mode.draft && !fullScreen && ["data", "prepare", "train"].includes(bench) && <VisualReentryWarning modified={mode.modified} dirty={mode.dirty} busy={mode.busy || Boolean(mode.recovery)} onContinue={editCode} onSnapshot={() => void returnVisual("save_snapshot")} onDiscard={() => void returnVisual("discard")} />}
+      {mode.draft && !fullScreen && ["data", "prepare", "explore", "train"].includes(bench) && <VisualReentryWarning modified={mode.modified} dirty={mode.dirty} busy={mode.busy || Boolean(mode.recovery)} onContinue={editCode} onSnapshot={() => void returnVisual("save_snapshot")} onDiscard={() => void returnVisual("discard")} />}
       <fieldset className="visual-bench-boundary" disabled={Boolean(mode.draft) && ["data", "prepare", "train", "explore"].includes(bench)}>
       {error ? (
         <Alert>
@@ -208,19 +208,15 @@ function WorkspaceContent({ projectId }: { projectId: string }) {
           <Runs key={`${project.id}:${attempt}`} projectId={projectId} runId={benchSearch.get("run")} />
         ) : bench === "train" ? (
           <Train key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
-        ) : bench === "prepare" ? (
-          <Prepare key={`${project.active_dataset_id}:${attempt}`} projectId={projectId} datasetId={project.active_dataset_id} onReload={reload} />
         ) : (
-          <Explore
-            task={project.ml_objective}
-            key={`${project.active_dataset_id}:${project.revision}:${attempt}`}
-            projectId={projectId}
-            dataset={
-              project.active_dataset_id
-                ? { id: project.active_dataset_id, revision: project.revision }
-                : null
-            }
+          <DataPreparationStudio
+            key={`${project.active_dataset_id}:${attempt}`}
+            project={project}
+            dataset={dataset}
+            onDatasetSaved={saved}
             onReload={reload}
+            initialDiagnostics={bench === "explore"}
+            readOnly={Boolean(mode.draft)}
           />
         ))
       )}

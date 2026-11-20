@@ -1,6 +1,6 @@
 # ML Studio documentation
 
-Public guide to the v0.4.0-beta.1 checkout. Start with installation and a real experiment, then use the references as needed.
+Public guide to the v0.5.0 release candidate checkout. Start with installation and a real experiment, then use the references as needed.
 
 | Goal | Read |
 | --- | --- |
@@ -13,7 +13,7 @@ Public guide to the v0.4.0-beta.1 checkout. Start with installation and a real e
 | Inspect or edit Python | [Code workspace](user-guide/code-workspace.md) |
 | Resolve setup/runtime errors | [Troubleshooting](troubleshooting.md) |
 | Understand or contribute code | [Architecture](architecture.md), [Development](development.md), [Contributing](../CONTRIBUTING.md) |
-| Assess this release candidate | [Beta readiness](development/beta-release-readiness.md) |
+| Assess this release candidate | [Beta readiness](development/v0.5.0-release-readiness.md) |
 
 ## Current behavior and historical contracts
 

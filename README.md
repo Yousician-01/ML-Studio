@@ -4,7 +4,7 @@ A local-first, visual machine learning workbench for building, understanding, an
 
 Configure an experiment visually, inspect its Python, execute that exact source locally, and return to frozen results later. ML Studio connects an approachable workflow with inspectable code instead of hiding the experiment lifecycle.
 
-**Release candidate: v0.4.0-beta.1.** This repository prepares the first public beta; it does not imply a tag, binary, or GitHub Release has been published.
+**Release candidate: v0.5.0 (Advanced Preprocessing).** This repository prepares the candidate; it does not imply a tag, binary, or GitHub Release has been published.
 
 ## Current capabilities
 
@@ -40,7 +40,7 @@ Open http://127.0.0.1:3000. Ctrl+C in the launcher terminal stops both servers. 
 
 ## First experiment
 
-**Data / Explore / Prepare / Train / Evaluate**, with history in **Runs** and Python available through **Show Code** throughout the workspace.
+**Dataset / Data Preparation / Train / Evaluate**, with history in **Runs** and Python through **Show Code**. The v0.5.0 studio brings source exploration, cleaning/row selection, temporal and typed derived features, advanced imputation/engineering, outlier treatment, variance selection and lineage into one table-first workspace; see the [studio guide](docs/user-guide/explore-and-prepare.md).
 
 Follow [Getting started](docs/getting-started.md) using the committed synthetic CSV. Code Mode is an optional explicit fork: arbitrary Python edits never update the preserved visual pipeline automatically.
 
@@ -50,7 +50,7 @@ Follow [Getting started](docs/getting-started.md) using the committed synthetic 
 - [Projects and data](docs/user-guide/projects-and-data.md) / [Explore and Prepare](docs/user-guide/explore-and-prepare.md) / [Training](docs/user-guide/training.md)
 - [Runs and evaluation](docs/user-guide/runs-and-evaluation.md) / [Code workspace](docs/user-guide/code-workspace.md)
 - [CLI](docs/cli.md) / [Troubleshooting](docs/troubleshooting.md)
-- [Architecture](docs/architecture.md) / [Development](docs/development.md) / [Beta readiness evidence](docs/development/beta-release-readiness.md)
+- [Architecture](docs/architecture.md) / [Development](docs/development.md) / [v0.5.0 readiness and release notes](docs/development/v0.5.0-release-readiness.md)
 - [Vision](VISION.md) / [Roadmap](ROADMAP.md) / [Changelog](CHANGELOG.md)
 
 ## Technology and beta boundaries

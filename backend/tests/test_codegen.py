@@ -116,6 +116,8 @@ def golden_plan(case):
         mixed=case == "mixed",
     )
     payload = plan.model_dump()
+    # These fixtures freeze pre-contract source, not newly resolved guarded plans.
+    payload.pop("schema_contract", None)
     payload["implementation"].update(libraries=FIXED_LIBRARIES, python="3.14.2")
     if case == "l1":
         payload["model"]["parameters"].update(penalty="l1", solver="liblinear", l1_ratio=1.0)

@@ -25,7 +25,7 @@ jobs:
             platform: windows-x64
             executable: mls.exe
             suffix: .exe
-          - runner: ubuntu-latest
+          - runner: ubuntu-24.04
             platform: linux-x64
             executable: mls
             suffix: ''

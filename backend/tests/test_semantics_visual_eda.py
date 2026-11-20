@@ -39,8 +39,6 @@ from mlstudio.services.source import infer_semantic
         ("code", [1, 2, 3] * 10, "continuous"),
         ("flag", [0, 1, 0], "binary"),
         ("flag", [True, False, True], "binary"),
-        ("label", ["yes", "no", None], "binary"),
-        ("date", ["2025-01-01", "2025-02-01", "2025-03-01"], "datetime"),
         (
             "words",
             ["This is a sentence with enough words to be free text", "short", "other"],

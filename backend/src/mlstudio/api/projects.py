@@ -22,6 +22,7 @@ from mlstudio.services.pipeline_state import empty_pipeline
 from mlstudio.services.profiles import read_profile
 from mlstudio.services.project_deletion import delete_project
 from mlstudio.services.source import DomainError
+from mlstudio.services.temporal import TemporalPreview
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 Database = Annotated[Session, Depends(get_session)]
@@ -57,6 +58,15 @@ def live_code(body: PipelineUpdate, project: CurrentProject, session: Database, 
 @router.get("/{project_id}/pipeline", response_model=PipelineResponse)
 def retrieve_pipeline(project: CurrentProject, session: Database, request: Request):
     return pipelines.read(session, project, request.app.state.settings)
+
+
+@router.post("/{project_id}/pipeline/temporal-preview", response_model=TemporalPreview)
+def preview_temporal(
+    body: PipelineUpdate, project: CurrentProject, session: Database, request: Request
+):
+    from mlstudio.services.temporal import preview
+
+    return preview(session, project, request.app.state.settings, body)
 
 
 @router.patch("/{project_id}/pipeline", response_model=PipelineResponse)
@@ -120,6 +130,7 @@ def profile(
         "text",
         "unknown",
     ] = "all",
+    iqr_multiplier: Annotated[float, Query(ge=0.1, le=10, allow_inf_nan=False)] = 1.5,
     observation: Literal[
         "all",
         "missing",
@@ -141,6 +152,7 @@ def profile(
         kind,
         observation,
         feature,
+        iqr_multiplier,
     )
 
 

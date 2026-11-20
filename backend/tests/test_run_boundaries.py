@@ -261,7 +261,7 @@ def test_real_mixed_pipeline_unicode_workspace(tmp_path):
         directory = settings.home / "projects" / project["id"] / "runs" / run["id"]
         # Only trusted, test-produced models are loaded, never production ingestion.
         fitted = joblib.load(directory / "model.joblib")
-        assert len(fitted.steps) == 2
+        assert list(fitted.named_steps) == ["raw_schema", "preprocessor", "model"]
         assert (directory / "generated_run.py").read_bytes() == preview["source"].encode()
 
 

@@ -5,9 +5,8 @@ import { useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "./icons";
 
 const workflow = [
-  { view: "data", label: "Data", hint: "Source & target" },
-  { view: "explore", label: "Explore", hint: "Understand the source" },
-  { view: "prepare", label: "Prepare", hint: "Shape your features" },
+  { view: "data", label: "Dataset", hint: "Source & target" },
+  { view: "prepare", label: "Data Preparation", hint: "Inspect & transform" },
   { view: "train", label: "Train", hint: "Configure & execute" },
 ] as const;
 
@@ -49,6 +48,6 @@ export function AppShell({ project, view = "projects", onNavigate, children, too
 }
 
 export function WorkflowRail({ view, hasDataset, codeMode }: { view: string; hasDataset: boolean; codeMode: boolean }) {
-  const steps = [{ view: "data", label: "Dataset", hint: hasDataset ? "Source attached" : "Upload a CSV" }, { view: "prepare", label: "Prepare", hint: "Feature recipe" }, { view: "train", label: "Train", hint: "Saved experiment" }, { view: "evaluate", label: "Evaluate", hint: "Historical evidence" }];
+  const steps = [{ view: "data", label: "Dataset", hint: hasDataset ? "Source attached" : "Upload a CSV" }, { view: "prepare", label: "Data Preparation", hint: "Inspect & transform" }, { view: "train", label: "Train", hint: "Saved experiment" }, { view: "evaluate", label: "Evaluate", hint: "Historical evidence" }];
   return <section className="workflow-rail" aria-label="Experiment workflow"><div className="workflow-rail-label"><Icon name="prepare" /><strong>{codeMode ? "Code Mode active" : "Visual pipeline"}</strong><span>{codeMode ? "Visual recipe preserved" : "From source to evidence"}</span></div><ol>{steps.map((step, index) => <li key={step.view} className={view === step.view ? "is-current" : ""} aria-current={view === step.view ? "step" : undefined}><span className="workflow-number">{index + 1}</span><span><strong>{step.label}</strong><small>{step.hint}</small></span></li>)}</ol></section>;
 }

@@ -4,13 +4,20 @@ from mlstudio.codegen.compatibility import library_versions, python_version
 from mlstudio.codegen.schemas import (
     Constructor,
     EffectiveExecutionPlan,
-    FeaturePlan,
     ImplementationContract,
     ResolvedSplit,
     SourceContract,
     TargetPlan,
 )
+from mlstudio.lineage import contract_intent
+from mlstudio.services.cleaning import resolved as resolved_cleaning
+from mlstudio.services.derived import resolved as resolved_derived
+from mlstudio.services.feature_engineering import resolved as resolved_engineering
+from mlstudio.services.imputation import resolved as resolved_imputation
+from mlstudio.services.outliers import resolved as resolved_outliers
 from mlstudio.services.pipelines import validate
+from mlstudio.services.temporal import features as temporal_features
+from mlstudio.services.temporal import resolved as resolved_temporal
 
 
 def operation(op):
@@ -118,6 +125,7 @@ def resolve(ir, dataset, selected_target, frame):
     target = next(c for c in columns if c["name"] == ir.target.column)
     plan = EffectiveExecutionPlan(
         dataset=ir.dataset,
+        schema_contract=contract_intent(ir, dataset),
         source=SourceContract(size_bytes=dataset.size_bytes),
         target=TargetPlan(
             column=ir.target.column,
@@ -126,16 +134,14 @@ def resolve(ir, dataset, selected_target, frame):
             positive_class=ir.target.positive_class,
             negative_class=next(c for c in classes if c != ir.target.positive_class),
         ),
-        features=tuple(
-            FeaturePlan(
-                name=c["name"],
-                physical_dtype=str(frame[c["name"]].dtype),
-                semantic_type=c["semantic_override"] or c["inferred_semantic_type"],
-                operations=tuple(operation(op) for op in ir.features[c["name"]].operations),
-            )
-            for c in columns
-            if c["name"] in ir.features and ir.features[c["name"]].included
-        ),
+        temporal=resolved_temporal(ir, dataset, frame),
+        derived=resolved_derived(ir, dataset, frame),
+        imputation=resolved_imputation(ir, dataset, frame),
+        cleaning=resolved_cleaning(ir, dataset, frame),
+        feature_engineering=resolved_engineering(ir, dataset, frame),
+        outlier_treatment=resolved_outliers(ir, dataset, frame),
+        feature_selection=ir.feature_selection,
+        features=temporal_features(ir, dataset, frame),
         split=ResolvedSplit(**ir.split.model_dump()),
         model=classifier(ir),
         implementation=ImplementationContract(

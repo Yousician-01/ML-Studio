@@ -6,6 +6,83 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ## [Unreleased]
 
+## [0.5.0] - Prepared, not published
+
+### Advanced preprocessing
+
+- Release integration journeys cover binary, multiclass and regression execution,
+  generated-code parity and portable raw-input inference across preprocessing stages.
+- Preserve historical source goldens while exercising new schema-guarded plans;
+  update the CLI/public candidate identity to 0.5.0 and clarify upgrade guidance.
+- Patch Next.js and its matching ESLint configuration to 16.4.6; production npm
+  dependency audit reports zero vulnerabilities at release preparation.
+
+- Computed feature lineage, central structural leakage/stage checks, Studio lineage
+  inspection and dependency-aware editing/removal without implicit cascading.
+- Sequential stateless engineering chaining, including safe stateless inputs to
+  fitted methods; fitted-output graphs remain unsupported.
+- New visual model raw-input and fitted estimator schemas, embedded in standalone
+  Python and existing saved-model artifacts. Historical source/models are unchanged.
+
+
+- Actionable source EDA: existing distributions/profiles now open Studio editors
+  through a Dataset/revision-checked handoff, preserving unsaved preparation.
+  Configurable exploratory IQR diagnostics, source variance, missingness thresholds
+  and strong-correlation summaries reuse the existing profiling and charting code.
+- Optional `outlier-treatment-v1` training-fitted IQR clipping/shared indicators,
+  and `feature-selection-v1` variance selection on explicitly eligible numeric
+  branches after configured imputation/scaling. Generated and saved raw-input
+  inference reuse fitted fences/masks. No dependency or migration added.
+
+- Optional `feature-engineering-v1`: guided numeric transforms, train-fitted power/
+  quantile transforms, explicit/training-derived bins, rare-category grouping and
+  typed ordinal mappings for source and temporal/generalized features.
+- Shared preview/generated/saved-inference runtime, explicit domain/unknown policies,
+  training-only learned parameters, Studio Applied Steps and conservative Run
+  comparison. No new dependency, model family or database migration.
+
+- Declarative `cleaning-v1` source normalization, typed replacement/conversion,
+  fixed UTC datetime filling and report/reject/coerce validation in the Studio.
+- Ordered missing/predicate row filters and deterministic duplicate removal before
+  splitting, with accurate retained-row previews and frozen population accounting.
+  Saved inference applies row-wise cleaning without filtering or deduplicating rows.
+- Cleaning Applied Steps, draft history and comparison guards; shared datetime
+  policy and unchanged legacy extension behavior. No dependency or migration added.
+
+- Selective/group-wise `imputation-v1` rules with explicit fallbacks, original
+  missingness indicators, Studio editing and Applied Steps integration.
+- Training-only global/group statistics retained in complete saved models and
+  executed by standalone generated Python. Configuration previews never fit
+  uploaded data. Quick imputers remain available with explicit replacement and
+  restoration; no migration, dependency or new model family is introduced.
+
+- Generalized `derived-v1` feature builder with Guided/Expression controls, typed
+  arithmetic/comparison/boolean/string/null operations and dependency-aware repair.
+- One bounded row-wise runtime across preview, all task compilers and complete
+  saved-model inference; temporal outputs can feed generalized expressions.
+- Studio column actions, real expression-prefix Applied Steps, undo/save/reload,
+  and conservative historical comparison. No migration, dependency changes or new
+  fitted preprocessing algorithms; missing/domain/precision policies are explicit.
+
+- Unified table-first Data Preparation Studio with type-aware column menus,
+  searchable transformation actions and reused source diagnostics.
+- IR-derived Applied Steps, genuine temporal-prefix previews, edit/remove/revert,
+  bounded undo/redo and revision-checked tab-memory recovery.
+- Explicit Apply/Save and validation before existing Train; old Prepare/Explore
+  links preserved. Fitted preview limits are visible. No backend/IR/migration or
+  preprocessing-engine changes in this UI integration.
+
+- Optional typed temporal-v1 features for binary classification, multiclass and
+  regression: calendar/ISO components, predicates, explicit cyclical components,
+  signed durations and completed calendar age with fixed/per-row references.
+- Prepare guided and nested-expression builders, explicit parsing/missing policies,
+  bounded preview diagnostics, save/discard and shared Live Python previews.
+- One stateless UTC transformer shared by preview, generated Python and complete
+  fitted-model inference; existing training-only imputation/scaling preserved.
+- Persist definitions in existing IR JSON; preserve old source goldens/history
+  when absent. No dependencies or database migration; conservative temporal-context
+  comparison warnings. No current clock, forecasting or lags.
+
 ## [0.4.0-beta.1] - Prepared, not published
 
 ### Added

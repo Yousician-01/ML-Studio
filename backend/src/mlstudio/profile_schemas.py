@@ -20,6 +20,11 @@ class HistogramBin(BaseModel):
 
 
 class NumericProfile(BaseModel):
+    iqr: float | None = None
+    variance: float | None = None
+    iqr_multiplier: float = 1.5
+    below_fence_count: int | None = None
+    above_fence_count: int | None = None
     count: int
     mean: float | None
     standard_deviation: float | None
@@ -166,6 +171,8 @@ class TargetRelationship(BaseModel):
 
 
 class RegressionProfileResponse(BaseModel):
+    feature_profile: ColumnProfile | None = None
+    correlation: CorrelationProfile | None = None
     task: Literal["regression"] = "regression"
     profile_version: Literal["regression-source-profile-v1"] = "regression-source-profile-v1"
     population: Literal["full_source"] = "full_source"
