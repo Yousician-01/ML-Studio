@@ -1,6 +1,8 @@
 """Real local MLflow store tests: association, frozen inputs, and failure isolation."""
 
 import json
+import sys
+import traceback
 from pathlib import Path
 
 import joblib
@@ -18,7 +20,12 @@ from mlstudio.models import Run
 def joined(client):
     for worker in client.app.state.execution.workers:
         worker.join(timeout=45)
-        assert not worker.is_alive()
+        if worker.is_alive():
+            frame = sys._current_frames().get(worker.ident)
+            stack = (
+                "".join(traceback.format_stack(frame)) if frame else "Worker exited during capture."
+            )
+            pytest.fail(f"{worker.name} did not exit within 45 seconds. Worker stack:\n{stack}")
 
 
 def test_local_success_tracking_and_frozen_history(client, settings, monkeypatch, tmp_path):
