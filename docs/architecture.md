@@ -316,7 +316,9 @@ raw columns from the emitted fixed constants. It embeds `schema_runtime_v1.py`.
 `ContractPreprocessor` wraps the existing ColumnTransformer/variance wrapper, freezes
 scikit-learn names/count/representation and selection mask, and checks inference
 compatibility/cardinality. Learned preprocessing is still fit only by the existing
-training Pipeline. Contracts are stored in the existing trusted model.joblib as
+training Pipeline. The raw guard records standard fitted input names/count so
+scikit-learn also recognizes fitted preprocessing prefixes. Contracts are stored
+in the existing trusted model.joblib as
 `pipeline.schema_contract_` and the fitted wrapper's `contract_`; no new artifact
 protocol, prediction API or migration is required. Old frozen source/models remain
 readable with their original behavior. These guards do not constrain arbitrary

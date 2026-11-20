@@ -4,7 +4,7 @@ Audience: users installing the local beta from a source checkout. For hot-reload
 
 ## Distribution and prerequisites
 
-Use a trusted checkout of `release/v0.4.0-beta.1` while the release is prepared. No published binary/package is assumed. Do not install an unrelated package named `mls` from a package registry.
+Use a trusted checkout of `feature/v0.5.0-advanced-preprocessing` while the release is prepared. No published binary/package is assumed. Do not install an unrelated package named `mls` from a package registry.
 
 | Requirement | Declared minimum | Validation reference |
 | --- | --- | --- |
@@ -13,7 +13,7 @@ Use a trusted checkout of `release/v0.4.0-beta.1` while the release is prepared.
 | Rust/Cargo for source bootstrap | Rust 1.89 (crate MSRV) | CI pins Rust 1.99.1; use it for matching builds |
 | Git | Available on PATH | Required for checkout/contribution |
 
-Manifest minima do not establish testing on every version. Dependencies must also have compatible wheels. See [current validation evidence](development/beta-release-readiness.md). CLI targets are Windows x64, Linux GNU x64, macOS Apple Silicon and Intel. Other architectures/distributions are not acceptance-certified. Four-platform CI exists; confirm its results before promising cross-platform support.
+Manifest minima do not establish testing on every version. Dependencies must also have compatible wheels. See [current validation evidence](development/v0.5.0-release-readiness.md). CLI targets are Windows x64, Linux GNU x64, macOS Apple Silicon and Intel. Other architectures/distributions are not acceptance-certified. Four-platform CI exists; confirm its results before promising cross-platform support.
 
 Python and Node are prerequisites, not downloaded or embedded by Rust. Prefer official Node layouts including npm; alternative runtime-manager layouts may not be detected. Use [Python downloads](https://www.python.org/downloads/), [Node downloads](https://nodejs.org/en/download), [Git](https://git-scm.com/downloads), and [rustup](https://rustup.rs/).
 
@@ -26,7 +26,7 @@ python --version
 node --version
 npm.cmd --version
 cargo --version
-git clone --branch release/v0.4.0-beta.1 https://github.com/Yousician-01/ML-Studio.git
+git clone --branch feature/v0.5.0-advanced-preprocessing https://github.com/Yousician-01/ML-Studio.git
 Set-Location ML-Studio
 .\scripts\bootstrap-cli.ps1 -FromSource
 ```
@@ -63,7 +63,7 @@ npm --version
 See the [Python formula](https://formulae.brew.sh/formula/python@3.14) and [Node formula](https://formulae.brew.sh/formula/node@24). Install Rust using official rustup instructions; native compilation also needs Apple's command-line developer tools (`xcode-select --install` if absent).
 
 ```sh
-git clone --branch release/v0.4.0-beta.1 https://github.com/Yousician-01/ML-Studio.git
+git clone --branch feature/v0.5.0-advanced-preprocessing https://github.com/Yousician-01/ML-Studio.git
 cd ML-Studio
 sh scripts/bootstrap-cli.sh --source
 export PATH="$HOME/.local/bin:$PATH"
@@ -84,7 +84,7 @@ python3 --version
 node --version
 npm --version
 cargo --version
-git clone --branch release/v0.4.0-beta.1 https://github.com/Yousician-01/ML-Studio.git
+git clone --branch feature/v0.5.0-advanced-preprocessing https://github.com/Yousician-01/ML-Studio.git
 cd ML-Studio
 sh scripts/bootstrap-cli.sh --source
 export PATH="$HOME/.local/bin:$PATH"
@@ -100,7 +100,7 @@ For persistent PATH on macOS/Linux, place `export PATH="$HOME/.local/bin:$PATH"`
 
 | Command | Purpose |
 | --- | --- |
-| `mls --version` | Confirm CLI identity: 0.4.0-beta.1 |
+| `mls --version` | Confirm CLI identity: 0.5.0 |
 | `mls install` | Prepare managed Python environment, npm dependencies, production build and backed-up migrations; initially and after relevant source/configuration changes |
 | `mls doctor` | Read-only prerequisite/configuration/schema diagnostics; does not migrate |
 | `mls start` | Run real FastAPI on 127.0.0.1:8000 and real production Next.js on 127.0.0.1:3000 in foreground |

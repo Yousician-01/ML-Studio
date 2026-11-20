@@ -1,5 +1,7 @@
 # Development
 
+Current release candidate: **v0.5.0**. See [release validation and notes](development/v0.5.0-release-readiness.md). Phase records below retain their historical context; their older test counts are not the current release gate.
+
 ## Declarative cleaning (v0.5 Commit 05)
 
 `cleaning_schemas.py` / `cleaning_runtime_v1.py` provide bounded `cleaning-v1`
@@ -292,7 +294,7 @@ bounded reporting from Code Runs to the shared Evaluate bench.
 Active Code Mode sessions suspend visual Dataset/Pipeline editing and new visual
 execution. Explicit snapshot-save or discard restores the preserved visual recipe;
 historical Runs and compiler/IR versions remain unchanged. Public/CLI release
-identity is 0.4.0-beta.1; frontend/backend package versions remain independently
+identity is 0.5.0; frontend/backend package versions remain independently
 versioned at 0.2.0. IR/result identities are separate. See the linked guide for
 setup and limitations.
 
@@ -1356,3 +1358,20 @@ fitted sklearn names/order/width, cleaning-compatible inputs, all-task standalon
 inference, stateless-to-fitted chaining, transitive imputation admission and blocked
 producer removal with retained history. Run the existing frontend typecheck/lint/build
 and Ruff checks; avoid retraining unrelated models or rewriting historical artifacts.
+
+## v0.5.0 release integration
+
+Current candidate evidence and proposed release notes are in
+[v0.5.0 readiness](development/v0.5.0-release-readiness.md). The older beta report
+is historical evidence, not the current acceptance result. Public/CLI version is
+0.5.0; Python/frontend packages remain independently versioned at 0.2.0. Frozen IR,
+generator, runtime and result identifiers are not release-number substitutes.
+
+The optional v0.5 extensions are carried by the existing task-specific Pipeline IR:
+`temporal`, `derived`, `imputation`, `cleaning`, `feature_engineering`,
+`outlier_treatment`, and `feature_selection`, each with its own version field.
+They do not change `ir_version` or add a migration. See the Studio guide for actual
+parameters, stage ordering, null policies and supported chains. Omitted extensions
+preserve historical serialization/source goldens. The resolved `schema_contract`
+belongs to the execution plan, not a second editable IR; exact fitted schema lives
+in the complete model artifact. No frozen specification has been rewritten.

@@ -16,6 +16,8 @@ class RawInputs(TransformerMixin, BaseEstimator):
 
     def fit(self, X, y=None):
         self.transform(X)
+        self.feature_names_in_ = np.asarray(X.columns, dtype=object)
+        self.n_features_in_ = len(X.columns)
         return self
 
     def transform(self, X):

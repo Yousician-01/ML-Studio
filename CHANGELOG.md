@@ -6,7 +6,16 @@ release entry does not imply that its tag or GitHub release has been published.
 
 ## [Unreleased]
 
-### v0.5.0 - Advanced preprocessing
+## [0.5.0] - Prepared, not published
+
+### Advanced preprocessing
+
+- Release integration journeys cover binary, multiclass and regression execution,
+  generated-code parity and portable raw-input inference across preprocessing stages.
+- Preserve historical source goldens while exercising new schema-guarded plans;
+  update the CLI/public candidate identity to 0.5.0 and clarify upgrade guidance.
+- Patch Next.js and its matching ESLint configuration to 16.4.6; production npm
+  dependency audit reports zero vulnerabilities at release preparation.
 
 - Computed feature lineage, central structural leakage/stage checks, Studio lineage
   inspection and dependency-aware editing/removal without implicit cascading.

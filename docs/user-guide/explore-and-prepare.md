@@ -257,9 +257,9 @@ guard; Apply alone is not durable storage or execution.
 New columns appear in the table and **Applied Steps** after temporal derivations
 and before feature participation/fitted branches. Select a step to recompute its
 actual expression prefix, Edit to reopen its builder, or Remove/Revert with the
-existing confirmation. Renaming/removing a feature retains dependent definitions
-and warns; references must be repaired explicitly. Invalid groups expose each
-retained definition for repair. Undo/Redo and Save/Discard retain their Studio
+existing confirmation. Dependency-breaking renames/removals are blocked until
+consumers are removed or repaired; an explicit bulk revert can remove a suffix.
+Previously invalid groups still expose retained definitions for repair. Undo/Redo and Save/Discard retain their Studio
 semantics. Editing a name does not rewrite downstream references automatically.
 
 Configure compatible downstream imputation/scaling/encoding from the new column's

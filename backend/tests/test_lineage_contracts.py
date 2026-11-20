@@ -92,6 +92,10 @@ def test_raw_guard_projects_extras_before_derivation_and_leaves_cleaning_values_
     result = guard.fit_transform(raw)
     assert result.columns.tolist() == ["x"] and result.x.tolist() == ["NA", " 3 "]
     assert result.index.tolist() == [9, 2]
+    # sklearn must recognize a fitted prefix containing only the raw schema guard.
+    from sklearn.pipeline import Pipeline
+
+    pd.testing.assert_frame_equal(Pipeline([("raw_schema", guard)]).transform(raw), result)
     with pytest.raises(ValueError, match="x"):
         guard.transform(raw.drop(columns="x"))
     with pytest.raises(ValueError, match="unique"):
